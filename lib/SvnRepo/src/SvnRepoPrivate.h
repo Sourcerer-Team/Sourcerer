@@ -143,11 +143,13 @@ private:
 // selection made by the user is kept as a changelist in the working copy.
 inline constexpr const char *kStagingChangelist = "sourcerer-staged";
 
-// Commits the local modifications below the working copy root. When
-// changelists is not null, only the items in those changelists are committed.
+// Commits the local modifications below the working copy root.
 svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
-                               const apr_array_header_t *changelists,
                                svn_client_ctx_t *ctx, apr_pool_t *pool);
+
+// Commits the local modifications of paths, without their children.
+svn_error_t *commitPaths(const QStringList &paths, const QString &message,
+                         svn_client_ctx_t *ctx, apr_pool_t *pool);
 
 // Status of the working copy, paths relative to its root.
 SvnStatus readStatus(const QString &wcPath, const bool *quitFlag);

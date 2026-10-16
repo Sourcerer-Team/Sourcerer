@@ -31,14 +31,17 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
 #include <QVector>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -478,6 +481,8 @@ static void clearCurrentRepositoryPath() {
 struct StatusBaton {
   SvnStatus *status = nullptr;
   QString wcRoot;
+  // Subversion does not report the content of unversioned directories.
+  QStringList unversionedDirectories;
 };
 
 static void addStatusPath(SvnStatus *status, const QString &path,
@@ -550,14 +555,137 @@ static svn_error_t *statusCallback(void *baton, const char *path,
     return SVN_NO_ERROR;
   }
 
-  const QString relativePath = Private::relativeFilePath(
-      payload->wcRoot, QString::fromUtf8(status->local_abspath));
+  const QString absolutePath = QString::fromUtf8(status->local_abspath);
+  const QString relativePath =
+      Private::relativeFilePath(payload->wcRoot, absolutePath);
   if (relativePath.isEmpty() || relativePath == QStringLiteral(".")) {
     return SVN_NO_ERROR;
   }
 
+  // The kind of unversioned nodes is unknown to Subversion, so it is read from
+  // disk.
+  if (status->node_status == svn_wc_status_unversioned && !status->conflicted) {
+    const QFileInfo info(absolutePath);
+    const bool isWorkingCopy = QFileInfo::exists(
+        absolutePath + QLatin1Char('/') +
+        QString::fromUtf8(svn_wc_get_adm_dir(nullptr)));
+    if (info.isDir() && !info.isSymLink() && !isWorkingCopy) {
+      payload->unversionedDirectories.append(absolutePath);
+      return SVN_NO_ERROR;
+    }
+  }
+
   addStatusPath(payload->status, relativePath, status);
   return SVN_NO_ERROR;
+}
+
+static void appendIgnorePatterns(apr_array_header_t *patterns,
+                                 const svn_string_t *value, apr_pool_t *pool) {
+  if (value) {
+    svn_cstring_split_append(patterns, value->data, "\n\r", TRUE, pool);
+  }
+}
+
+// Ignore patterns for the content of an unversioned directory below the
+// versioned directory parentPath: the global-ignores of the configuration and
+// the svn:global-ignores of parentPath and its parents. The svn:ignore of
+// parentPath only applies to its direct children, which Subversion already
+// filtered.
+static svn_error_t *readIgnorePatterns(apr_array_header_t **patterns,
+                                       const QString &parentPath,
+                                       svn_client_ctx_t *ctx,
+                                       apr_pool_t *pool) {
+  SVN_ERR(svn_wc_get_default_ignores(patterns, ctx->config, pool));
+
+  const QByteArray target = parentPath.toUtf8();
+  const svn_opt_revision_t peg = Private::revisionUnspecified();
+  const svn_opt_revision_t revision = Private::revisionWorking();
+  apr_hash_t *properties = nullptr;
+  apr_array_header_t *inherited = nullptr;
+  SVN_ERR(svn_client_propget5(&properties, &inherited,
+                              SVN_PROP_INHERITABLE_IGNORES, target.constData(),
+                              &peg, &revision, nullptr, svn_depth_empty,
+                              nullptr, ctx, pool, pool));
+
+  for (apr_hash_index_t *index = apr_hash_first(pool, properties); index;
+       index = apr_hash_next(index)) {
+    appendIgnorePatterns(
+        *patterns, static_cast<const svn_string_t *>(apr_hash_this_val(index)),
+        pool);
+  }
+
+  for (int i = 0; inherited && i < inherited->nelts; ++i) {
+    const auto *item =
+        APR_ARRAY_IDX(inherited, i, const svn_prop_inherited_item_t *);
+    appendIgnorePatterns(
+        *patterns,
+        static_cast<const svn_string_t *>(
+            svn_hash_gets(item->prop_hash, SVN_PROP_INHERITABLE_IGNORES)),
+        pool);
+  }
+
+  return SVN_NO_ERROR;
+}
+
+// Reports the files below an unversioned directory as new files, like Git
+// reports the files of untracked directories. Nested working copies are
+// reported as a whole, as Subversion does.
+static void addUnversionedFiles(SvnStatus *status, const QString &wcRoot,
+                                const QString &directory,
+                                const apr_array_header_t *patterns,
+                                apr_pool_t *pool) {
+  const QFileInfoList entries = QDir(directory).entryInfoList(
+      QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+      QDir::Name);
+  for (const QFileInfo &entry : entries) {
+    const QByteArray name = entry.fileName().toUtf8();
+    if (svn_wc_is_adm_dir(name.constData(), pool) ||
+        svn_wc_match_ignore_list(name.constData(), patterns, pool)) {
+      continue;
+    }
+
+    const QString path = entry.absoluteFilePath();
+    const bool isWorkingCopy = QFileInfo::exists(
+        path + QLatin1Char('/') + QString::fromUtf8(svn_wc_get_adm_dir(pool)));
+    if (entry.isDir() && !entry.isSymLink() && !isWorkingCopy) {
+      addUnversionedFiles(status, wcRoot, path, patterns, pool);
+    } else {
+      status->newFiles.append(Private::relativeFilePath(wcRoot, path));
+    }
+  }
+}
+
+// Directories are only reported when nothing below them is, so they show up
+// as folders of the files they hold.
+static void removeParentDirectories(SvnStatus *status) {
+  const std::initializer_list<QStringList *> lists = {
+      &status->newFiles,           &status->modifiedFiles,
+      &status->deletedFiles,       &status->typeChangedFiles,
+      &status->newStagedFiles,     &status->modifiedStagedFiles,
+      &status->deletedStagedFiles, &status->typeChangedStagedFiles,
+      &status->renamedStagedFiles};
+
+  QSet<QString> parents;
+  for (const QStringList *list : lists) {
+    for (const QString &path : *list) {
+      for (int slash = path.lastIndexOf(QLatin1Char('/')); slash > 0;
+           slash = path.lastIndexOf(QLatin1Char('/'), slash - 1)) {
+        parents.insert(path.left(slash));
+      }
+    }
+  }
+
+  if (parents.isEmpty()) {
+    return;
+  }
+
+  for (QStringList *list : lists) {
+    list->erase(std::remove_if(list->begin(), list->end(),
+                               [&](const QString &path) {
+                                 return parents.contains(path);
+                               }),
+                list->end());
+  }
 }
 
 struct CommitLogBaton {
@@ -982,13 +1110,21 @@ LogMessageScope::~LogMessageScope() {
 }
 
 svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
-                               const apr_array_header_t *changelists,
                                svn_client_ctx_t *ctx, apr_pool_t *pool) {
   const PathArray targets = makePathArray(pool, {normalizedPath(wcPath)});
   const LogMessageScope logMessage(ctx, message);
   return svn_client_commit6(targets.array, svn_depth_infinity, FALSE, FALSE,
-                            TRUE, FALSE, FALSE, changelists, nullptr, nullptr,
+                            TRUE, FALSE, FALSE, nullptr, nullptr, nullptr,
                             nullptr, ctx, pool);
+}
+
+svn_error_t *commitPaths(const QStringList &paths, const QString &message,
+                         svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  const PathArray targets = makePathArray(pool, paths);
+  const LogMessageScope logMessage(ctx, message);
+  return svn_client_commit6(targets.array, svn_depth_empty, FALSE, FALSE, TRUE,
+                            FALSE, FALSE, nullptr, nullptr, nullptr, nullptr,
+                            ctx, pool);
 }
 
 SvnStatus readStatus(const QString &wcPath, const bool *quitFlag) {
@@ -1006,18 +1142,34 @@ SvnStatus readStatus(const QString &wcPath, const bool *quitFlag) {
         const QByteArray absPath = result.path.toUtf8();
         const svn_opt_revision_t revision = revisionWorking();
         svn_revnum_t youngest = SVN_INVALID_REVNUM;
-        return reportError(SvnError::StatusFailed,
-                           svn_client_status6(&youngest, ctx,
-                                              absPath.constData(), &revision,
-                                              svn_depth_infinity, FALSE, FALSE,
-                                              TRUE, FALSE, TRUE, FALSE, nullptr,
-                                              statusCallback, &baton, pool));
+        if (!reportError(SvnError::StatusFailed,
+                         svn_client_status6(
+                             &youngest, ctx, absPath.constData(), &revision,
+                             svn_depth_infinity, FALSE, FALSE, TRUE, FALSE,
+                             TRUE, FALSE, nullptr, statusCallback, &baton,
+                             pool))) {
+          return false;
+        }
+
+        for (const QString &directory : baton.unversionedDirectories) {
+          apr_array_header_t *patterns = nullptr;
+          if (!reportError(SvnError::StatusFailed,
+                           readIgnorePatterns(&patterns,
+                                              QFileInfo(directory).path(), ctx,
+                                              pool))) {
+            return false;
+          }
+          addUnversionedFiles(&result, result.path, directory, patterns, pool);
+        }
+        return true;
       },
       wcPath);
 
   if (!success) {
     return SvnStatus();
   }
+
+  removeParentDirectories(&result);
 
   for (QStringList *list :
        {&result.newFiles, &result.modifiedFiles, &result.deletedFiles,

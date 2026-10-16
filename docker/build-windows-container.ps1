@@ -39,7 +39,8 @@ if (-not (Test-Path $buildScript)) {
     throw 'Build script not found inside the container'
 }
 
-& cmd /c $buildScript
+# 'call' makes cmd.exe propagate the script's 'exit /b' code as its process exit code
+& cmd /c "call `"$buildScript`""
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Project build failed' -ForegroundColor Red
     exit 1

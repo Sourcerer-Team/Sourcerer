@@ -344,12 +344,16 @@ FilesDiff diffFiles(const QString &path, const QStringList &files) {
           FileStatusBaton status;
           const svn_opt_revision_t working = revisionWorking();
           svn_revnum_t youngest = SVN_INVALID_REVNUM;
-          if (!reportError(
-                  SvnError::StatusFailed,
-                  svn_client_status6(&youngest, ctx, pathBytes.constData(),
-                                     &working, svn_depth_empty, TRUE, FALSE,
-                                     TRUE, TRUE, TRUE, FALSE, nullptr,
-                                     fileStatusCallback, &status, pool))) {
+          svn_error_t *statusError = svn_client_status6(
+              &youngest, ctx, pathBytes.constData(), &working, svn_depth_empty,
+              TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, nullptr, fileStatusCallback,
+              &status, pool);
+          // Files below an unversioned directory are unknown to Subversion.
+          if (statusError && statusError->apr_err == SVN_ERR_WC_PATH_NOT_FOUND) {
+            svn_error_clear(statusError);
+            statusError = SVN_NO_ERROR;
+          }
+          if (!reportError(SvnError::StatusFailed, statusError)) {
             return false;
           }
 

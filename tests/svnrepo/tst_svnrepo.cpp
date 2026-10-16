@@ -38,6 +38,7 @@ private slots:
 
   void initCreatesStandardLayout();
   void stageUnstageAndCommit();
+  void unversionedDirectories();
   void unstagingAModificationFails();
   void diffAndDiscard();
   void historyAndCommitQueries();
@@ -136,6 +137,34 @@ void SvnRepoTest::stageUnstageAndCommit() {
   QVERIFY(commit.message.startsWith(QStringLiteral("Add a\n\nBody")));
   QVERIFY(commit.message.contains(
       QStringLiteral("Signed-off-by: Tester <tester@example.com>")));
+}
+
+void SvnRepoTest::unversionedDirectories() {
+  QVERIFY(writeFile(file("dir/c.txt"), "c\n"));
+  QVERIFY(writeFile(file("dir/sub/b.txt"), "b\n"));
+
+  // The files are reported instead of the directory, so they can be shown in
+  // a tree.
+  SvnRepo::SvnStatus status = SvnRepo::getStatus(_wc, _quit);
+  QCOMPARE(status.newFiles, (QStringList{QStringLiteral("dir/c.txt"),
+                                         QStringLiteral("dir/sub/b.txt")}));
+
+  QVERIFY2(SvnRepo::stageFiles(_wc, {QStringLiteral("dir/sub/b.txt")}),
+           qPrintable(lastErrorMessage()));
+  status = SvnRepo::getStatus(_wc, _quit);
+  QCOMPARE(status.newStagedFiles, QStringList{QStringLiteral("dir/sub/b.txt")});
+  QCOMPARE(status.newFiles, QStringList{QStringLiteral("dir/c.txt")});
+
+  // The added parent directories are committed with the staged file.
+  QVERIFY2(SvnRepo::commitStaged(_wc, QStringLiteral("Add b"), QString(),
+                                 kAuthor, kEmail, true, false, false),
+           qPrintable(lastErrorMessage()));
+  status = SvnRepo::getStatus(_wc, _quit);
+  QVERIFY(status.newStagedFiles.isEmpty());
+  QCOMPARE(status.newFiles, QStringList{QStringLiteral("dir/c.txt")});
+
+  QVERIFY(!commitAll(QStringLiteral("Add c")).isEmpty());
+  QVERIFY(!SvnRepo::getStatus(_wc, _quit).hasChanges());
 }
 
 void SvnRepoTest::unstagingAModificationFails() {
