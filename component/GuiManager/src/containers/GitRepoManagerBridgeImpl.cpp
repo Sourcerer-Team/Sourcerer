@@ -207,7 +207,8 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
-                                     const QStringList &files) {
+                                     const QStringList &files,
+                                     const QString & /*commit*/) {
   LOG_PERF(0, "Enter");
 
   if (files.isEmpty()) {

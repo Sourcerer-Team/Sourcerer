@@ -124,6 +124,16 @@ static QString shelfRelativePath(const QString &wcPath, const QString &file) {
                                       : QDir::fromNativeSeparators(file);
 }
 
+// Files with a leading slash are repository-root relative (see
+// getCommitStatus); other files are relative to the working copy.
+static QString commitFileUrl(const WorkingCopyInfo &info, const QString &wcPath,
+                             const QString &file) {
+  if (file.startsWith(QLatin1Char('/'))) {
+    return Private::trimmedUrl(info.reposRootUrl) + file;
+  }
+  return urlOfRelativePath(info.url, shelfRelativePath(wcPath, file));
+}
+
 static FilesDiff diffFilesFromShelf(const QString &path,
                                     const QStringList &files,
                                     const QString &shelfName) {
@@ -445,10 +455,7 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
             revisionNumber(revision > 0 ? revision - 1 : 0);
 
         for (const QString &file : files) {
-          const QString relativePath = QFileInfo(file).isAbsolute()
-                                           ? relativeFilePath(wcPath, file)
-                                           : QDir::fromNativeSeparators(file);
-          const QString fileUrl = urlOfRelativePath(info.url, relativePath);
+          const QString fileUrl = commitFileUrl(info, wcPath, file);
 
           QByteArray oldContent;
           svn_error_t *error = readFileAtRevision(
@@ -599,11 +606,8 @@ qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
           return false;
         }
 
-        const QString relativePath = QFileInfo(filePath).isAbsolute()
-                                         ? relativeFilePath(wcPath, filePath)
-                                         : QDir::fromNativeSeparators(filePath);
         const QByteArray fileUrl =
-            urlOfRelativePath(info.url, relativePath).toUtf8();
+            commitFileUrl(info, wcPath, filePath).toUtf8();
         const svn_opt_revision_t peg = revisionNumber(revision);
         return reportError(SvnError::InfoFailed,
                            svn_client_list4(fileUrl.constData(), &peg, &peg,
@@ -618,14 +622,22 @@ qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
   return success ? baton.size : -1;
 }
 
-BlameReport blame(const QString &path, const QStringList &files) {
+BlameReport blame(const QString &path, const QStringList &files,
+                  const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString wcPath = normalizedPath(path);
   BlameReport report;
 
+  // A revision commit blames the files at that revision; otherwise the
+  // working copy (local files) or HEAD (repository-root files) is used.
+  svn_revnum_t revision = SVN_INVALID_REVNUM;
+  const bool atRevision = parseRevision(commit, &revision);
+
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
+        bool infoRead = false;
         for (const QString &file : files) {
           BlameFileInfo fileInfo;
           fileInfo.filePath = file;
@@ -633,10 +645,32 @@ BlameReport blame(const QString &path, const QStringList &files) {
           BlameBaton baton;
           baton.file = &fileInfo;
 
-          const QByteArray pathBytes = absoluteFilePath(wcPath, file).toUtf8();
-          const svn_opt_revision_t peg = revisionWorking();
+          // Repository-root files (see getCommitStatus) have no local path,
+          // so they are blamed by URL.
+          QByteArray pathBytes;
+          svn_opt_revision_t peg = revisionWorking();
+          svn_opt_revision_t end = revisionWorking();
+          if (file.startsWith(QLatin1Char('/'))) {
+            if (!infoRead) {
+              if (!reportError(SvnError::InfoFailed,
+                               readInfo(&info, wcPath, revisionUnspecified(),
+                                        ctx, pool))) {
+                return false;
+              }
+              infoRead = true;
+            }
+            pathBytes =
+                (Private::trimmedUrl(info.reposRootUrl) + file).toUtf8();
+            peg = revisionHead();
+            end = revisionHead();
+          } else {
+            pathBytes = absoluteFilePath(wcPath, file).toUtf8();
+          }
+          if (atRevision) {
+            peg = revisionNumber(revision);
+            end = revisionNumber(revision);
+          }
           const svn_opt_revision_t start = revisionNumber(0);
-          const svn_opt_revision_t end = revisionWorking();
           svn_revnum_t startRevision = SVN_INVALID_REVNUM;
           svn_revnum_t endRevision = SVN_INVALID_REVNUM;
           const svn_diff_file_options_t *diffOptions =

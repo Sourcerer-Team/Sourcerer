@@ -6057,7 +6057,8 @@ void SvnRepoManagerBridgeImpl::reportUnsupportedOperation(
 }
 
 void SvnRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
-                                     const QStringList &files) {
+                                     const QStringList &files,
+                                     const QString &commit) {
   LOG_PERF(0, "Enter");
 
   if (files.isEmpty()) {
@@ -6073,6 +6074,7 @@ void SvnRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
   command.files = files;
+  command.commit = commit;
 
   EventManager::Event blameEvent(EventManager::EventType::SvnRepoManagerBlame,
                                  eventUuid);

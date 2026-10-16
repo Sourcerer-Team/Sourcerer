@@ -312,7 +312,8 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
 QString createPatchFromCommit(const QString &path, const QString &commit);
 qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
                              const QString &commit);
-BlameReport blame(const QString &path, const QStringList &files);
+BlameReport blame(const QString &path, const QStringList &files,
+                  const QString &commit);
 
 // History.
 SvnHistory getBranchHistory(const QString &path, const QString &branchName,

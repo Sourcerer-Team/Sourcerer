@@ -17,7 +17,7 @@ public:
   RepoFeatures features() const override;
 
   void blame(const QWeakPointer<RepoContainer> &guard,
-             const QStringList &files) override;
+             const QStringList &files, const QString &commit) override;
 
   // Shows a blame report in the blame view of container.
   static void showBlameReport(RepoContainer &container,

@@ -309,7 +309,7 @@ private slots:
 
 private:
   void applyToolBoxIcons();
-  void blame(const QStringList &files);
+  void blame(const QStringList &files, const QString &commit = {});
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
