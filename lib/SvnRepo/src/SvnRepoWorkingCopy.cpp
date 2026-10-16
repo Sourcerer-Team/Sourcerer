@@ -371,36 +371,40 @@ bool ignoreFiles(const QString &path, const QStringList &files, bool recursive) 
   LOG_PERF(0, "Enter");
 
   const QString wcPath = normalizedPath(path);
-  QMap<QString, QStringList> names;
-  QSet<QString> recursiveDirectories;
-  for (const QString &file : files) {
-    const QFileInfo info(file);
-    QString directory = info.path();
-    if (directory == QLatin1String(".")) {
-      directory.clear();
-    }
-
-    if (!recursive) {
-      names[directory].append(info.fileName());
-    } else if (QFileInfo(absoluteFilePath(wcPath, file)).isDir()) {
-      recursiveDirectories.insert(QDir::cleanPath(file));
-    } else if (!directory.isEmpty()) {
-      recursiveDirectories.insert(directory);
-    }
-  }
-
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        for (auto it = names.cbegin(); it != names.cend(); ++it) {
-          if (!it.key().isEmpty() &&
-              !isVersionedPath(wcPath, it.key(), ctx, pool)) {
-            setLastError(
-                SvnError::PropertyFailed, -1,
-                QStringLiteral("Cannot ignore \"%1\" alone because its folder "
-                               "\"%2\" is not under version control. Use "
-                               "\"Ignore all files recursively\" instead.")
-                    .arg(it.value().first(), it.key()));
-            return false;
+        QMap<QString, QStringList> names;
+        QSet<QString> recursiveDirectories;
+        QHash<QString, bool> versionedCache;
+        auto isVersionedCached = [&](const QString &directory) {
+          if (!versionedCache.contains(directory)) {
+            versionedCache.insert(
+                directory, isVersionedPath(wcPath, directory, ctx, pool));
+          }
+          return versionedCache.value(directory);
+        };
+
+        for (const QString &file : files) {
+          const QFileInfo info(file);
+          QString directory = info.path();
+          if (directory == QLatin1String(".")) {
+            directory.clear();
+          }
+
+          const bool isDirectory =
+              QFileInfo(absoluteFilePath(wcPath, file)).isDir();
+          if (recursive) {
+            if (isDirectory) {
+              recursiveDirectories.insert(QDir::cleanPath(file));
+            } else if (!directory.isEmpty()) {
+              recursiveDirectories.insert(directory);
+            }
+          } else if (directory.isEmpty() || isVersionedCached(directory)) {
+            names[directory].append(info.fileName());
+          } else {
+            // The parent is untracked, so its topmost untracked folder is
+            // ignored instead of the file.
+            recursiveDirectories.insert(directory);
           }
         }
 
