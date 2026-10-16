@@ -1,0 +1,12 @@
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/gen_test_char.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/test_char_header.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/libapr-1.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/apr-1.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/libaprapp-1.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/aprapp-1.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/edit_cache.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/rebuild_cache.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/list_install_components.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/install.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/install/local.dir
+C:/Work/Sourcerer/lib/apr/_cmake-test/CMakeFiles/install/strip.dir

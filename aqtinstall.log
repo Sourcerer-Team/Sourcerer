@@ -1,0 +1,67 @@
+2026-07-28 01:35:51,490 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6103/qt6_6103/Updates.xml.sha256
+2026-07-28 01:35:52,619 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:53,058 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:53,512 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:53,967 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:54,435 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:54,899 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:55,369 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:55,878 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:56,332 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:56,770 - aqt.helper - DEBUG - helper 2812 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:35:57,208 - aqt.main - ERROR - installer 2812 No modules available for this request.
+==============================Suggested follow-up:==============================
+* Please use 'aqt list-qt windows desktop' to show versions of Qt available.
+* Please use 'aqt list-qt windows desktop --arch <QT_VERSION>' to list valid architectures.
+2026-07-28 01:36:25,041 - aqt.main - ERROR - installer 28440 Invalid version: '--arch'! Please use the form '5.X.Y'.
+2026-07-28 01:36:34,591 - aqt.main - ERROR - installer 30120 Invalid version: '--arch'! Please use the form '5.X.Y'.
+2026-07-28 01:36:39,475 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6103/qt6_6103/Updates.xml.sha256
+2026-07-28 01:36:40,497 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:40,954 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:41,427 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:41,921 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:42,358 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:42,854 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:43,310 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:43,774 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:44,207 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:44,650 - aqt.helper - DEBUG - helper 2928 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-07-28 01:36:45,133 - aqt.main - ERROR - installer 2928 No modules available for this request.
+==============================Suggested follow-up:==============================
+* Please use 'aqt list-qt windows desktop' to show versions of Qt available.
+* Please use 'aqt list-qt windows desktop --arch <QT_VERSION>' to list valid architectures.
+2026-07-28 01:38:09,190 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6103/qt6_6103/Updates.xml.sha256
+2026-07-28 01:38:10,191 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:10,636 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:11,089 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:11,532 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:12,067 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:12,578 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:13,012 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:13,457 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:13,895 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:14,370 - aqt.helper - DEBUG - helper 12424 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2019_64/Updates.xml.sha256
+2026-07-28 01:38:14,840 - aqt.main - ERROR - installer 12424 No modules available for this request.
+==============================Suggested follow-up:==============================
+* Please use 'aqt list-qt windows desktop' to show versions of Qt available.
+* Please use 'aqt list-qt windows desktop --arch <QT_VERSION>' to list valid architectures.
+2026-07-28 01:38:22,817 - aqt.helper - DEBUG - helper 11444 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6103/qt6_6103/Updates.xml.sha256
+2026-07-28 01:38:23,864 - aqt.helper - DEBUG - helper 11444 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtpdf/6103/msvc2022_64/Updates.xml.sha256
+2026-07-28 01:38:24,771 - aqt.helper - DEBUG - helper 11444 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/extensions/qtwebengine/6103/msvc2022_64/Updates.xml.sha256
+2026-07-28 01:39:26,746 - aqt.main - WARNING - installer 28916 The parameter 'extensions' with value '6.10.3' is deprecated and marked for removal in a future version of aqt.
+In the future, please omit this parameter.
+2026-07-28 01:39:26,746 - aqt.main - WARNING - installer 28916 The '--extensions' flag will always return an empty list, because there are no useful arguments for the '--extension' flag.
+2026-07-28 01:39:48,575 - aqt.main - WARNING - installer 29608 The parameter 'extensions' with value 'latest' is deprecated and marked for removal in a future version of aqt.
+In the future, please omit this parameter.
+2026-07-28 01:39:48,575 - aqt.main - WARNING - installer 29608 The '--extensions' flag will always return an empty list, because there are no useful arguments for the '--extension' flag.
+2026-07-28 01:40:33,427 - aqt.helper - DEBUG - helper 27216 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_6.10.3/Updates.xml.sha256
+2026-07-28 01:40:33,890 - aqt.helper - DEBUG - helper 27216 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_6.10.3/Updates.xml.sha256
+2026-07-28 01:40:34,347 - aqt.helper - DEBUG - helper 27216 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_6.10.3/Updates.xml.sha256
+2026-07-28 01:40:34,795 - aqt.helper - DEBUG - helper 27216 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_6.10.3/Updates.xml.sha256
+2026-07-28 01:40:35,244 - aqt.helper - DEBUG - helper 27216 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_6.10.3/Updates.xml.sha256
+2026-07-28 01:40:35,705 - aqt.main - ERROR - installer 27216 Failed to download checksum for the file 'Updates.xml' from mirrors '['https://download.qt.io']
+==============================Suggested follow-up:==============================
+* Check your internet connection
+* Consider modifying `requests.max_retries_to_retrieve_hash` in settings.ini
+* Consider modifying `mirrors.trusted_mirrors` in settings.ini (see https://aqtinstall.readthedocs.io/en/stable/configuration.html#configuration)
+* Please use 'aqt list-tool windows desktop' to check what tools are available.

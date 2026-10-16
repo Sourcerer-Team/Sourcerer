@@ -1,0 +1,1014 @@
+Test ID,Feature Area,Test Case,Test Steps,Expected Result,Priority,Status,Notes
+TC-001,Installation,Windows Installation,"1. Download Sourcerer-0.0.1-Installer.exe
+2. Run the installer
+3. Follow installation wizard
+4. Complete installation","Application installs successfully in Program Files
+Desktop/Start menu shortcuts created
+Application launches without errors",High,Not Tested,
+TC-002,Installation,Linux Installation,"1. Download Sourcerer-0.0.1-Linux-Installer.run
+2. Make file executable: chmod +x Sourcerer-0.0.1-Linux-Installer.run
+3. Run: ./Sourcerer-0.0.1-Linux-Installer.run
+4. Follow installation wizard","Application installs successfully
+Application launches without errors",High,Not Tested,
+TC-003,Installation,Update Existing Installation,"1. Install older version of Sourcerer
+2. Run newer installer
+3. Choose upgrade option","Application upgrades successfully
+Existing settings/preferences preserved
+Application launches with new version",Medium,Not Tested,
+TC-004,Launch,First Launch,"1. Launch Sourcerer for the first time
+2. Observe initial setup/welcome screen","Application launches successfully
+Welcome screen or home screen appears
+No crashes or errors",High,Not Tested,
+TC-005,Launch,Subsequent Launch,"1. Close Sourcerer
+2. Launch again","Application launches successfully
+Previous session state restored (if applicable)
+No crashes or errors",High,Not Tested,
+TC-006,Launch,Launch with Command Line Args,"1. Launch Sourcerer with repository path argument
+2. Launch with invalid arguments","Valid path: Opens specified repository
+Invalid args: Shows error or help message",Medium,Not Tested,
+TC-007,Launch,Multiple Instances,"1. Launch Sourcerer
+2. Attempt to launch second instance","Behavior is defined (single instance or multiple allowed)
+No conflicts or data corruption",Medium,Not Tested,
+TC-008,Repository Operations,Clone Repository (HTTPS),"1. Click Clone Repository
+2. Enter HTTPS URL (e.g. https://github.com/user/repo.git)
+3. Select destination folder
+4. Enter credentials if required
+5. Clone","Repository clones successfully
+All branches and history available
+Working directory populated with files",High,Not Tested,
+TC-009,Repository Operations,Clone Repository (SSH),"1. Click Clone Repository
+2. Enter SSH URL (e.g. git@github.com:user/repo.git)
+3. Select destination folder
+4. Provide SSH key if required
+5. Clone","Repository clones successfully
+SSH authentication works
+All data cloned correctly",High,Not Tested,
+TC-010,Repository Operations,Clone with Authentication Failure,"1. Attempt to clone private repository
+2. Provide incorrect credentials","Error message displayed clearly
+User can retry with correct credentials
+No partial clone left behind",Medium,Not Tested,
+TC-011,Repository Operations,Initialize New Repository,"1. Click Initialize Repository
+2. Select empty folder or create new folder
+3. Initialize","New Git repository created (.git folder)
+Repository appears in Sourcerer
+Ready for commits",High,Not Tested,
+TC-012,Repository Operations,Open Existing Repository,"1. Click Open Repository
+2. Browse to existing Git repository
+3. Open","Repository opens successfully
+Current branch and status displayed
+Repository history visible",High,Not Tested,
+TC-013,Repository Operations,Open Non-Git Folder,"1. Click Open Repository
+2. Select folder without .git
+3. Attempt to open","Error message: Not a valid Git repository
+Option to initialize repository in that location",Medium,Not Tested,
+TC-014,Repository Operations,Open Corrupted Repository,"1. Open repository with corrupted .git folder
+2. Observe behavior","Error message indicates corruption
+Recovery suggestions provided if possible
+Application doesn't crash",Low,Not Tested,
+TC-015,Repository Operations,Close Repository,"1. Open a repository
+2. Close repository (switch to Home or close tab)","Repository closes cleanly
+No uncommitted changes lost
+Can reopen repository",Medium,Not Tested,
+TC-016,Repository Operations,Switch Between Multiple Repositories,"1. Open Repository A
+2. Open Repository B
+3. Switch between them","Each repository displays correct state
+No data mixing between repositories
+Switching is smooth and fast",High,Not Tested,
+TC-017,Branches - Local,View Local Branches,"1. Open repository with multiple branches
+2. Navigate to Branches view
+3. View local branches list","All local branches displayed
+Current branch indicated/highlighted
+Branch commit info shown",High,Not Tested,
+TC-018,Branches - Local,Create New Branch,"1. Click Create Branch
+2. Enter branch name
+3. Select source (current HEAD/specific commit)
+4. Create","New branch created
+Optionally switched to new branch
+Appears in branches list",High,Not Tested,
+TC-019,Branches - Local,Create Branch with Invalid Name,"1. Attempt to create branch with invalid name (spaces/special chars)
+2. Try to create","Validation error displayed
+Lists naming rules
+Branch not created",Medium,Not Tested,
+TC-020,Branches - Local,Checkout Existing Branch,"1. Right-click branch or select branch
+2. Click Checkout/Switch
+3. Confirm if uncommitted changes exist","Branch switches successfully
+Working directory updates to branch state
+Current branch indicator updates",High,Not Tested,
+TC-021,Branches - Local,Checkout with Uncommitted Changes,"1. Make changes without committing
+2. Attempt to checkout different branch","Warning about uncommitted changes
+Options: Stash/Discard/Cancel
+Changes handled per user choice",High,Not Tested,
+TC-022,Branches - Local,Delete Local Branch,"1. Right-click branch
+2. Select Delete
+3. Confirm deletion","Branch deleted successfully
+Removed from branches list
+Cannot delete current branch",Medium,Not Tested,
+TC-023,Branches - Local,Delete Unmerged Branch,"1. Create branch with commits
+2. Attempt to delete without merging
+3. Try to delete","Warning: Branch not fully merged
+Option to force delete or cancel
+Data loss warning clear",Medium,Not Tested,
+TC-024,Branches - Local,Rename Branch,"1. Right-click branch
+2. Select Rename
+3. Enter new name
+4. Confirm","Branch renamed successfully
+New name appears in branches list
+Tracking relationships preserved",Medium,Not Tested,
+TC-025,Branches - Local,Merge Branch into Current,"1. Checkout target branch (e.g. main)
+2. Right-click source branch
+3. Select Merge
+4. Confirm","Merge completes successfully (if no conflicts)
+Changes from source branch integrated
+Merge commit created",High,Not Tested,
+TC-026,Branches - Local,Merge with Conflicts,"1. Create conflicting changes in two branches
+2. Attempt to merge","Conflicts detected and displayed
+Conflict markers shown in files
+Option to resolve conflicts",High,Not Tested,
+TC-027,Branches - Local,Abort Merge,"1. Start merge with conflicts
+2. Click Abort Merge","Merge aborted
+Repository returns to pre-merge state
+Working directory restored",Medium,Not Tested,
+TC-028,Branches - Local,Fast-forward Merge,"1. Merge branch that can fast-forward
+2. Observe merge type","Fast-forward merge performed
+No merge commit created
+Branch pointer updated",Medium,Not Tested,
+TC-029,Branches - Local,View Branch History,"1. Right-click branch
+2. Select View History/Log","Commit history for branch displayed
+Graph shows branch relationships
+Commit details accessible",High,Not Tested,
+TC-030,Branches - Remote,View Remote Branches,"1. Open repository with remote
+2. Navigate to remote branches section","All remote branches listed (origin/*)
+Remote tracking status shown
+Outdated/ahead/behind status visible",High,Not Tested,
+TC-031,Branches - Remote,Fetch from Remote,"1. Click Fetch
+2. Select remote (or fetch all)","Remote branches updated
+New remote branches appear
+No local changes made",High,Not Tested,
+TC-032,Branches - Remote,Pull Changes,"1. Checkout branch with remote tracking
+2. Click Pull
+3. Confirm","Remote changes fetched and merged
+Local branch updated
+Conflicts handled if present",High,Not Tested,
+TC-033,Branches - Remote,Pull with Rebase,"1. Configure pull with rebase
+2. Click Pull
+3. Observe rebase","Local commits replayed on top of remote
+Linear history maintained
+Conflicts shown if present",Medium,Not Tested,
+TC-034,Branches - Remote,Checkout Remote Branch,"1. Right-click remote branch
+2. Select Checkout/Create tracking branch","Local tracking branch created
+Checked out automatically
+Appears in local branches list",High,Not Tested,
+TC-035,Branches - Remote,Delete Remote Branch,"1. Right-click remote branch
+2. Select Delete Remote Branch
+3. Confirm","Branch deleted on remote server
+Removed from remote branches list
+Warning displayed before deletion",Medium,Not Tested,
+TC-036,Branches - Remote,Set Upstream Branch,"1. Create local branch
+2. Right-click and set upstream
+3. Select remote branch","Upstream tracking configured
+Push/pull operations use upstream
+Status shows relationship",Medium,Not Tested,
+TC-037,Commits - View,View Commit History,"1. Open repository
+2. Navigate to History/Log view","Chronological list of commits displayed
+Commit hash/message/author/date shown
+Graph shows branch relationships",High,Not Tested,
+TC-038,Commits - View,View Commit Details,"1. Click on specific commit in history
+2. View details panel","Full commit message displayed
+Changed files listed
+Author/date/hash information shown",High,Not Tested,
+TC-039,Commits - View,View Commit Diff,"1. Select commit
+2. View diff/changes","Diff for each file shown
+Added/deleted/modified lines highlighted
+Side-by-side or unified diff view",High,Not Tested,
+TC-040,Commits - View,Search Commit History,"1. Use search/filter in history
+2. Search by message/author/hash","Matching commits displayed
+Search is fast even in large repos
+Can clear search/filter",Medium,Not Tested,
+TC-041,Commits - Create,Commit Staged Changes,"1. Stage files
+2. Enter commit message
+3. Click Commit","Commit created successfully
+Appears in history
+Staged files committed",High,Not Tested,
+TC-042,Commits - Create,Commit with Empty Message,"1. Stage files
+2. Leave message empty
+3. Attempt commit","Validation error displayed
+Commit not created
+Prompted to enter message",Medium,Not Tested,
+TC-043,Commits - Create,Commit with Sign-off,"1. Stage files
+2. Enter message
+3. Enable sign-off option
+4. Commit","Commit created with Signed-off-by line
+Author information included
+Appears in commit message",Low,Not Tested,
+TC-044,Commits - Create,Amend Last Commit,"1. View last commit
+2. Stage new changes or modify message
+3. Select Amend option
+4. Commit","Last commit modified
+Commit hash changes
+History updated",Medium,Not Tested,
+TC-045,Commits - Operations,Cherry-pick Commit,"1. Select commit from different branch
+2. Right-click and Cherry-pick
+3. Confirm","Commit changes applied to current branch
+New commit created
+Conflicts handled if present",Medium,Not Tested,
+TC-046,Commits - Operations,Revert Commit,"1. Select commit to revert
+2. Right-click and Revert
+3. Confirm","Revert commit created
+Changes undone
+Original commit remains in history",Medium,Not Tested,
+TC-047,Commits - Operations,Reset to Commit (Soft),"1. Right-click commit
+2. Select Reset > Soft
+3. Confirm","Branch pointer moved
+Changes kept in staging
+Working directory unchanged",High,Not Tested,
+TC-048,Commits - Operations,Reset to Commit (Hard),"1. Right-click commit
+2. Select Reset > Hard
+3. Confirm warning","Branch pointer moved
+Working directory reset
+All local changes discarded",High,Not Tested,
+TC-049,Commits - Operations,Create Tag from Commit,"1. Right-click commit
+2. Select Create Tag
+3. Enter tag name
+4. Confirm","Tag created at commit
+Appears in tags list
+Optionally pushed to remote",Medium,Not Tested,
+TC-050,Commits - Operations,Checkout Specific Commit,"1. Right-click commit
+2. Select Checkout
+3. Confirm detached HEAD warning","Detached HEAD state entered
+Working directory at commit state
+Warning about detached state shown",Medium,Not Tested,
+TC-051,Commits - Operations,Create Branch from Commit,"1. Right-click commit
+2. Select Create Branch
+3. Enter branch name","New branch created at commit
+Optionally checked out
+Appears in branches list",Medium,Not Tested,
+TC-052,Commits - Operations,View Commit Files,"1. Select commit
+2. View files tree/list at that commit","All files in repository at commit time shown
+Can view file contents
+Can compare with other commits",Medium,Not Tested,
+TC-053,Commits - Operations,Create Patch from Commit,"1. Right-click commit
+2. Select Create Patch/Export
+3. Choose save location","Patch file created (.patch or .diff)
+Contains all commit changes
+Can be applied elsewhere",Low,Not Tested,
+TC-054,Working Directory,Stage Individual File,"1. Modify file
+2. Right-click file in changes list
+3. Select Stage","File moves to staged section
+Ready for commit
+Other unstaged files unaffected",High,Not Tested,
+TC-055,Working Directory,Stage All Changes,"1. Modify multiple files
+2. Click Stage All button","All modified files staged
+Appears in staged section
+Ready for commit",High,Not Tested,
+TC-056,Working Directory,Unstage File,"1. Stage file
+2. Right-click staged file
+3. Select Unstage","File returns to unstaged section
+Changes preserved
+Not included in next commit",High,Not Tested,
+TC-057,Working Directory,Discard Changes in File,"1. Modify file
+2. Right-click file
+3. Select Discard Changes
+4. Confirm","File reverted to last commit state
+Changes permanently lost
+Warning confirmation shown",High,Not Tested,
+TC-058,Working Directory,View File Diff,"1. Modify file
+2. Click file in changes list","Diff view opens
+Changes highlighted
+Can view side-by-side or unified",High,Not Tested,
+TC-059,Working Directory,Refresh Status,"1. Modify files outside Sourcerer
+2. Click Refresh or wait for auto-refresh","Changes detected and displayed
+File list updates
+Status accurate",Medium,Not Tested,
+TC-060,Working Directory,Untracked Files,"1. Create new file in repository
+2. Observe in changes list","Untracked files shown separately
+Can stage untracked files
+Can add to .gitignore",Medium,Not Tested,
+TC-061,Working Directory,Ignored Files,"1. Add pattern to .gitignore
+2. Create matching file
+3. Observe status","Ignored files not shown in changes
+.gitignore file appears if modified
+Can view ignored files if option enabled",Medium,Not Tested,
+TC-062,Stash,Create Stash,"1. Make uncommitted changes
+2. Click Stash Changes
+3. Optionally enter description
+4. Stash","Changes saved to stash
+Working directory cleaned
+Stash appears in stash list",High,Not Tested,
+TC-063,Stash,Create Stash with Untracked Files,"1. Make changes including untracked files
+2. Enable 'Include untracked' option
+3. Stash","All changes including untracked files stashed
+Working directory completely clean
+Can restore later",Medium,Not Tested,
+TC-064,Stash,Apply Stash,"1. View stash list
+2. Right-click stash
+3. Select Apply","Stash changes applied to working directory
+Stash remains in list
+Conflicts handled if present",High,Not Tested,
+TC-065,Stash,Pop Stash,"1. View stash list
+2. Right-click stash
+3. Select Pop","Stash changes applied to working directory
+Stash removed from list
+Conflicts handled if present",High,Not Tested,
+TC-066,Stash,Drop Stash,"1. View stash list
+2. Right-click stash
+3. Select Drop/Delete
+4. Confirm","Stash deleted permanently
+Removed from list
+Confirmation warning shown",Medium,Not Tested,
+TC-067,Stash,View Stash Changes,"1. Select stash in list
+2. View changes/diff","Shows files changed in stash
+Diff view available
+Can see what was stashed",Medium,Not Tested,
+TC-068,Stash,Clear All Stashes,"1. Have multiple stashes
+2. Select Clear All Stashes
+3. Confirm","All stashes deleted
+Stash list empty
+Strong confirmation required",Low,Not Tested,
+TC-069,Stash,Apply Stash with Conflicts,"1. Create stash
+2. Modify same files
+3. Apply stash","Conflicts detected
+Conflict markers added
+User can resolve conflicts",Medium,Not Tested,
+TC-070,Tags,View Tags List,"1. Open repository with tags
+2. Navigate to Tags section","All tags displayed (lightweight and annotated)
+Tag names and commit shown
+Sorted appropriately",High,Not Tested,
+TC-071,Tags,Create Lightweight Tag,"1. Right-click commit or use tag button
+2. Enter tag name
+3. Create lightweight tag","Tag created at commit
+Appears in tags list
+No additional message",Medium,Not Tested,
+TC-072,Tags,Create Annotated Tag,"1. Right-click commit
+2. Create tag with message
+3. Enter tag name and message","Annotated tag created
+Tag message stored
+Author/date information included",Medium,Not Tested,
+TC-073,Tags,Delete Local Tag,"1. Right-click tag
+2. Select Delete
+3. Confirm","Tag deleted locally
+Removed from tags list
+Can be recreated if needed",Medium,Not Tested,
+TC-074,Tags,Delete Remote Tag,"1. Right-click tag
+2. Select Delete Remote Tag
+3. Confirm","Tag deleted from remote server
+Removed from remote tags
+Warning shown before deletion",Medium,Not Tested,
+TC-075,Tags,Push Tag to Remote,"1. Create local tag
+2. Right-click tag
+3. Select Push to Remote","Tag pushed to remote
+Available to other users
+Confirmation shown",Medium,Not Tested,
+TC-076,Tags,Push All Tags,"1. Create multiple local tags
+2. Select Push All Tags
+3. Confirm","All local tags pushed to remote
+Tags synchronized
+Summary of pushed tags shown",Low,Not Tested,
+TC-077,Tags,Checkout Tag,"1. Right-click tag
+2. Select Checkout","Detached HEAD at tag
+Working directory at tagged state
+Warning about detached HEAD shown",Medium,Not Tested,
+TC-078,Submodules,Add Submodule,"1. Right-click or use Submodules menu
+2. Select Add Submodule
+3. Enter repository URL and path
+4. Add","Submodule cloned
+.gitmodules file created/updated
+Submodule appears in list",Medium,Not Tested,
+TC-079,Submodules,Initialize Submodules,"1. Clone repository with submodules
+2. Initialize submodules","Submodules cloned
+Submodule directories populated
+.git/modules updated",Medium,Not Tested,
+TC-080,Submodules,Update Submodules,"1. Select Update Submodules
+2. Choose specific or all
+3. Update","Submodules updated to latest
+Local submodule refs updated
+Changes pulled",Medium,Not Tested,
+TC-081,Submodules,Remove Submodule,"1. Right-click submodule
+2. Select Remove
+3. Confirm","Submodule removed from .gitmodules
+Submodule directory deleted
+Git config cleaned",Low,Not Tested,
+TC-082,Submodules,View Submodule Status,"1. View submodules list
+2. Check status indicators","Shows if submodule is up-to-date
+Indicates commits ahead/behind
+Shows uninitialized state",Medium,Not Tested,
+TC-083,Submodules,Open Submodule Repository,"1. Right-click submodule
+2. Select Open in New Window/Tab","Submodule opens as separate repository
+Can perform operations on submodule
+Changes trackable independently",Low,Not Tested,
+TC-084,Remote Operations,Add Remote,"1. Open repository settings/remotes
+2. Add remote
+3. Enter name and URL","Remote added successfully
+Appears in remotes list
+Can fetch/push to remote",Medium,Not Tested,
+TC-085,Remote Operations,Remove Remote,"1. View remotes list
+2. Right-click remote
+3. Select Remove
+4. Confirm","Remote removed
+No longer in remotes list
+Local branches/data unchanged",Medium,Not Tested,
+TC-086,Remote Operations,Rename Remote,"1. Right-click remote
+2. Select Rename
+3. Enter new name","Remote renamed
+Tracking branches updated
+Operations continue working",Low,Not Tested,
+TC-087,Remote Operations,Change Remote URL,"1. Right-click remote
+2. Select Change URL
+3. Enter new URL","Remote URL updated
+Can fetch/push to new location
+Existing data unchanged",Medium,Not Tested,
+TC-088,Remote Operations,Push to Remote,"1. Make commits
+2. Click Push
+3. Select branch and remote","Commits pushed to remote
+Remote branch updated
+Success confirmation shown",High,Not Tested,
+TC-089,Remote Operations,Push with Force,"1. Rewrite history locally
+2. Attempt force push
+3. Confirm warning","Force push succeeds
+Remote history rewritten
+Strong warning shown",Medium,Not Tested,
+TC-090,Remote Operations,Push New Branch,"1. Create local branch with commits
+2. Push to remote
+3. Set upstream if prompted","New branch created on remote
+Tracking relationship established
+Branch appears in remote branches",High,Not Tested,
+TC-091,Remote Operations,Pull from Remote,"1. Remote has new commits
+2. Click Pull
+3. Confirm merge/rebase","Remote commits fetched and integrated
+Local branch updated
+Conflicts handled",High,Not Tested,
+TC-092,Remote Operations,Fetch All Remotes,"1. Have multiple remotes
+2. Select Fetch All","All remotes fetched
+Remote branches updated
+No local changes made",Medium,Not Tested,
+TC-093,Remote Operations,Prune Remote Branches,"1. Delete branches on remote
+2. Prune remote-tracking branches","Deleted remote branches removed locally
+Remote tracking cleaned up
+Obsolete refs removed",Low,Not Tested,
+TC-094,Credentials - HTTPS,Save HTTPS Credentials,"1. Clone/fetch private HTTPS repository
+2. Enter username and password
+3. Choose to save credentials","Credentials saved securely
+Future operations don't prompt
+Can manage in credentials manager",High,Not Tested,
+TC-095,Credentials - HTTPS,Update Saved Credentials,"1. Access credential manager
+2. Update existing HTTPS credentials
+3. Save","Updated credentials used
+Authentication succeeds
+Old credentials replaced",Medium,Not Tested,
+TC-096,Credentials - HTTPS,Remove Saved Credentials,"1. Access credential manager
+2. Remove HTTPS credentials
+3. Confirm","Credentials removed
+Next operation prompts for credentials
+No authentication artifacts remain",Medium,Not Tested,
+TC-097,Credentials - SSH,Configure SSH Key,"1. Generate or select SSH key
+2. Add to SSH agent or configure in settings
+3. Test connection","SSH key configured
+Can authenticate with SSH URLs
+Public key displayed for copying",High,Not Tested,
+TC-098,Credentials - SSH,Multiple SSH Keys,"1. Configure multiple SSH keys
+2. Associate with different hosts
+3. Use in operations","Correct key used per host
+All SSH operations work
+Key selection automatic",Medium,Not Tested,
+TC-099,Console,Open Integrated Console,"1. Click Console/Terminal button
+2. Console panel opens","Console opens in application
+Shows bash or configured shell
+Current directory is repository root",High,Not Tested,
+TC-100,Console,Execute Git Command,"1. Open console
+2. Type git command (e.g. git status)
+3. Execute","Command executes in repository
+Output displayed in console
+Can execute any git command",High,Not Tested,
+TC-101,Console,Execute Non-Git Command,"1. Open console
+2. Execute shell commands (ls/dir/cd)","Shell commands work
+Can navigate filesystem
+Full shell functionality available",Medium,Not Tested,
+TC-102,Console,Console Output Formatting,"1. Execute commands with colored output
+2. Observe formatting","Colors and formatting preserved
+Output readable
+ANSI codes handled properly",Medium,Not Tested,
+TC-103,Console,Console History,"1. Execute multiple commands
+2. Use up/down arrows
+3. Navigate history","Command history accessible
+Can recall previous commands
+History persists across sessions",Low,Not Tested,
+TC-104,Console,Copy from Console,"1. Select text in console output
+2. Copy to clipboard","Text copied successfully
+Formatting preserved reasonably
+Can paste elsewhere",Low,Not Tested,
+TC-105,Console,Clear Console,"1. Have console output
+2. Clear console command or button","Console cleared
+Previous output removed
+Ready for new commands",Low,Not Tested,
+TC-106,Settings,Open Settings,"1. Click Settings/Preferences
+2. Settings dialog opens","Settings panel opens
+All categories accessible
+Current values displayed",High,Not Tested,
+TC-107,Settings,Configure Git User Name/Email,"1. Open settings
+2. Navigate to Git configuration
+3. Set user.name and user.email
+4. Save","Git user identity configured
+Used in commits
+Validation for email format",High,Not Tested,
+TC-108,Settings,Configure Default Editor,"1. Open settings
+2. Set external editor preference
+3. Select editor executable
+4. Save","Editor configured
+Opens when editing commit messages or files
+Falls back to internal editor if unavailable",Medium,Not Tested,
+TC-109,Settings,Configure Diff Tool,"1. Open settings
+2. Set external diff tool
+3. Configure tool path
+4. Save","Diff tool configured
+Opens for diff operations
+Falls back to internal viewer if unavailable",Medium,Not Tested,
+TC-110,Settings,Configure Merge Tool,"1. Open settings
+2. Set external merge tool
+3. Configure tool path
+4. Save","Merge tool configured
+Opens for conflict resolution
+Falls back to manual resolution if unavailable",Medium,Not Tested,
+TC-111,Settings,Theme Selection,"1. Open settings
+2. Navigate to appearance
+3. Select theme (light/dark/auto)
+4. Apply","Theme changes immediately
+All UI elements updated
+Preference saved",Medium,Not Tested,
+TC-112,Settings,Configure Auto-fetch,"1. Open settings
+2. Enable/disable auto-fetch
+3. Set interval if enabled
+4. Save","Auto-fetch behavior configured
+Fetches occur at specified interval
+Can be disabled",Low,Not Tested,
+TC-113,Settings,Export Settings,"1. Open settings
+2. Select Export
+3. Choose save location","Settings exported to file (JSON/config)
+All preferences included
+Can be used for backup or transfer",Low,Not Tested,
+TC-114,Settings,Import Settings,"1. Open settings
+2. Select Import
+3. Choose settings file
+4. Confirm","Settings imported from file
+Preferences applied
+Validation of file format",Low,Not Tested,
+TC-115,Settings,Reset to Defaults,"1. Open settings
+2. Select Reset to Defaults
+3. Confirm","All settings reset to default values
+Custom configurations cleared
+Confirmation warning shown",Low,Not Tested,
+TC-116,UI - General,Window Resize,"1. Resize main window
+2. Maximize/restore
+3. Minimize","Window resizes smoothly
+Layout adapts to size
+Size preference saved",Medium,Not Tested,
+TC-117,UI - General,Panel Collapse/Expand,"1. Collapse side panels
+2. Expand panels
+3. Resize panel widths","Panels collapse/expand smoothly
+More space for main content
+Panel state persists",Medium,Not Tested,
+TC-118,UI - General,Keyboard Shortcuts,"1. Use keyboard shortcuts for common actions
+2. Test multiple shortcuts","Shortcuts work as expected
+Actions trigger correctly
+Shortcuts listed in help or menu",Medium,Not Tested,
+TC-119,UI - General,Context Menus,"1. Right-click various items
+2. Select context menu actions","Context menus appear
+Relevant actions available
+Actions execute correctly",Medium,Not Tested,
+TC-120,UI - General,Tooltips,"1. Hover over buttons and UI elements
+2. Wait for tooltips","Tooltips appear
+Descriptions are helpful
+Not intrusive",Low,Not Tested,
+TC-121,UI - General,Status Bar,"1. Observe status bar
+2. Perform various operations","Status bar shows current state
+Repository info displayed
+Progress indicators for operations",Medium,Not Tested,
+TC-122,UI - General,Notifications,"1. Perform operations that trigger notifications
+2. Observe notification behavior","Notifications appear for important events
+Not too intrusive
+Can be dismissed",Medium,Not Tested,
+TC-123,UI - General,Drag and Drop,"1. Attempt to drag files into application
+2. Drag within application","Drag and drop works where applicable
+Visual feedback provided
+Operations complete correctly",Low,Not Tested,
+TC-124,UI - General,Multi-select,"1. Select multiple files/commits
+2. Perform bulk operations","Multi-select works in lists
+Bulk operations available
+Selection indication clear",Medium,Not Tested,
+TC-125,UI - General,Loading Indicators,"1. Perform slow operations
+2. Observe loading state","Loading/progress indicators shown
+User knows operation is in progress
+Can cancel if appropriate",Medium,Not Tested,
+TC-126,Search/Filter,Search Commit History,"1. Open commit history
+2. Enter search term
+3. Search","Matching commits highlighted/filtered
+Search is fast
+Can clear search",Medium,Not Tested,
+TC-127,Search/Filter,Filter Branches,"1. View branches list
+2. Enter filter text","Matching branches shown
+Filter updates as typing
+Can clear filter",Medium,Not Tested,
+TC-128,Search/Filter,Filter Files in Changes,"1. Have many changed files
+2. Enter filter text in changes panel","Matching files shown
+Easy to find specific files
+Filter updates dynamically",Medium,Not Tested,
+TC-129,Search/Filter,Search in File Content,"1. Use file content search
+2. Enter search term
+3. Execute","Files containing term listed
+Can navigate to matches
+Shows context around matches",Low,Not Tested,
+TC-130,Performance,Large Repository,"1. Open repository with 10000+ commits
+2. Perform common operations","Operations remain responsive
+History loads efficiently
+No excessive memory usage",High,Not Tested,
+TC-131,Performance,Many Changed Files,"1. Have 100+ changed files
+2. View changes and stage/unstage","UI remains responsive
+File list displays efficiently
+Operations don't lag",Medium,Not Tested,
+TC-132,Performance,Large File Diff,"1. View diff of large file (>10MB)
+2. Scroll through diff","Diff displays without freezing
+Scrolling is smooth
+Memory usage reasonable",Medium,Not Tested,
+TC-133,Performance,Multiple Repositories,"1. Open 5+ repositories
+2. Switch between them
+3. Perform operations","Application remains responsive
+Memory usage acceptable
+No slowdown over time",Medium,Not Tested,
+TC-134,Integration,External Tool Integration,"1. Open file in external editor from Sourcerer
+2. Open diff/merge tool
+3. Verify integration","External tools launch correctly
+Changes sync back to Sourcerer
+File paths passed correctly",Medium,Not Tested,
+TC-135,Integration,File Manager Integration,"1. Right-click file/folder
+2. Select 'Show in File Manager'","File manager opens
+Correct file/folder highlighted
+Works across platforms",Low,Not Tested,
+TC-136,Integration,Browser Integration,"1. Click web links (repository URL/issue tracker)
+2. Verify browser opens","Browser opens to correct URL
+Links work from various contexts
+User's default browser used",Low,Not Tested,
+TC-137,Integration,Copy Path to Clipboard,"1. Right-click file
+2. Select 'Copy Path'
+3. Paste elsewhere","Full file path copied
+Path format appropriate for OS
+Can be used in other applications",Low,Not Tested,
+TC-138,Error Handling,Network Error During Clone,"1. Start clone operation
+2. Disconnect network mid-operation","Error message displayed clearly
+Partial clone cleaned up
+Can retry operation",High,Not Tested,
+TC-139,Error Handling,Insufficient Permissions,"1. Attempt operation requiring write access
+2. Use read-only repository or folder","Permission error shown
+Explains what's needed
+Doesn't corrupt repository",Medium,Not Tested,
+TC-140,Error Handling,Disk Full During Operation,"1. Perform operation when disk nearly full
+2. Disk fills during operation","Error handled gracefully
+Repository state consistent
+User informed of issue",Low,Not Tested,
+TC-141,Error Handling,Unexpected Git Error,"1. Trigger unusual git error
+2. Observe error handling","Error message shown
+Includes helpful context
+Option to view full error/log",Medium,Not Tested,
+TC-142,Error Handling,Application Crash Recovery,"1. Force quit or crash application
+2. Restart application","Application restarts successfully
+Recovers previous state if possible
+No repository corruption",High,Not Tested,
+TC-143,Error Handling,Invalid Git Configuration,"1. Have malformed .git/config
+2. Open repository","Error detected and reported
+Recovery suggestions provided
+Doesn't crash application",Medium,Not Tested,
+TC-144,Bug Reports,Open Bug Report Dialog,"1. Click Help > Report Bug
+2. Bug report dialog opens","Dialog opens with form
+Can enter description
+Pre-filled system information visible",Medium,Not Tested,
+TC-145,Bug Reports,Submit Bug Report,"1. Fill out bug report
+2. Submit","Report submitted successfully (if online)
+Confirmation shown
+Copy of report saved locally",Low,Not Tested,
+TC-146,About,View About Dialog,"1. Click Help > About
+2. About dialog opens","Version information displayed
+Copyright and license info shown
+Credits/acknowledgments available",Low,Not Tested,
+TC-147,Uninstall,Windows Uninstall,"1. Use Windows 'Add or Remove Programs'
+2. Uninstall Sourcerer
+3. Complete uninstall","Application uninstalled
+Files removed from Program Files
+Registry entries cleaned
+User data handling per choice",High,Not Tested,
+TC-148,Uninstall,Linux Uninstall,"1. Run uninstaller or use package manager
+2. Uninstall Sourcerer","Application uninstalled
+Files removed from installation directory
+User data handling per choice",High,Not Tested,
+TC-149,Uninstall,Uninstall with Data Removal,"1. During uninstall select remove user data
+2. Complete uninstall","Application uninstalled
+User configuration/data removed
+Repositories themselves preserved",Medium,Not Tested,
+TC-150,Accessibility,Keyboard Navigation,"1. Use application with keyboard only
+2. Navigate through all features","All features accessible via keyboard
+Tab order logical
+Focus indicators visible",Medium,Not Tested,
+TC-151,Accessibility,Screen Reader Support,"1. Use with screen reader
+2. Navigate application","UI elements have proper labels
+Screen reader announces content
+Navigation structure clear",Low,Not Tested,
+TC-152,Accessibility,High Contrast Mode,"1. Enable OS high contrast mode
+2. Use application","UI remains usable
+Text readable
+Important elements distinguishable",Low,Not Tested,
+TC-153,Localization,Multiple Languages,"1. Change application language in settings
+2. Switch between languages","UI translates to selected language
+All text translates (not just some)
+No layout breaking",Low,Not Tested,
+TC-154,Security,Credential Storage Security,"1. Save credentials
+2. Verify storage mechanism
+3. Check encryption","Credentials stored securely
+Encrypted or using OS credential manager
+Not plain text in config files",High,Not Tested,
+TC-155,Security,SSH Key Protection,"1. Configure SSH keys
+2. Verify key file permissions
+3. Check handling of passphrases","Private keys not exposed
+Proper file permissions set
+Passphrase handling secure",High,Not Tested,
+TC-156,Regression,Previous Bug Fixes,"1. Test scenarios from previously reported bugs
+2. Verify fixes still work","Previous bugs don't reappear
+Fixes remain effective
+No regressions introduced",Medium,Not Tested,
+TC-157,Cross-Platform,Windows-Specific Features,"1. Test on Windows 10/11
+2. Verify all features work","All features functional on Windows
+File paths handled correctly
+Native look and feel",High,Not Tested,
+TC-158,Cross-Platform,Linux-Specific Features,"1. Test on Linux (Ubuntu/Fedora/etc)
+2. Verify all features work","All features functional on Linux
+File paths handled correctly
+Desktop integration works",High,Not Tested,
+TC-159,Cross-Platform,macOS-Specific Features,"1. Test on macOS
+2. Verify all features work","All features functional on macOS
+File paths handled correctly
+Native look and feel",High,Not Tested,
+TC-160,Cross-Platform,Cross-Platform Repository Sharing,"1. Create repository on one OS
+2. Open same repository on different OS","Repository works across platforms
+No line ending issues (if .gitattributes proper)
+Configuration portable",Medium,Not Tested,
+TC-161,Remote Operations,Set Default Remote,"1. Open a repository with at least two remotes
+2. Open the remotes panel
+3. Right-click a non-default remote
+4. Select Set Default Remote
+5. Enter or confirm the remote branch name","Selected remote becomes the default remote
+Active branch upstream is configured for that remote
+Remotes panel highlights the default remote
+Future push/pull operations use the selected remote",Medium,Not Tested,Covers GitRepoCommandType::SetDefaultRemote and upstream overlay flow
+TC-162,Remote Operations,Add Remote Target,"1. Open a repository with an existing remote
+2. Right-click the remote
+3. Select Add Target
+4. Enter target name, fetch URL, and push URL
+5. Submit","New target is added under the remote
+Fetch and push URLs are saved
+Remote target list refreshes without removing existing targets",Medium,Not Tested,Covers multiple targets per remote
+TC-163,Remote Operations,Edit Remote Target,"1. Open a repository with a remote that has a target
+2. Right-click the target
+3. Select Edit Target
+4. Change fetch and push URLs
+5. Submit","Target URLs are updated
+Target name and parent remote are preserved
+Subsequent fetch/push uses the updated URLs when target is active",Medium,Not Tested,
+TC-164,Remote Operations,Delete Remote Target,"1. Open a repository with a remote that has at least two targets
+2. Right-click a non-default or secondary target
+3. Select Delete Target
+4. Confirm deletion","Target is removed from the remote
+Remaining targets stay intact
+Remote list refreshes and no stale target remains visible",Medium,Not Tested,
+TC-165,Remote Operations,Prevent Deleting Only Remote Target,"1. Open a repository with a remote that has exactly one target
+2. Right-click the only target
+3. Select Delete Target","Deletion is blocked
+Error message explains that the only target cannot be deleted
+Remote and target configuration remain unchanged",Medium,Not Tested,
+TC-166,Remote Operations,Set Default Remote Target,"1. Open a repository with a remote that has multiple targets
+2. Right-click a non-default target
+3. Select Set Default Target","Selected target becomes default for that remote
+Target list updates its default indicator
+Existing remote and other targets remain unchanged",Medium,Not Tested,
+TC-167,Remote Operations,Push Branch Without Upstream Prompts for Remote,"1. Create and checkout a local branch with no upstream
+2. Ensure at least one remote exists
+3. Click Push
+4. Select a remote and enter remote branch name in the prompt
+5. Submit","Push asks for remote and remote branch instead of failing
+Upstream is configured for the local branch
+Branch is pushed to the selected remote
+Success notification is shown",High,Not Tested,Covers issue #112
+TC-168,Remote Operations,Push Branch Without Upstream and Without Remotes,"1. Open a repository with no remotes
+2. Create and checkout a local branch with commits
+3. Click Push","Push does not start silently
+Error message asks user to add a remote before pushing
+No upstream configuration is written",Medium,Not Tested,
+TC-169,Commits - Operations,Reset to Commit (Mixed),"1. Select an older commit in history
+2. Right-click and select Reset > Mixed
+3. Confirm the reset","Branch pointer moves to selected commit
+Changes from later commits remain in working directory unstaged
+Staging area is cleared
+History and status refresh correctly",High,Not Tested,Complements existing soft and hard reset cases
+TC-170,Tags,Rename Tag,"1. Open repository with an existing local tag
+2. Right-click the tag
+3. Select Rename Tag
+4. Enter a new valid tag name
+5. Submit","Local tag is renamed
+Old tag name disappears from tag list
+New tag points to the same commit
+Invalid names are rejected with an error",Medium,Not Tested,
+TC-171,Working Directory,Apply Patch File,"1. Create or obtain a valid .patch file
+2. Open a repository where the patch applies cleanly
+3. Select Apply Patch
+4. Choose the patch file","Patch is applied to the working directory
+Changed files appear in status
+No unrelated files are modified
+Success or clear failure message is shown",Medium,Not Tested,Covers GitRepoCommandType::ApplyPatch
+TC-172,Working Directory,Create Patch from Selected Files,"1. Modify one or more files
+2. Select files in the working tree or index list
+3. Right-click and select Create File Patch","Patch content is generated only for selected files
+Patch viewer or save flow opens
+Patch can be applied to reproduce the selected changes",Medium,Not Tested,
+TC-173,Working Directory,Ignore File from Context Menu,"1. Create an untracked file
+2. Right-click the file in working tree or index view
+3. Select Ignore > Ignore this file","Matching ignore entry is added to .gitignore
+File is no longer shown as untracked after refresh
+Existing .gitignore content is preserved",Medium,Not Tested,
+TC-174,Working Directory,Ignore Files Recursively from Context Menu,"1. Create untracked files inside a folder tree
+2. Right-click one file in that folder
+3. Select Ignore > Ignore all files recursively inside file parent folder","Recursive ignore pattern is added to .gitignore
+Files under the selected parent folder are ignored
+Files outside that folder remain visible",Medium,Not Tested,
+TC-175,Working Directory,Delete Selected Files from Changes View,"1. Create or modify multiple working tree files
+2. Select existing files in flat or tree changes view
+3. Right-click and select Delete
+4. Confirm deletion","Selected files are deleted from disk
+Repository status refreshes
+Diff viewer closes if it was open
+User cancellation leaves files untouched",High,Not Tested,
+TC-176,Branches - Local,Switch Workflow per Repository,"1. Open two repositories
+2. In the first, open the Git Flow dropdown and select Workflow > GitLab Flow
+3. Open the dropdown in the second repository
+4. Restart the application and reopen both repositories","First repository shows the GitLab Flow items and the GitLab Flow tooltip
+Second repository still shows the classic Git Flow items
+Both choices survive the restart
+git config sourcerer.workflow shows gitlabflow in the first repository",High,Not Tested,Repositories without sourcerer.workflow use classic Git Flow
+TC-177,Branches - Local,GitLab Flow Start and Finish Feature,"1. Select Workflow > GitLab Flow
+2. Select Start feature and enter a name
+3. Commit a change
+4. Select Finish feature and confirm","feature/<name> is created from the GitLab Flow main branch and checked out
+Finishing merges it into the main branch and deletes the feature branch
+Main branch is checked out afterwards",High,Not Tested,
+TC-178,Branches - Local,GitLab Flow Promote to Environment,"1. Select Workflow > GitLab Flow
+2. Checkout the main branch and open the dropdown
+3. Select Promote to pre-production and confirm
+4. Repeat from pre-production
+5. Checkout production and select Promote","Menu item names the next environment
+Missing environment branch is created from the promoted branch
+Existing environment branch receives a merge of the promoted branch
+Promoting the last environment or a branch outside the chain shows an error",High,Not Tested,
+TC-179,Branches - Local,GitLab Flow Start Release,"1. Select Workflow > GitLab Flow
+2. Select Start release
+3. Enter 1.2",Branch 1-2-stable is created from the main branch and checked out,Medium,Not Tested,
+TC-180,Branches - Local,GitLab Flow Cherry-pick to Release,"1. Create a release branch with Start release
+2. Commit a fix on the main branch and select it in the history
+3. Open Cherry-pick to release and select the release branch
+4. Repeat with a fix that conflicts with the release branch","Release branches are listed newest first
+Fix is committed on the release branch and the original branch is checked out again
+On conflicts the release branch stays checked out and a conflict message is shown
+Without a selected commit a commit SHA is asked for",High,Not Tested,
+TC-181,Settings,GitLab Flow Settings,"1. Open Settings and find the GitLab Flow settings
+2. Change the environment branches to staging,production
+3. Clear the main branch value
+4. Promote from main","Promote targets staging
+Empty values fall back to the defaults main, pre-production,production and -stable",Medium,Not Tested,
+TC-182,Branches - Local,GitLab Flow Actions with All Branches,"1. Select Workflow > GitLab Flow
+2. Select the * item in the local branches panel
+3. Open the Git Flow dropdown","Finish feature, Promote and Cherry-pick to release are disabled
+Start feature and Start release stay enabled",Low,Not Tested,
+TC-183,Branches - Local,"GitHub Flow Start, Update and Finish Branch","1. Select Workflow > GitHub Flow
+2. Select Start branch and enter a descriptive name
+3. Commit a change, then commit another change on main
+4. Checkout the branch and select Update from main
+5. Select Finish branch and confirm","Branch is created from the GitHub Flow main branch with the entered name and no prefix
+Update from main merges main into the branch and keeps it checked out
+Finish merges the branch into main, deletes it and checks out main
+Update and Finish on main show an error",High,Not Tested,Repository workflow is stored as sourcerer.workflow=githubflow
+TC-184,Branches - Local,GitHub Flow Open Pull Request,"1. Select Workflow > GitHub Flow in a repository with a github.com remote
+2. Start a branch, commit and push it
+3. Select Open pull request
+4. Repeat in a repository without a github.com remote","A new "Pull request: <branch>" tab opens the GitHub compare page for the branch against main
+Signing in from that tab keeps the GitHub session of the repository issue tracker
+The tab is not restored with the workspace
+The default remote is used when several GitHub remotes exist
+Without a github.com remote an error is shown",Medium,Not Tested,"Supports https, git@github.com: and ssh:// remote URLs"
+TC-185,Settings,GitHub Flow Main Branch Setting,"1. Open Settings and change the GitHub Flow main branch to trunk
+2. Start a GitHub Flow branch
+3. Clear the setting","Branch is created from trunk
+Empty value falls back to main",Low,Not Tested,
+TC-186,UI - General,Single Instance Activation,"1. Start Sourcerer
+2. Minimize the main window
+3. Start Sourcerer again from the Start menu, Dock or a terminal","No second window or process is started
+The running window is restored and brought to the front
+On Windows the window gets focus instead of only flashing in the taskbar",High,Not Tested,"Applies to Windows, macOS and Linux (AppImage)"
+TC-187,UI - General,Single Instance After Crash,"1. Start Sourcerer
+2. End the Sourcerer process from the task manager
+3. Start Sourcerer again","Sourcerer starts normally, the stale instance lock is ignored",High,Not Tested,
+TC-188,UI - General,Single Instance With Staged Update,"1. Let Sourcerer download an update
+2. With Sourcerer still running, start it a second time","The running window is brought to the front
+The update is not applied until the running instance is closed and started again",Medium,Not Tested,
+TC-189,Integration,Debug Build Next To Installed Release,"1. Start the installed Sourcerer
+2. Start a Debug build
+3. Open the same GitHub issue tracker in both","Both run at the same time
+The Debug build stores WebEngine data in webengine-debug and issue-trackers/webengine-debug
+No ""database is locked"" messages in the Debug output",Low,Not Tested,Development only
+TC-190,Branches - Local,git-flow-next Initialize,"1. Open a repository without git-flow configuration
+2. Select Workflow > GitFlow-Next
+3. Select Initialize git-flow-next and confirm","The classic preset is written to .git/config (gitflow.branch.* keys)
+The develop branch is created from main if it is missing
+The menu then lists Start feature, Start hotfix and Start release",High,Not Tested,Main and develop names come from the Git Flow settings
+TC-191,Branches - Local,"git-flow-next Start, Update and Finish Feature","1. Select Start feature and enter a name
+2. Commit on the feature and on develop
+3. Select Update from develop
+4. Select Finish and confirm","The feature starts at develop
+Update rebases the feature onto develop (downstreamStrategy=rebase)
+Finish merges it into develop, checks out develop and deletes the feature",High,Not Tested,
+TC-192,Branches - Local,git-flow-next Finish Release,"1. Start release 1.0 and commit
+2. Select Finish and confirm","The confirmation lists merge into main, tag 1.0, update develop from main and delete
+main contains the release, annotated tag 1.0 points at main
+develop contains main",High,Not Tested,A finish is refused when the tag already exists
+TC-193,Branches - Local,git-flow-next Custom Configuration,"1. Edit .git/config: add a topic type (e.g. gitflow.branch.bugfix.type=topic, parent=develop) and set gitflow.branch.hotfix.upstreamStrategy=squash
+2. Open the git-flow-next menu
+3. Finish a hotfix","Start bugfix appears in the menu
+The hotfix is squashed into one commit on main
+Configuration written by the git flow command line tool is used the same way",Medium,Not Tested,
+TC-194,Branches - Local,GitFlow-Next Without the CLI,"1. Make sure git-flow (git-flow-next) is not in PATH
+2. Select Workflow > GitFlow-Next
+3. Select any GitFlow-Next menu item","A dialog says the git-flow-next command line tool was not found and asks to download it and add its installation directory to PATH
+The link https://github.com/gittower/git-flow-next opens in the browser
+The selected action is not run",High,Not Tested,"After installing, Sourcerer must be restarted to see the new PATH"
+TC-195,Branches - Local,Graphite Without the CLI,"1. Make sure gt is not in PATH
+2. Select Workflow > Graphite
+3. Select any Graphite menu item","A dialog says the Graphite CLI (gt) was not found and asks to install it and add its installation directory to PATH
+The link https://graphite.com/docs/install-the-cli opens in the browser
+The selected action is not run",High,Not Tested,
+TC-196,Branches - Local,Graphite Initialize and Create Stack,"1. Select Workflow > Graphite in a repository not initialized for Graphite
+2. Select Initialize Graphite and confirm
+3. Make changes, select Create branch, enter a name and a commit message
+4. Repeat to stack a second branch","Initialize runs gt init with the GitHub Flow main branch as trunk and is then hidden
+Each branch is stacked on the current one and holds one commit with the entered message and the profile author
+An empty message creates an empty branch
+Names with spaces or characters like & % ^ are refused",High,Not Tested,
+TC-197,Branches - Local,"Graphite Modify, Navigate and Restack","1. Check out the lower branch of a stack and change a file
+2. Select Modify (amend)
+3. Change another file and select Modify with new commit
+4. Use Up, Down, Top of stack and Bottom of stack","Modify amends the last commit and restacks the branches above
+Modify with new commit adds a commit and restacks
+Navigation checks out the matching branch, errors from gt (e.g. already at the top) are shown
+Where the stack forks, Up and Top of stack ask which branch to check out",High,Not Tested,
+TC-198,Remote Operations,Graphite Sync and Submit,"1. Authenticate gt (gt auth)
+2. Select Submit stack and confirm
+3. Merge the bottom pull request on GitHub
+4. Select Sync with trunk","Submit pushes the stack and creates or updates its pull requests
+Sync pulls the trunk and restacks the open branches
+Without authentication the gt error is shown",Medium,Not Tested,Needs a GitHub repository connected to Graphite
+TC-199,Branches - Local,Graphite Stacks in Local Branches Panel,"1. Select Workflow > Graphite in an initialized repository with a forked stack and an untracked branch
+2. Look at the local branches panel in the dark and light themes
+3. Hover a branch","Branches are shown as stacks with the trunk on top and children indented below their parent, with connecting lines
+The current branch has a filled dot and a bold name
+Branches that need a restack show a restack badge, branches with pull requests a #number badge (draft, merged, closed)
+Untracked branches are listed under Not tracked by Graphite
+The tooltip shows parent, children, restack state and pull request",High,Not Tested,
+TC-200,Branches - Local,Graphite Panel Refresh,"1. With the Graphite workflow selected, run gt create in a terminal
+2. Switch back to Sourcerer
+3. Commit on a branch that has branches stacked on it
+4. Switch the workflow to Git Flow","The new branch appears in its stack after Sourcerer is activated again
+The branches above the committed branch get a restack badge
+With another workflow the panel shows the plain branch list again",Medium,Not Tested,"gt state takes about a second, the panel updates shortly after"
+TC-201,Branches - Local,Graphite Branch Context Menu,"1. Right-click a tracked branch: Restack, Submit stack, Open pull request, Stop tracking with Graphite
+2. Right-click an untracked branch: Track with Graphite and choose a parent
+3. Right-click the section header","The actions run gt restack --branch, gt submit --branch --stack, open the pull request tab and gt untrack --force after confirmations
+Track runs gt track --parent and the branch moves into the chosen stack
+Branch names with characters like & or % have these actions disabled
+The header has no context menu and can not be selected, dragged or dropped on",High,Not Tested,
+TC-202,Branches - Local,Graphite Panel Without CLI,1. Select Workflow > Graphite with gt not in PATH or in a repository without gt init,"The local branches panel shows the plain branch list, no dialog appears until a Graphite menu item is used",Low,Not Tested,
+TC-203,Branches - Local,Create Custom GitFlow-Next Workflow,"1. Open the Git Flow dropdown > Workflow > New custom workflow...
+2. Add base branches (e.g. develop with parent main, staging with parent develop) and topic types with prefixes, parents, start points, strategies, tag and keep
+3. Try an invalid model (missing prefix slash, two roots, a cycle, an empty name)
+4. Save with the check button or Ctrl+Enter","The editor opens as an overlay over the repository tab and scrolls when the window is small
+Problems are listed below the rows and saving stays disabled while there are any
+Esc cancels
+The workflow is saved to gitflow-next-workflows.json in the application data folder and listed under Custom workflows in every open repository",High,Not Tested,
+TC-204,Branches - Local,Apply Custom GitFlow-Next Workflow,"1. In a repository with main only, select the custom workflow under Workflow
+2. Confirm the dialog
+3. Open the Git Flow dropdown","The confirmation lists the base branches that will be created from their parents
+The gitflow.branch.* configuration in .git/config is replaced, sourcerer.gitflownext.workflow and .revision are set
+The dropdown lists Start items for the workflow topic types
+Without the git-flow-next CLI the install dialog is shown and nothing is applied
+Cancelling keeps the previous workflow checked",High,Not Tested,
+TC-205,Branches - Local,"Update, Edit and Remove Custom Workflows","1. Edit a workflow used by an open repository and save
+2. Open the Git Flow dropdown in that repository
+3. Select Apply updated and confirm
+4. Select Workflow > GitFlow-Next
+5. Remove the workflow","Apply updated <name>... appears only after the definition changed and rewrites the configuration
+Choosing GitFlow-Next keeps the configuration but no longer checks the custom workflow
+Removing asks for confirmation, the repository keeps its configuration",High,Not Tested,
+TC-206,Branches - Local,Save Repository Configuration as Custom Workflow,"1. Open a repository configured with the git flow command line tool or Initialize git-flow-next
+2. Select Workflow > Save this repository's configuration as...
+3. Enter a name and save","The editor opens with the base branches and topic types of the repository
+The saved workflow can be applied to other repositories
+The item is disabled in repositories without git-flow-next configuration",Medium,Not Tested,

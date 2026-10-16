@@ -1,0 +1,107 @@
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+
+*~
+*.autosave
+*.a
+*.core
+*.moc
+*.o
+*.obj
+*.orig
+*.rej
+*.so
+*.so.*
+*_pch.h.cpp
+*_resource.rc
+*.qm
+.#*
+*.*#
+core
+!core/
+tags
+.DS_Store
+.directory
+*.debug
+*.prl
+build*/*.app/
+src/build*/*.app/
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+Thumbs.db
+/.qmake.cache
+/.qmake.stash
+*.run
+
+# qtcreator generated files
+*.pro.user*
+CMakeLists.txt.user*
+build*/
+
+# xemacs temporary files
+*.flc
+
+# Vim temporary files
+.*.swp
+
+# Visual Studio generated files
+*.ib_pdb_index
+*.idb
+*.ilk
+*.pdb
+*.sln
+*.suo
+*.vcproj
+*vcproj.*.*.user
+*.ncb
+*.sdf
+*.opensdf
+*.vcxproj
+*vcxproj.*
+
+# MinGW generated files
+*.Debug
+*.Release
+
+# Python byte code
+*.pyc
+
+# Binaries
+# --------
+*.dll
+*.exe
+
+# Installer data directory
+installer/packages/*/data/
+
+
+installer/appimagetool-extracted/
+
+*.AppImage
+*.dmg
+
+installer/Sourcerer.AppDir/
+
+build-output.txt
+
+installer/Sourcerer-Installer.msi
+
+installer/Sourcerer-Installer.wixpdb
+
+.idea/
+.vscode/
+
+aqtinstall.log
+
+lib/zlib/contrib/nuget/obj/**
+
+__cmake_systeminformation/**
+
+.cache/**
+
+lib/cyrus-sasl/lib/binexclude.lst
+
+lib/cyrus-sasl/lib/libsasl.exp
+
+lib/cyrus-sasl/lib/libsasl.lib

@@ -1,0 +1,1948 @@
+#include "MainWindow.h"
+
+#include "Constants.h"
+#include "GitRepoManagerStructs.h"
+#include "ReleaseNotes.h"
+#include "SvnRepoManagerStructs.h"
+#include "WindowResize.h"
+#include "containers/BugReportContainer.h"
+#include "containers/CloneRepoContainer.h"
+#include "containers/GitCredentialsContainer.h"
+#include "containers/GitKeysContainer.h"
+#include "containers/IssueTrackerContainer.h"
+#include "containers/RepoContainer.h"
+
+#include "containers/HomeContainer.h"
+#include "containers/InitRepoContainer.h"
+#include "containers/ReleaseNotesContainer.h"
+#include "containers/SettingsContainer.h"
+#include "dialogs/AboutDialog.h"
+#include "widgets/ErrorToast.h"
+#include "widgets/GitProgressToast.h"
+#include "widgets/InfoToast.h"
+#include "widgets/NewsToast.h"
+#include "widgets/TextInputOverlayWidget.h"
+#include "widgets/TitlebarWidget.h"
+
+#include <ConfigKey.h>
+#include <Dispatcher.h>
+#include <Log.h>
+
+#include <QCloseEvent>
+#include <QDir>
+#include <QEnterEvent>
+#include <QFileDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSplitter>
+#include <QStandardPaths>
+#include <QTimer>
+#include <QVersionNumber>
+#include <QWindow>
+
+#include <QMessageBox>
+#include <QMetaObject>
+#include <functional>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+
+#include <dwmapi.h>
+#include <shellapi.h>
+#pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Shell32.lib")
+#endif
+
+#define THREAD_ID "MainWindow"
+
+namespace {
+
+enum class OpenedRepositoryType {
+  Unknown = 0,
+  Git,
+  Subversion,
+};
+
+OpenedRepositoryType detectRepositoryType(const QString &path) {
+  const QDir repoDir(path);
+  if (repoDir.exists(QStringLiteral(".git"))) {
+    return OpenedRepositoryType::Git;
+  }
+  if (repoDir.exists(QStringLiteral(".svn"))) {
+    return OpenedRepositoryType::Subversion;
+  }
+  return OpenedRepositoryType::Unknown;
+}
+
+class BottomResizeGripWidget final : public QWidget {
+public:
+  explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
+    setMouseTracking(true);
+    setCursor(Qt::SizeVerCursor);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background: transparent;");
+  }
+
+protected:
+  void enterEvent(QEnterEvent *) override { setCursor(Qt::SizeVerCursor); }
+
+  void leaveEvent(QEvent *) override { unsetCursor(); }
+
+  void mousePressEvent(QMouseEvent *event) override {
+    if (event->button() != Qt::LeftButton) {
+      QWidget::mousePressEvent(event);
+      return;
+    }
+
+    QWidget *parentWindow = window();
+    if (parentWindow) {
+      Qt::Edges edges = Qt::BottomEdge;
+      if (event->pos().x() <= 6) {
+        edges |= Qt::LeftEdge;
+      } else if (event->pos().x() >= width() - 6) {
+        edges |= Qt::RightEdge;
+      }
+      GuiManager::beginInteractiveResize(parentWindow, edges);
+    }
+  }
+
+  void mouseMoveEvent(QMouseEvent *event) override {
+    Q_UNUSED(event);
+    setCursor(Qt::SizeVerCursor);
+  }
+};
+} // namespace
+
+namespace GuiManager {
+
+using namespace Containers;
+using namespace Dialogs;
+using namespace Util;
+
+constexpr int TOP_MARGIN_OFFSET = -55;
+constexpr int PROFILE_WIDGET_ARROW_OFFSET = 32;
+constexpr auto LAST_RUN_VERSION_KEY = "app/lastRunVersion";
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
+      _topBarWidget(new TopBarWidget), _consoleWidget(new ConsoleWidget(this)),
+      _toastHost(ToastHostWidget::getInstance()),
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _eventManager(EventManager::EventManager::getInstance()),
+      _maximized(false), _mousePressed(false), _hitDetector(nullptr),
+      _bottomResizeGrip(nullptr),
+      _profileBoardWidget(QSharedPointer<ProfileBoardWidget>::create(this)),
+      _profileBoardActive(false) {
+  LOG_PERF(0, "Enter");
+
+#ifndef Q_OS_WIN
+  setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+#else
+  setWindowFlags(Qt::Window);
+
+  // Extend frame into client area slightly so DWM handles edges
+  HWND hwnd = (HWND)winId();
+  MARGINS margins = {1, 1, 1, 1};
+  DwmExtendFrameIntoClientArea(hwnd, &margins);
+#endif
+
+  _hitDetector = new HitDetector(this);
+  _hitDetector->init();
+  setMouseTracking(true);
+  installEventFilter(this);
+  connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
+
+  _profileBoardWidget->hide();
+
+  const qlonglong minimumWidth =
+      _configManager.getLong(ConfigManager::ConfigKey::MainWindowMinimumWidth);
+  const qlonglong minimumHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::MainWindowMinimumHeight);
+
+  setMinimumWidth(minimumWidth);
+  setMinimumHeight(minimumHeight);
+
+  const auto widget = new QWidget(this);
+  widget->setMouseTracking(true);
+
+  _centralWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+  // Create upper widget with topBar and central widget
+  auto *upperWidget = new QWidget();
+  auto *upperLayout = new QVBoxLayout(upperWidget);
+  upperLayout->setContentsMargins(0, 0, 0, 0);
+  upperLayout->setSpacing(0);
+  upperLayout->addWidget(_topBarWidget);
+  upperLayout->addWidget(_centralWidget);
+
+  // Create splitter and add upper widget and console
+  auto *splitter = new QSplitter(Qt::Vertical, widget);
+  splitter->addWidget(upperWidget);
+  splitter->addWidget(_consoleWidget);
+  splitter->setStretchFactor(0, 1); // Upper widget takes most space
+  splitter->setStretchFactor(1, 0); // Console takes minimal space
+
+  // Main layout
+  const auto verticalLayout = new QVBoxLayout(widget);
+  verticalLayout->setContentsMargins(0, 0, 0, 0);
+  verticalLayout->setSpacing(0);
+  verticalLayout->addWidget(splitter);
+
+  _consoleWidget->hide();
+
+  setCentralWidget(widget);
+
+  _bottomResizeGrip = new BottomResizeGripWidget(this);
+  _bottomResizeGrip->raise();
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+
+  LOG_DEBUG("TitleBar height is {} pixels.", titleBarHeight);
+
+  _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
+
+  connect(_topBarWidget, &TopBarWidget::open, this, &MainWindow::onOpen);
+  connect(_topBarWidget, &TopBarWidget::clone, this, &MainWindow::onClone);
+  connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
+  connect(_topBarWidget, &TopBarWidget::saveWorkspace, this,
+          &MainWindow::onSaveWorkspace);
+  connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
+          &MainWindow::onConnectToGitHubIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToGitLabIssueTracker, this,
+          &MainWindow::onConnectToGitLabIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToAzureIssueTracker, this,
+          &MainWindow::onConnectToAzureIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToBitbucketIssueTracker, this,
+          &MainWindow::onConnectToBitbucketIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToCustomIssueTracker, this,
+          &MainWindow::onConnectToCustomIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::settings, this,
+          &MainWindow::onSettings);
+  connect(_topBarWidget, &TopBarWidget::credentials, this,
+          &MainWindow::onCredentials);
+  connect(_topBarWidget, &TopBarWidget::sshKeys, this, &MainWindow::onSshKeys);
+  connect(_topBarWidget, &TopBarWidget::terminal, this,
+          &MainWindow::onTerminal);
+  connect(_topBarWidget, &TopBarWidget::bugReport, this,
+          &MainWindow::onBugReport);
+  connect(_topBarWidget, &TopBarWidget::releaseNotes, this,
+          &MainWindow::onReleaseNotes);
+  connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
+  connect(_topBarWidget, &TopBarWidget::themeChanged, this,
+          &MainWindow::onThemeChanged);
+  connect(_topBarWidget, &TopBarWidget::closedTab, this,
+          &MainWindow::onClosedTab);
+  connect(_topBarWidget, &TopBarWidget::selectedTab, this,
+          &MainWindow::onSelectedTab);
+  connect(_topBarWidget, &TopBarWidget::movedTab, this,
+          &MainWindow::onMovedTab);
+  connect(_topBarWidget, &TopBarWidget::resizeTabBar, this,
+          &MainWindow::onTabBarResize);
+  connect(_topBarWidget, &TopBarWidget::minimized, this,
+          &MainWindow::onMinimizeClicked);
+  connect(_topBarWidget, &TopBarWidget::maximized, this,
+          &MainWindow::onMaximizeClicked);
+  connect(_topBarWidget, &TopBarWidget::closed, this,
+          &MainWindow::onCloseClicked);
+  connect(_topBarWidget, &TopBarWidget::doubleClicked, this,
+          &MainWindow::onMaximizeClicked);
+  connect(_topBarWidget, &TopBarWidget::dragged, this,
+          &MainWindow::onTitleBarDrag);
+  connect(_topBarWidget, &TopBarWidget::profile, this, &MainWindow::onProfile);
+
+  addHomeContainer();
+
+  const auto callbackFunc =
+      std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
+
+  QTimer::singleShot(0, this, [this]() { showReleaseNotesIfUpdated(); });
+
+  LOG_PERF(0, "Exit");
+}
+
+MainWindow::~MainWindow() {
+  LOG_PERF(0, "Enter");
+
+  const auto callbackFunc =
+      std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
+
+  _toastHost.setParent(nullptr);
+
+  _profileBoardWidget->setParent(nullptr);
+  _profileBoardWidget.clear();
+
+  _centralWidget->setCentralWidget(nullptr);
+
+  if (_current >= 0 && _current < _containers.size()) {
+    if (_containers[_current]) {
+      _containers[_current]->setParent(nullptr);
+    }
+  }
+
+  delete _bottomResizeGrip;
+  delete _hitDetector;
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::activateFromAnotherInstance(const QStringList &arguments) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Activated by another instance, arguments: '{}'",
+           arguments.join(QLatin1Char(' ')).toStdString());
+
+  if (isMinimized()) {
+    setWindowState(windowState() & ~Qt::WindowMinimized);
+  }
+  show();
+  raise();
+  activateWindow();
+
+  LOG_PERF(0, "Exit");
+}
+
+QStringList MainWindow::containerPaths() const {
+  LOG_PERF(0, "Enter");
+
+  QStringList paths;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    const auto container = _containers[i];
+    Q_ASSERT(container != nullptr);
+    if (!container) {
+      continue;
+    }
+
+    const ContainerType type = container->type();
+    if (type == ContainerType::Home) {
+      continue;
+    }
+
+    const QString path = container->path();
+    if (path.isEmpty()) {
+      continue;
+    }
+
+    paths += path;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return paths;
+}
+
+void MainWindow::mouseMoveEvent(QMouseEvent *event) {
+  if (!event)
+    return;
+
+  event->ignore();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+  QMainWindow::resizeEvent(event);
+
+  if (_bottomResizeGrip) {
+    const qlonglong borderWidth =
+        _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+    const int gripHeight = qMax<qlonglong>(borderWidth, 6);
+    _bottomResizeGrip->setGeometry(0, height() - gripHeight, width(),
+                                   gripHeight);
+    _bottomResizeGrip->raise();
+  }
+}
+
+void MainWindow::changeEvent(QEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  if (event->type() == QEvent::WindowStateChange) {
+    if (windowState() & Qt::WindowMinimized) {
+      // Window is minimized, hide all toasts
+      _toastHost.hideAllToasts();
+    } else {
+      // Window is restored, show all toasts
+      _toastHost.showAllToasts();
+    }
+  }
+
+  QMainWindow::changeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  _configManager.setString(ConfigManager::ConfigKey::MainWindowGeometry,
+                           saveGeometry().toHex());
+
+  QMainWindow::closeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showEvent(QShowEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  QMainWindow::showEvent(event);
+
+  const QString savedGeometry =
+      _configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (!savedGeometry.isEmpty()) {
+    restoreGeometry(QByteArray::fromHex(savedGeometry.toUtf8()));
+    _maximized = windowState().testFlag(Qt::WindowMaximized);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
+                             qintptr *result) {
+  MSG *msg = static_cast<MSG *>(message);
+
+  if (msg->message == WM_NCCALCSIZE) {
+    // Returning TRUE (1) with an empty rect removes the standard title bar
+    // while keeping the native OS frame, borders, and window snapping active.
+    if (msg->wParam == TRUE) {
+      // When maximized, Windows positions the window so that its resize frame
+      // hangs off the monitor edges. Since the whole window is client area,
+      // clamp it to the monitor work area so nothing is cut off.
+      if (IsZoomed(msg->hwnd)) {
+        auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+        HMONITOR monitor =
+            MonitorFromWindow(msg->hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo{};
+        monitorInfo.cbSize = sizeof(monitorInfo);
+        if (monitor && GetMonitorInfo(monitor, &monitorInfo)) {
+          RECT clientRect = monitorInfo.rcWork;
+
+          // An auto-hide taskbar is only revealed when the mouse reaches its
+          // monitor edge, which a window covering that edge prevents. Leave
+          // a 1px gap on the taskbar's edge so it can still be revealed.
+          APPBARDATA appBarState{};
+          appBarState.cbSize = sizeof(appBarState);
+          if (SHAppBarMessage(ABM_GETSTATE, &appBarState) & ABS_AUTOHIDE) {
+            const auto hasAutoHideBar = [&monitorInfo](UINT edge) {
+              APPBARDATA appBarData{};
+              appBarData.cbSize = sizeof(appBarData);
+              appBarData.uEdge = edge;
+              appBarData.rc = monitorInfo.rcMonitor;
+              return SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &appBarData) != 0;
+            };
+
+            if (hasAutoHideBar(ABE_BOTTOM)) {
+              clientRect.bottom -= 1;
+            } else if (hasAutoHideBar(ABE_TOP)) {
+              clientRect.top += 1;
+            } else if (hasAutoHideBar(ABE_LEFT)) {
+              clientRect.left += 1;
+            } else if (hasAutoHideBar(ABE_RIGHT)) {
+              clientRect.right -= 1;
+            }
+          }
+
+          params->rgrc[0] = clientRect;
+        }
+      }
+
+      *result = 0;
+      return true;
+    }
+  }
+
+  return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+  return _hitDetector->eventFilter(watched, event);
+}
+
+void MainWindow::openRepositoryByType(const QString &path,
+                                      const QString &sourceLabel) {
+  const OpenedRepositoryType type = detectRepositoryType(path);
+  switch (type) {
+  case OpenedRepositoryType::Git:
+    addGitRepoContainer(path);
+    break;
+  case OpenedRepositoryType::Subversion:
+    addSvnRepoContainer(path);
+    break;
+  default:
+    LOG_WARN("{} does not look like a Git or Subversion repository: {}",
+             sourceLabel, path);
+    break;
+  }
+}
+
+void MainWindow::promptOpenClonedRepository(const QString &path,
+                                            const bool isSvn) {
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Repository cloned"),
+      tr("The repository was cloned successfully. Do you want to open it?\n%1")
+          .arg(QDir::toNativeSeparators(path)),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+  if (reply != QMessageBox::Yes) {
+    return;
+  }
+
+  if (isSvn) {
+    addSvnRepoContainer(path);
+  } else {
+    addGitRepoContainer(path);
+  }
+}
+
+void MainWindow::onOpen() {
+  LOG_PERF(0, "Enter");
+
+  const QStringList documentsPaths =
+      QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
+  if (documentsPaths.length() == 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString path = QFileDialog::getExistingDirectory(
+      this, tr("Open repository"), documentsPaths[0]);
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected path"));
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onClone() {
+  LOG_PERF(0, "Enter");
+
+  addCloneContainer(Containers::CloneType::Git);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloneSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addCloneContainer(Containers::CloneType::Subversion);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloneFinished(ContainerWidget *sender) {
+  LOG_PERF(0, "Enter");
+
+  closeContainer(sender);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInit() {
+  LOG_PERF(0, "Enter");
+
+  addInitRepoContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInitSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addInitRepoContainer(Containers::InitType::Subversion);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInitFinished(ContainerWidget *sender) {
+  LOG_PERF(0, "Enter");
+
+  closeContainer(sender);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onOpenRepo(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  addGitRepoContainer(path);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onRecentClicked(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected recent path"));
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSaveWorkspace() {
+  LOG_PERF(0, "Enter");
+
+  saveNewWorkspace();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToGitHubIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onGitHubIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToGitLabIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onGitLabIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToAzureIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onAzureIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToBitbucketIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer, "onBitbucketOAuthConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToCustomIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onCustomIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onIssueTrackerClicked(const QString &serviceType,
+                                       const QString &repositoryName) {
+  LOG_PERF(0, "Enter");
+
+  if (serviceType.trimmed().isEmpty() || repositoryName.trimmed().isEmpty()) {
+    LOG_WARN("Ignored empty issue tracker selection.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  addIssueTrackerContainer(serviceType, repositoryName);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSettings() {
+  LOG_PERF(0, "Enter");
+
+  addSettingsContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCredentials() {
+  LOG_PERF(0, "Enter");
+
+  addGitCredentialsContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSshKeys() {
+  LOG_PERF(0, "Enter");
+
+  addGitKeysContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSubmitWorkspace(const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  if (name.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString writableDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString workspacesDirectory =
+      writableDir + "/" + WORKSPACES_SUBDIRECTORY;
+  const QString workspaceFilePath =
+      workspacesDirectory + "/" + name + ".workspace";
+
+  const QDir dir;
+  dir.mkpath(workspacesDirectory);
+
+  QFile file(workspaceFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text |
+                 QIODevice::Truncate)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "Can't open file \"{}\" for writing.",
+              workspaceFilePath);
+    return;
+  }
+
+  QJsonArray array;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (const auto repoContainer =
+            qobject_cast<Widgets::ContainerWidget *>(_containers[i].get())) {
+      const ContainerType type = repoContainer->type();
+      if (type == ContainerType::Home) {
+        continue;
+      }
+
+      QJsonObject object;
+      object["type"] = static_cast<int>(type);
+
+      if (type == ContainerType::IssueTracker) {
+        const auto issueTrackerContainer =
+            qobject_cast<IssueTrackerContainer *>(repoContainer);
+        // Pages opened at a given URL, e.g. pull requests, are not restored.
+        if (!issueTrackerContainer ||
+            issueTrackerContainer->startUrl().isValid()) {
+          continue;
+        }
+
+        const QString serviceType =
+            issueTrackerContainer->serviceType().trimmed();
+        const QString repositoryName =
+            issueTrackerContainer->repositoryName().trimmed();
+        if (serviceType.isEmpty() || repositoryName.isEmpty()) {
+          continue;
+        }
+
+        object["serviceType"] = serviceType;
+        object["repositoryName"] = repositoryName;
+        object["path"] = QDir::fromNativeSeparators(repositoryName);
+      } else {
+        const QString path = repoContainer->path();
+        if (path.isEmpty()) {
+          continue;
+        }
+
+        object["path"] = QDir::fromNativeSeparators(path);
+      }
+
+      array += object;
+    }
+  }
+
+  const QJsonDocument document(array);
+  const QString jsonStr = document.toJson(QJsonDocument::Compact);
+
+  QTextStream stream(&file);
+  stream << jsonStr;
+  stream.flush();
+
+  file.close();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onTerminal() {
+  LOG_PERF(0, "Enter");
+
+  // Get the terminal action to update its text
+  QAction *terminalAction =
+      _topBarWidget->titleBarWidget()->menuButton()->terminalAction();
+
+  if (_consoleWidget->isVisible()) {
+    // Hide console
+    _consoleWidget->hide();
+    if (terminalAction) {
+      terminalAction->setText(tr("Show &terminal"));
+    }
+  } else {
+    // Show console
+    QString workingDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+
+    // Prefer the current repository directory when one is open.
+    if (_current >= 0 && _current < _containers.size()) {
+      const auto container = _containers[_current];
+      if (container) {
+        const QString path = container->path();
+        if (!path.isEmpty()) {
+          workingDirectory = path;
+        }
+      }
+    }
+
+    _consoleWidget->setWorkingDirectory(workingDirectory);
+
+    _consoleWidget->init();
+    _consoleWidget->show();
+    _consoleWidget->setFocusToConsole();
+
+    if (terminalAction) {
+      terminalAction->setText(tr("Hide &terminal"));
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onWorkspaceClicked(const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  bool foundNotHome = false;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    ContainerWidget *containerWidget = _containers[i].get();
+    Q_ASSERT(containerWidget != nullptr);
+    if (!containerWidget) {
+      continue;
+    }
+    if (containerWidget->type() == ContainerType::Home) {
+      continue;
+    }
+
+    foundNotHome = true;
+    break;
+  }
+
+  if (foundNotHome) {
+    const QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "Confirm Action", "Do you want to close existing repositories?",
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
+  const QString writableDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString workspacesDirectory =
+      writableDir + "/" + WORKSPACES_SUBDIRECTORY;
+  const QString workspaceFilePath =
+      workspacesDirectory + "/" + name + ".workspace";
+
+  QFile file(workspaceFilePath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "Can't open file \"{}\" for writing.",
+              workspaceFilePath);
+    return;
+  }
+
+  const QByteArray data = file.readAll();
+
+  file.close();
+
+  const QJsonDocument document = QJsonDocument::fromJson(data);
+  if (document.isNull()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!document.isArray()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto containersListCopy = _containers;
+
+  for (int i = 0; i < containersListCopy.length(); ++i) {
+    ContainerWidget *containerWidget = containersListCopy[i].get();
+    Q_ASSERT(containerWidget != nullptr);
+    if (!containerWidget) {
+      continue;
+    }
+    if (containerWidget->type() == ContainerType::Home) {
+      continue;
+    }
+
+    closeContainer(containerWidget);
+  }
+
+  QJsonArray array = document.array();
+
+  for (const auto &val : array) {
+    Q_ASSERT(val.isObject());
+    if (!val.isObject()) {
+      continue;
+    }
+
+    const QJsonObject object = val.toObject();
+
+    const int type = object["type"].toInt();
+
+    if (type <= static_cast<int>(ContainerType::Unknown) ||
+        type >= static_cast<int>(ContainerType::last)) {
+      continue;
+    }
+
+    const QString path = object["path"].toString();
+    if (path.isEmpty()) {
+      continue;
+    }
+
+    switch (static_cast<ContainerType>(type)) {
+    case ContainerType::GitRepo: {
+      addGitRepoContainer(path);
+      break;
+    }
+    case ContainerType::IssueTracker: {
+      const QString serviceType = object.value("serviceType").toString();
+      const QString repositoryName =
+          object.value("repositoryName").toString(path);
+      addIssueTrackerContainer(serviceType, repositoryName);
+      break;
+    }
+    default: {
+      LOG_WARN(("Internal error! Unknown container type {}."), type);
+      break;
+    }
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onAbout() const {
+  LOG_PERF(0, "Enter");
+
+  AboutDialog aboutDlg;
+  aboutDlg.move(x() + (width() - aboutDlg.width()) / 2,
+                y() + (height() - aboutDlg.height()) / 2);
+  aboutDlg.exec();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onThemeChanged() {
+  LOG_PERF(0, "Enter");
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    _containers[i]->themeChanged();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onBugReport() {
+  LOG_PERF(0, "Enter");
+
+  addBugReportContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onClosedTab(const int index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("index is {}.", index);
+
+  if (index < 0 || index >= _containers.length()) {
+    LOG_WARN("Invalid tab index {}.", index);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  closeContainer(_containers[index].get());
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSelectedTab(const int index) {
+  LOG_PERF(0, "Enter");
+
+  selectContainer(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onMovedTab(const int from, const int to) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Tab moved from {} to {}.", from, to);
+
+  if (from < 0 || from >= _containers.length() || to < 0 ||
+      to >= _containers.length() || from == to) {
+    LOG_WARN("Invalid tab move from {} to {}.", from, to);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Keep container order in sync with the tab order, tab index is used as
+  // container index everywhere.
+  _containers.move(from, to);
+
+  if (_current == from) {
+    _current = to;
+  } else if (from < _current && _current <= to) {
+    _current--;
+  } else if (to <= _current && _current < from) {
+    _current++;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onTabBarResize() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onToastHostSizeChanged(const QSize &newSize) {
+  LOG_PERF(0, "Enter");
+
+  QSize adjustedSize;
+  adjustedSize.setWidth(adjustedSize.width());
+  adjustedSize.setHeight(newSize.height() +
+                         _topBarWidget->titleBarWidget()->height());
+
+  setMinimumSize(newSize);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onMinimizeClicked() {
+  LOG_PERF(0, "Enter");
+
+  showMinimized();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onMaximizeClicked() {
+  LOG_PERF(0, "Enter");
+
+  if (_maximized) {
+    _maximized = false;
+    showNormal();
+  } else {
+    _maximized = true;
+    showMaximized();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloseClicked() {
+  LOG_PERF(0, "Enter");
+
+  close();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onTitleBarDrag() const {
+  LOG_PERF(0, "Enter");
+
+  windowHandle()->startSystemMove();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onEdgeHit(Qt::Edges edges) const {
+  LOG_PERF(0, "Enter");
+
+  beginInteractiveResize(const_cast<MainWindow *>(this), edges);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onProfile(int middleX) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(middleX);
+
+  LOG_DEBUG("Profile widget height: {}", _topBarWidget->height());
+  LOG_DEBUG("Profile buton is null: {}",
+            (_topBarWidget->profileButton() == nullptr));
+
+  _profileBoardWidget->adjustSize();
+
+  const QPushButton *profileButton = _topBarWidget->profileButton();
+  const QRect profileButtonRect =
+      profileButton ? profileButton->geometry() : QRect();
+  const QPoint popupTopLeft =
+      profileButton ? QPoint(profileButtonRect.center().x() -
+                                 _profileBoardWidget->width() +
+                                 PROFILE_WIDGET_ARROW_OFFSET,
+                             _topBarWidget->height())
+                    : QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                             _topBarWidget->height());
+
+  LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
+
+#ifdef Q_OS_WIN
+  _profileBoardWidget->move(mapToGlobal(popupTopLeft));
+#else
+  _profileBoardWidget->move(popupTopLeft);
+#endif
+  _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
+                                       PROFILE_WIDGET_ARROW_OFFSET);
+  _profileBoardWidget->show();
+  _profileBoardWidget->raise();
+  _profileBoardActive = true;
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addCloneContainer(CloneType type) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<CloneRepoContainer>::create(this, type);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(type == Containers::CloneType::Git
+                                              ? tr("Clone Git")
+                                              : tr("Checkout Subversion"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  const auto handlerFunc =
+      std::bind(&MainWindow::onCloneFinished, this, container.get());
+
+  connect(container.get(), &CloneRepoContainer::finished, this, handlerFunc);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitRepoContainer(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::GitRepo, path, this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
+          &MainWindow::onOpenRepo);
+  connect(container.get(), &RepoContainer::openPullRequestRequested, this,
+          [this](const QString &repositoryName, const QUrl &url,
+                 const QString &title) {
+            addIssueTrackerContainer(QStringLiteral("github"), repositoryName,
+                                     url, title);
+          });
+
+  _containers += container;
+
+  const QStringList parts =
+      QDir::fromNativeSeparators(path).split('/', Qt::SkipEmptyParts);
+
+  QString repoName;
+  if (!parts.empty()) {
+    repoName = parts.last();
+  } else {
+    repoName = path;
+  }
+
+  _topBarWidget->titleBarWidget()->addTab(repoName,
+                                          QDir::toNativeSeparators(path));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addSvnRepoContainer(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::SvnRepo, path, this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
+          &MainWindow::onOpenRepo);
+
+  _containers += container;
+
+  const QStringList parts =
+      QDir::fromNativeSeparators(path).split('/', Qt::SkipEmptyParts);
+
+  QString repoName;
+  if (!parts.empty()) {
+    repoName = parts.last();
+  } else {
+    repoName = path;
+  }
+
+  _topBarWidget->titleBarWidget()->addTab(repoName,
+                                          QDir::toNativeSeparators(path));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addHomeContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<HomeContainer>::create(this);
+  container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("Home"), QString(), false, true);
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
+  connect(container.get(), &HomeContainer::cloneSubversion, this,
+          &MainWindow::onCloneSubversion);
+  connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
+  connect(container.get(), &HomeContainer::initSubversion, this,
+          &MainWindow::onInitSubversion);
+  connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
+  connect(container.get(), &HomeContainer::issueTrackerClicked, this,
+          &MainWindow::onIssueTrackerClicked);
+  connect(container.get(), &HomeContainer::recentClicked, this,
+          &MainWindow::onRecentClicked);
+  connect(container.get(), &HomeContainer::workspaceClicked, this,
+          &MainWindow::onWorkspaceClicked);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addInitRepoContainer(Containers::InitType type) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<InitRepoContainer>::create(this, type);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(
+      type == Containers::InitType::Git ? tr("Init") : tr("Init Subversion"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  const auto handlerFunc =
+      std::bind(&MainWindow::onInitFinished, this, container.get());
+
+  connect(container.get(), &InitRepoContainer::initialized, this, handlerFunc);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addSettingsContainer() {
+  LOG_PERF(0, "Enter");
+
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i]->type() != ContainerType::Settings) {
+      continue;
+    }
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    const qlonglong titleBarHeight =
+        _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+    const auto container = QSharedPointer<SettingsContainer>::create(this);
+    container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0,
+                                  0);
+    container->init();
+    container->selected();
+    container->setupShortcuts();
+    _containers += container;
+    _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
+    _topBarWidget->titleBarWidget()->selectTab(
+        _topBarWidget->titleBarWidget()->tabsCount() - 1);
+  } else {
+    selectContainer(index);
+    _topBarWidget->titleBarWidget()->selectTab(index);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addBugReportContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<BugReportContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("Report bug"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  connect(container.get(), &BugReportContainer::close, this,
+          [this, container]() { closeContainer(container.get()); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addReleaseNotesContainer(const QString &title,
+                                          const QString &markdown) {
+  LOG_PERF(0, "Enter");
+
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i]->type() != ContainerType::ReleaseNotes) {
+      continue;
+    }
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    const qlonglong titleBarHeight =
+        _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+    const auto container =
+        QSharedPointer<ReleaseNotesContainer>::create(title, markdown, this);
+    container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0,
+                                  0);
+    container->init();
+    container->selected();
+    container->setupShortcuts();
+    _containers += container;
+    _topBarWidget->titleBarWidget()->addTab(tr("What's new"));
+    _topBarWidget->titleBarWidget()->selectTab(
+        _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+    connect(container.get(), &ReleaseNotesContainer::close, this,
+            [this, container]() { closeContainer(container.get()); });
+  } else {
+    selectContainer(index);
+    _topBarWidget->titleBarWidget()->selectTab(index);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onReleaseNotes() {
+  LOG_PERF(0, "Enter");
+
+  const QString text = ReleaseNotes::sectionsBetween(
+      ReleaseNotes::load(), QString(), _configManager.getAppVersion());
+
+  if (text.trimmed().isEmpty()) {
+    showToast(tr("No release notes available."), tr("Info"));
+  } else {
+    addReleaseNotesContainer(tr("Release notes"), text);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showReleaseNotesIfUpdated() {
+  LOG_PERF(0, "Enter");
+
+  const QString currentText = _configManager.getAppVersion();
+  const QString lastText = _configManager.getString(LAST_RUN_VERSION_KEY);
+
+  const QVersionNumber current = QVersionNumber::fromString(currentText);
+  const QVersionNumber last = QVersionNumber::fromString(lastText);
+
+  // Always remember the version that is running now.
+  if (lastText != currentText) {
+    _configManager.setString(LAST_RUN_VERSION_KEY, currentText);
+    _configManager.save();
+  }
+
+  // Fresh install, downgrade or unparsable version: nothing to show.
+  if (lastText.isEmpty() || current.isNull() || last.isNull() ||
+      last >= current) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString text = ReleaseNotes::sectionsBetween(ReleaseNotes::load(),
+                                                     lastText, currentText);
+
+  if (!text.trimmed().isEmpty()) {
+    addReleaseNotesContainer(tr("What's new in Sourcerer %1").arg(currentText),
+                             text);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addIssueTrackerContainer(const QString &serviceType,
+                                          const QString &repositoryName,
+                                          const QUrl &startUrl,
+                                          const QString &title) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<IssueTrackerContainer>::create(
+      serviceType.trimmed(), repositoryName.trimmed(), startUrl, this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(
+      title.isEmpty() ? QStringLiteral("%1: %2").arg(serviceType.trimmed(),
+                                                     repositoryName.trimmed())
+                      : title);
+  connect(container.get(), &IssueTrackerContainer::close, this,
+          [this, container]() { closeContainer(container.get()); });
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitCredentialsContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<GitCredentialsContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("Git credentials"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitKeysContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<GitKeysContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("SSH keys"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::closeContainer(const ContainerWidget *container) {
+  LOG_PERF(0, "Enter");
+
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i] != container)
+      continue;
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Hide and deselect the container being closed
+  if (_current == index) {
+    _containers[index]->hide();
+    _containers[index]->deselected();
+    _current = -1;
+  } else if (_current > index && _current > -1) {
+    _current--;
+  }
+
+  _toastHost.setParent(this);
+
+  _containers.remove(index);
+
+  if (_containers.length() == 0)
+    addHomeContainer();
+
+  _topBarWidget->titleBarWidget()->removeTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::eventCallback(EventManager::Event event) {
+  LOG_PERF(0, "Enter");
+
+  const EventManager::EventType eventType = event.type();
+  LOG_DEBUG("Processing event of type {}.", (int)eventType);
+
+  switch (eventType) {
+  case EventManager::EventType::GitRepoManagerGetCredentials: {
+    const auto request = event.data<GitCredentialsRequest>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      Q_ASSERT(_current != -1);
+      QWidget *parent =
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
+      Q_ASSERT(parent != nullptr);
+      if (!parent) {
+        LOG_WARN("Parent widget is null.");
+        return;
+      }
+      if (request.needsPassphrase) {
+        SshPassphraseOverlayWidget *overlayWidget = nullptr;
+        if (_passphraseWidgets.contains(request.id)) {
+          overlayWidget = _passphraseWidgets[request.id];
+        } else {
+          overlayWidget = new SshPassphraseOverlayWidget(request.id, parent);
+          _passphraseWidgets[request.id] = overlayWidget;
+          connect(overlayWidget, &SshPassphraseOverlayWidget::error, this,
+                  [=]() {
+                    hidePassphraseOverlay(overlayWidget);
+                    _passphraseWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+          connect(overlayWidget, &SshPassphraseOverlayWidget::finished, this,
+                  [=]() {
+                    hidePassphraseOverlay(overlayWidget);
+                    _passphraseWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+        }
+        showPassphraseOverlay(request, overlayWidget);
+      } else {
+        GitCredentialsOverlayWidget *overlayWidget = nullptr;
+        if (_credentialsWidgets.contains(request.id)) {
+          overlayWidget = _credentialsWidgets[request.id];
+        } else {
+          overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
+          _credentialsWidgets[request.id] = overlayWidget;
+          connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                  [=]() {
+                    hideCredentialsOverlay(overlayWidget);
+                    _credentialsWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+          connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                  [=]() {
+                    hideCredentialsOverlay(overlayWidget);
+                    _credentialsWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+        }
+        showCredentialsOverlay(request, overlayWidget);
+      }
+    });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerGetCredentials: {
+    const auto request = event.data<GitCredentialsRequest>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      Q_ASSERT(_current != -1);
+      QWidget *parent =
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
+      Q_ASSERT(parent != nullptr);
+      if (!parent) {
+        LOG_WARN("Parent widget is null.");
+        return;
+      }
+      GitCredentialsOverlayWidget *overlayWidget = nullptr;
+      if (_credentialsWidgets.contains(request.id)) {
+        overlayWidget = _credentialsWidgets[request.id];
+      } else {
+        overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
+        overlayWidget->setIsSvn(true);
+        _credentialsWidgets[request.id] = overlayWidget;
+        connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+      }
+      showCredentialsOverlay(request, overlayWidget);
+    });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoError: {
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showErrorToast(tr("Unable to clone Git repository"), tr("Error"));
+    });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoResult: {
+    const auto commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
+    const QString repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, false);
+    });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerCloneRepoResult: {
+    const auto commandResult =
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const QString repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, true);
+    });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoProgress:
+  case EventManager::EventType::SvnRepoManagerCloneRepoProgress: {
+    CloneProgress data;
+    QString title;
+    if (eventType == EventManager::EventType::GitRepoManagerCloneRepoProgress) {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = data.cloning ? tr("Clone") : tr("Fetch");
+    } else {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = tr("Checkout");
+    }
+
+    if (!data.error && !data.finished && !_progressing.contains(data.uuid)) {
+      _progressing += data.uuid;
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+        showCloneProgressToast(data, title);
+      });
+    } else if (data.finished) {
+      _progressing.remove(data.uuid);
+    }
+
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerInitRepoResult: {
+    const auto commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
+    const auto repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
+    const auto commandResult =
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const auto repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        getSelf().toWeakRef(), [=]() { addSvnRepoContainer(repoPath); });
+    break;
+  }
+  case EventManager::EventType::NewsTrackerNews: {
+    const auto news = event.data<NewsTracker::Structs::NewsItem>();
+    if (news.isUpdate()) {
+      break;
+    }
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      _toastHost.addToast(new NewsToast(news));
+    });
+    break;
+  }
+  case EventManager::EventType::ApplicationUpdated: {
+    const auto newVersion =
+        event.data<NewsTracker::Structs::NewsItem>().version;
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      _toastHost.addToast(new InfoToast(
+          QString(tr("Application is updating to version %1.\nPlease "
+                     "restart to finish update."))
+              .arg(newVersion),
+          tr("Info"), true));
+    });
+    break;
+  }
+  default: {
+    LOG_WARN("Unhandled event.");
+    break;
+  }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::saveNewWorkspace() {
+  LOG_PERF(0, "Enter");
+
+  const auto inputOverlay = new TextInputOverlayWidget(this);
+  inputOverlay->setPlaceholderText(tr("Name of the workspace"));
+
+  connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    inputOverlay->hide();
+    delete inputOverlay;
+  });
+  connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &name) {
+            inputOverlay->hide();
+            delete inputOverlay;
+            onSubmitWorkspace(name);
+          });
+
+  inputOverlay->show();
+  inputOverlay->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request,
+                                        GitCredentialsOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  widget->setRepoPath(request.repoPath);
+  widget->setRequest(request);
+  widget->start();
+  widget->show();
+  widget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::hidePassphraseOverlay(SshPassphraseOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  widget->stop();
+  widget->hide();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showPassphraseOverlay(const GitCredentialsRequest &request,
+                                       SshPassphraseOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  widget->setRequest(request);
+  widget->start();
+  widget->show();
+  widget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::selectContainer(const int index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("index is {}.", index);
+
+  if (index < 0 || index >= _containers.length()) {
+    LOG_WARN("Invalid tab index {}.", index);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_current != -1) {
+    _containers[_current]->hide();
+    _containers[_current]->deselected();
+  }
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+
+  _toastHost.setParent(_containers[index].get());
+  _toastHost.setYOffset(titleBarHeight);
+
+  _containers[index]->show();
+  _containers[index]->setupShortcuts();
+  _containers[index]->selected();
+  _centralWidget->setCentralWidget(_containers[index].get());
+  _current = index;
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::hideCredentialsOverlay(GitCredentialsOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  widget->stop();
+  widget->hide();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showCloneProgressToast(const CloneProgress &data,
+                                        const QString &title) {
+  LOG_PERF(0, "Enter");
+
+  const auto toast = QSharedPointer<GitProgressToast>::create(
+      data,
+      title.isEmpty() ? (data.cloning ? tr("Clone") : tr("Fetch")) : title);
+
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
+                                   [=]() { _toastHost.addToast(toast); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showToast(const QString &text, const QString &title) {
+  LOG_PERF(0, "Enter");
+
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new InfoToast(text, title));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showErrorToast(const QString &text, const QString &title) {
+  LOG_PERF(0, "Enter");
+
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new ErrorToast(text, title));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+} // namespace GuiManager
