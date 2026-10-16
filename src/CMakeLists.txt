@@ -32,7 +32,9 @@ find_package(zlib REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg Core5Compat
              LinguistTools OPTIONAL_COMPONENTS WebEngineWidgets)
 
-if(WIN32)
+# Host-specific toolchain paths; only needed when not running inside a VS developer
+# environment (VsDevCmd/vcvars set INCLUDE/LIB for the active toolset).
+if(WIN32 AND NOT DEFINED ENV{VCToolsInstallDir})
   include_directories(SYSTEM
       C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
       "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
@@ -58,10 +60,12 @@ endif()
 
 if(WIN32)
   set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
-  link_directories(
-      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
-      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
-      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+  if(NOT DEFINED ENV{VCToolsInstallDir})
+    link_directories(
+        "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+        "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+        "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+  endif()
 endif()
 
 qt_add_executable(Sourcerer
