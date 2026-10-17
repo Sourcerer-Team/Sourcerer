@@ -7,6 +7,10 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
+namespace GuiManager::Widgets {
+class PinnedCertificatesWidget;
+}
+
 namespace Ui {
 class GitCredentialsContainer;
 }
@@ -39,6 +43,7 @@ private:
 private:
   Ui::GitCredentialsContainer *ui;
   QStandardItemModel *_model;
+  Widgets::PinnedCertificatesWidget *_pinnedCertificates = nullptr;
 
   GitRepo::GitCredentialStorage &_credentialStorage;
 };

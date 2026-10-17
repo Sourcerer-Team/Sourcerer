@@ -332,6 +332,8 @@ struct GitRepoDeleteBranchCommand final : GitRepoCommand {
   ~GitRepoDeleteBranchCommand() override = default;
 
   QString branchName;
+  // Also delete a branch that is not fully merged, like `git branch -D`.
+  bool force = false;
 };
 
 struct GitRepoDeleteRemoteBranchCommand final : GitRepoCommand {
@@ -1028,9 +1030,15 @@ struct GitRepoContext {
   QString uuid;
   BlockingQueue<GitRepoCommand *> commandsQueue;
   QThread *workersThread = nullptr;
-  ;
   git_repository *gitRepo = nullptr;
+  // Set when CloseRepo is scheduled: no new requests are taken, the ones
+  // still queued are answered with an error.
   bool quit = false;
+  // The OpenRepo, CloneRepo or InitRepo request that made the context, and
+  // the CloseRepo request that ends it. Their answers destroy the context;
+  // the answers to refused requests don't.
+  QString ownerSyncUuid;
+  QString closeSyncUuid;
 };
 
 } // namespace GitRepoManager::Structs

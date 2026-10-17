@@ -1,5 +1,9 @@
 #include "GitCredentialStorage.h"
 
+#ifdef SOURCERER_GITREPO_TESTING
+#include "GitRepo.h"
+#endif
+
 #include <ConfigManager.h>
 #include <Log.h>
 
@@ -28,6 +32,37 @@ namespace GitRepo {
 constexpr int AES_KEY_SIZE = 32; // 256 bits
 constexpr int AES_IV_SIZE = 16;  // 128 bits
 constexpr int PBKDF2_ITERATIONS = 100000;
+
+// Spellings of the same directory share their credentials.
+static QString normalizedRepoPath(const QString &repoPath) {
+  return QDir::cleanPath(QDir::fromNativeSeparators(repoPath));
+}
+
+// Encrypted entries written since the MAC was added: the magic, the IV and
+// the ciphertext, then an HMAC-SHA256 of the IV and the ciphertext. Older
+// entries are the IV and the ciphertext only.
+static const QByteArray kEntryMagic = QByteArrayLiteral("SGC2");
+constexpr int kMacSize = 32;
+
+static QByteArray entryMac(const QByteArray &encrypted,
+                           const QByteArray &repoKey) {
+  const QByteArray macKey = QCryptographicHash::hash(
+      repoKey + QByteArrayLiteral("sourcerer-credentials-mac"),
+      QCryptographicHash::Sha256);
+  return QMessageAuthenticationCode::hash(encrypted, macKey,
+                                          QCryptographicHash::Sha256);
+}
+
+static bool sameBytes(const QByteArray &a, const QByteArray &b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  unsigned char difference = 0;
+  for (qsizetype i = 0; i < a.size(); ++i) {
+    difference |= static_cast<unsigned char>(a[i] ^ b[i]);
+  }
+  return difference == 0;
+}
 
 static QString getLoggedInUser() {
   // Returns e.g. "C:/Users/JohnDoe"
@@ -125,10 +160,11 @@ GitCredentialStorage &GitCredentialStorage::getInstance() {
   return instance;
 }
 
-void GitCredentialStorage::storeCredentials(const QString &repoPath,
+void GitCredentialStorage::storeCredentials(const QString &repoPathArg,
                                             const QString &username,
                                             const QString &password,
                                             bool remember) {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOG_PERF(0, "Enter");
   LOG_INFO("storeCredentials called: repoPath='{}', username='{}', remember={}",
            repoPath, username, remember);
@@ -156,9 +192,10 @@ void GitCredentialStorage::storeCredentials(const QString &repoPath,
   LOG_PERF(0, "Exit");
 }
 
-bool GitCredentialStorage::getCredentials(const QString &repoPath,
+bool GitCredentialStorage::getCredentials(const QString &repoPathArg,
                                           QString &username,
                                           QString &password) {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOG_PERF(0, "Enter");
   LOG_INFO("getCredentials called for repoPath: '{}'", repoPath);
   LOG_INFO("Current credentials map size: {}", _credentials.size());
@@ -187,12 +224,14 @@ bool GitCredentialStorage::getCredentials(const QString &repoPath,
   return true;
 }
 
-bool GitCredentialStorage::hasCredentials(const QString &repoPath) const {
+bool GitCredentialStorage::hasCredentials(const QString &repoPathArg) const {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOCKGUARD(_mutex);
   return _credentials.contains(repoPath);
 }
 
-void GitCredentialStorage::removeCredentials(const QString &repoPath) {
+void GitCredentialStorage::removeCredentials(const QString &repoPathArg) {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOG_PERF(0, "Enter");
   LOG_INFO("Removing credentials for repository: {}", repoPath);
 
@@ -250,7 +289,8 @@ void GitCredentialStorage::clearAll() {
 }
 
 bool GitCredentialStorage::areCredentialsExpired(
-    const QString &repoPath, qint64 expirationTimeMs) const {
+    const QString &repoPathArg, qint64 expirationTimeMs) const {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOCKGUARD(_mutex);
 
   if (!_credentials.contains(repoPath)) {
@@ -275,9 +315,10 @@ QList<QString> GitCredentialStorage::getAllRepositoryPaths() const {
   return _credentials.keys();
 }
 
-bool GitCredentialStorage::getCredentialsInfo(const QString &repoPath,
+bool GitCredentialStorage::getCredentialsInfo(const QString &repoPathArg,
                                               QString &username,
                                               qint64 &createdTime) const {
+  const QString repoPath = normalizedRepoPath(repoPathArg);
   LOCKGUARD(_mutex);
 
   if (!_credentials.contains(repoPath)) {
@@ -334,16 +375,36 @@ void GitCredentialStorage::loadPersistedCredentials() {
 
   LOG_INFO("Loading {} persisted credential entries", count);
 
-  for (int i = 0; i < count; ++i) {
+  // The count comes from the file: stop at the end of the data, a damaged
+  // count must not make this run on.
+  for (qsizetype i = 0; i < count && stream.status() == QDataStream::Ok &&
+                        !stream.atEnd();
+       ++i) {
     QString repoPath;
     QByteArray encryptedData;
 
     stream >> repoPath >> encryptedData;
+    if (stream.status() != QDataStream::Ok || encryptedData.isEmpty()) {
+      break;
+    }
 
     LOG_INFO("Attempting to load credentials for repoPath: '{}'", repoPath);
 
     try {
       QByteArray repoKey = deriveRepoKey(repoPath);
+      if (encryptedData.startsWith(kEntryMagic)) {
+        if (encryptedData.size() < kEntryMagic.size() + kMacSize) {
+          throw std::runtime_error("credentials entry is too short");
+        }
+        const QByteArray body = encryptedData.mid(
+            kEntryMagic.size(),
+            encryptedData.size() - kEntryMagic.size() - kMacSize);
+        const QByteArray mac = encryptedData.right(kMacSize);
+        if (!sameBytes(mac, entryMac(body, repoKey))) {
+          throw std::runtime_error("credentials entry was changed");
+        }
+        encryptedData = body;
+      }
       QByteArray decryptedData = decrypt(encryptedData, repoKey);
 
       QDataStream credStream(decryptedData);
@@ -353,7 +414,7 @@ void GitCredentialStorage::loadPersistedCredentials() {
       credStream >> cred.username >> cred.password >> cred.createdTime;
       cred.rememberCredentials = true;
 
-      _credentials[repoPath] = cred;
+      _credentials[normalizedRepoPath(repoPath)] = cred;
 
       LOG_INFO("Loaded credentials for repository: {}", repoPath);
     } catch (const std::exception &e) {
@@ -395,11 +456,20 @@ void GitCredentialStorage::saveCredentialsToDisk(
         qsizetype count;
         stream >> count;
 
-        for (int i = 0; i < count; ++i) {
+        for (qsizetype i = 0; i < count && stream.status() == QDataStream::Ok &&
+                              !stream.atEnd();
+             ++i) {
           QString path;
           QByteArray data;
           stream >> path >> data;
-          allEncryptedCreds[path] = data;
+          if (stream.status() != QDataStream::Ok) {
+            break;
+          }
+          // Entries of the same directory under another spelling are
+          // replaced by this one.
+          if (normalizedRepoPath(path) != repoPath) {
+            allEncryptedCreds[path] = data;
+          }
         }
       }
       file.close();
@@ -414,8 +484,8 @@ void GitCredentialStorage::saveCredentialsToDisk(
              << credentials.createdTime;
 
   QByteArray repoKey = deriveRepoKey(repoPath);
-  QByteArray encryptedData = encrypt(credData, repoKey);
-  allEncryptedCreds[repoPath] = encryptedData;
+  const QByteArray encrypted = encrypt(credData, repoKey);
+  allEncryptedCreds[repoPath] = kEntryMagic + encrypted + entryMac(encrypted, repoKey);
 
   // Write all credentials back
   QFile file(credFile);
@@ -479,7 +549,10 @@ void GitCredentialStorage::removeCredentialsFromDisk(const QString &repoPath) {
         QString path;
         QByteArray data;
         stream >> path >> data;
-        if (path != repoPath) {
+        if (stream.status() != QDataStream::Ok) {
+          break;
+        }
+        if (normalizedRepoPath(path) != normalizedRepoPath(repoPath)) {
           allEncryptedCreds[path] = data;
         }
       }
@@ -614,8 +687,27 @@ QByteArray GitCredentialStorage::decrypt(const QByteArray &ciphertext,
   return plaintext;
 }
 
+#ifdef SOURCERER_GITREPO_TESTING
+static QByteArray gMasterKeyOverride;
+
+namespace Testing {
+
+void setCredentialsMasterKey(const QByteArray &key) {
+  gMasterKeyOverride = key;
+}
+
+} // namespace Testing
+#endif
+
 QByteArray GitCredentialStorage::getEncryptionKey() {
   LOG_PERF(0, "Enter");
+
+#ifdef SOURCERER_GITREPO_TESTING
+  if (!gMasterKeyOverride.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return gMasterKeyOverride;
+  }
+#endif
 
   const QString userName = getLoggedInUser();
   const QString appName = qAppName();
