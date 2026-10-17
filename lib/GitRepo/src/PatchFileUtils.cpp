@@ -31,6 +31,27 @@ QStringList patchTargetFiles(const QString &patchContent) {
   return files;
 }
 
+QStringList patchNewFiles(const QString &patchContent) {
+  QStringList files;
+  const QString normalizedPatch = QString(patchContent).replace("\r\n", "\n");
+  const QStringList lines = normalizedPatch.split('\n');
+  bool isNewFile = false;
+
+  for (const QString &line : lines) {
+    if (line.startsWith("diff --git ")) {
+      isNewFile = false;
+    } else if (line.startsWith("new file mode ") ||
+               line.startsWith("--- /dev/null")) {
+      isNewFile = true;
+    } else if (isNewFile && line.startsWith("+++ b/")) {
+      files.append(line.mid(6).trimmed());
+    }
+  }
+
+  files.removeDuplicates();
+  return files;
+}
+
 QString reconstructContentFromDelta(const FilesDiffDelta &delta) {
   QStringList lines;
 

@@ -40,6 +40,9 @@ GitRepoManagerProcessingState::GitRepoManagerProcessingState(
                        eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloseRepoResult,
+                       eventCallbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -63,6 +66,9 @@ GitRepoManagerProcessingState::~GitRepoManagerProcessingState() {
                        eventCallbackFunc));
   _eventManager.unsubscribe(
       CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoResult,
+                       eventCallbackFunc));
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloseRepoResult,
                        eventCallbackFunc));
 
   LOG_PERF(0, "Exit");
@@ -1451,7 +1457,7 @@ void GitRepoManagerProcessingState::quitRepoWorker(
   if (quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerQuitError, command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1471,7 +1477,7 @@ GitRepoManagerProcessingState::context(const QString &uuid) {
 
   LOG_PERF(0, "Exit");
 
-  return _contexts[uuid];
+  return _contexts.value(uuid, nullptr);
 }
 
 void GitRepoManagerProcessingState::destroyContext(const QString &uuid) {
@@ -1539,7 +1545,8 @@ void GitRepoManagerProcessingState::deleteBranchWorker(
     repo = ctx->gitRepo;
   }
 
-  if (const bool success = GitRepo::deleteBranch(repo, command.branchName);
+  if (const bool success =
+          GitRepo::deleteBranch(repo, command.branchName, command.force);
       !success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -1944,30 +1951,38 @@ void GitRepoManagerProcessingState::eventCallback(
 
   LOG_DEBUG("Processing event {}.", (int)eventType);
 
+  // A context ends with the answer to the request that made it (a clone, an
+  // init or a failed open) or to its close. A refused request (the container
+  // is in use) is answered with the same error event types, but must leave
+  // the context alone: it is recognised by its sync uuid.
+  const auto destroyIfAnswerOf = [this, &event](const QString &uuid,
+                                                const bool close) {
+    bool matches = false;
+    {
+      LOCKGUARD(_contextsMutex);
+      const GitRepoContext *ctx = _contexts.value(uuid, nullptr);
+      matches = ctx && !event.uuid().isEmpty() &&
+                event.uuid() == (close ? ctx->closeSyncUuid : ctx->ownerSyncUuid);
+    }
+    if (matches) {
+      destroyContext(uuid);
+    }
+  };
+
   switch (eventType) {
-  case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    const auto error = event.data<GitRepoError>();
-    destroyContext(error.uuid);
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerCloneRepoResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    destroyContext(commandResult.uuid);
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerInitRepoError: {
-    const auto error = event.data<GitRepoError>();
-    destroyContext(error.uuid);
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerInitRepoResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    destroyContext(commandResult.uuid);
-    break;
-  }
+  case EventManager::EventType::GitRepoManagerCloneRepoError:
+  case EventManager::EventType::GitRepoManagerInitRepoError:
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
-    const auto error = event.data<GitRepoError>();
-    destroyContext(error.uuid);
+    destroyIfAnswerOf(event.data<GitRepoError>().uuid, false);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoResult:
+  case EventManager::EventType::GitRepoManagerInitRepoResult: {
+    destroyIfAnswerOf(event.data<GitRepoResult>().uuid, false);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloseRepoResult: {
+    destroyIfAnswerOf(event.data<GitRepoResult>().uuid, true);
     break;
   }
   default: {
@@ -2322,7 +2337,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForFetchAll(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerFetchAllError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2341,7 +2356,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForFetchRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerFetchRemoteError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2360,7 +2375,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRebase(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRebaseError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2379,7 +2394,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForSquash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerSquashError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2398,7 +2413,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForBisect(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerBisectError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2417,7 +2432,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGitFlow(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGitFlowError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -2503,7 +2518,7 @@ void GitRepoManagerProcessingState::getActiveBranchWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetActiveBranchError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     GitRepoGetActiveBranchCommandResult result;
@@ -2549,7 +2564,7 @@ void GitRepoManagerProcessingState::getCommitBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitBranchesError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else if (branches.isEmpty()) {
     const auto lastError = GitRepo::getLastError();
@@ -2598,7 +2613,7 @@ void GitRepoManagerProcessingState::getCommitHeadsWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitHeadsError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else if (branches.isEmpty()) {
     const auto lastError = GitRepo::getLastError();
@@ -2647,7 +2662,7 @@ void GitRepoManagerProcessingState::getCommitIsHeadWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2875,7 +2890,7 @@ void GitRepoManagerProcessingState::getBranchHistoryWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetBranchHistoryError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else if (!history.valid) {
     const auto lastError = GitRepo::getLastError();
@@ -3087,7 +3102,7 @@ void GitRepoManagerProcessingState::listLocalBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerListLocalBranchesError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3128,7 +3143,7 @@ void GitRepoManagerProcessingState::listRemoteBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerListRemoteBranchesError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3172,7 +3187,7 @@ void GitRepoManagerProcessingState::listRemoteBranchesWithStatusWorker(
         EventManager::EventType::
             GitRepoManagerListRemoteBranchesWithStatusError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3215,7 +3230,7 @@ void GitRepoManagerProcessingState::listStashesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerListStashesError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3302,7 +3317,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListSubmodulesWithStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerListSubmodulesWithStatusError,
         tr("Git repository has not been opened."), command);
@@ -3593,6 +3608,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForOpenRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoOpenCommand(command));
 
@@ -3611,7 +3627,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForPull(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerPullError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3630,7 +3646,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForPush(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerPushError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3649,7 +3665,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForPushTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerPushTagError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3668,7 +3684,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForPushAllTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerPushAllTagsError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3687,7 +3703,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRenameBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRenameBranchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3706,7 +3722,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRenameTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRenameTagError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3725,7 +3741,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForReset(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerResetError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3744,7 +3760,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRevert(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRevertError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3763,7 +3779,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForSetUpstream(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerSetUpstreamError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3782,7 +3798,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForStageFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerStageFilesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3801,7 +3817,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerStashError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3820,7 +3836,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerStatusError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3839,7 +3855,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForSubmoduleUpdate(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3858,7 +3874,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForUnstageFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerUnstageFilesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3877,7 +3893,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListRemotes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListRemotesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3896,7 +3912,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAddRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAddRemoteError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3915,7 +3931,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRemoveRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRemoveRemoteError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3934,7 +3950,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForUpdateRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerUpdateRemoteError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3953,7 +3969,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForSetDefaultRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3972,7 +3988,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForWorkflow(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerWorkflowError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3991,7 +4007,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAddTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAddTargetError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4010,7 +4026,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForEditTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerEditTargetError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4029,7 +4045,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteTargetError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4048,7 +4064,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForSetDefaultTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerSetDefaultTargetError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4117,7 +4133,7 @@ void GitRepoManagerProcessingState::openRepoWorker(
   if (quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -4494,7 +4510,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCherryPick(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCherryPickError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4647,9 +4663,18 @@ void GitRepoManagerProcessingState::statusWorker(
     quit = &ctx->quit;
   }
 
+  if (!repo || *quit) {
+    reportError(EventManager::EventType::GitRepoManagerStatusError,
+                tr("The repository was closed."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const GitRepo::GitStatus status = GitRepo::getStatus(repo, *quit);
 
   if (*quit) {
+    reportError(EventManager::EventType::GitRepoManagerStatusError,
+                tr("The repository was closed."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5021,7 +5046,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAbortMerge(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAbortMergeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5040,7 +5065,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAbortRebase(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAbortRebaseError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5059,7 +5084,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAddSubmodule(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAddSubmoduleError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5078,7 +5103,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAmend(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAmendError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5097,7 +5122,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForApplyPatch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5116,7 +5141,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForApplyStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerApplyStashError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5135,7 +5160,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCheckoutBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5154,7 +5179,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCheckoutCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5185,6 +5210,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCloneRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoCloneCommand(command));
 
@@ -5203,7 +5229,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCloseRepo(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCloseRepoError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5211,6 +5237,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCloseRepo(
   }
 
   (*it)->quit = true;
+  (*it)->closeSyncUuid = command.syncUuid;
   (*it)->commandsQueue.push(new GitRepoCloseCommand(command));
 
   LOG_PERF(0, "Exit");
@@ -5223,7 +5250,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCommitStagedRepo(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCommitStagedError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5242,7 +5269,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCommitRebaseRepo(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCommitRebaseError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5261,7 +5288,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCreateBranchFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
         tr("Git repository has not been opened."), command);
@@ -5281,7 +5308,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCreatePatchFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
         tr("Git repository has not been opened."), command);
@@ -5301,7 +5328,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForCreateTagFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5320,7 +5347,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetActiveBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetActiveBranchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5339,7 +5366,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetCommitBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitBranchesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5372,22 +5399,30 @@ void GitRepoManagerProcessingState::getCommitTagsWorker(
     quit = &ctx->quit;
   }
 
+  // A commit without tags has an empty list; only a failure of the lookup is
+  // an error.
+  const GitRepo::GitErrorContext errorBefore = GitRepo::getLastError();
   const QStringList tags =
       GitRepo::getCommitTags(repo, command.commitOid, *quit);
+  const GitRepo::GitErrorContext errorAfter = GitRepo::getLastError();
+  const bool failed =
+      tags.isEmpty() &&
+      errorAfter.error == GitRepo::GitError::GetCommitTagsFailedToListMatchingTags &&
+      (errorBefore.error != errorAfter.error ||
+       errorBefore.errorMessage != errorAfter.errorMessage);
 
   if (*quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitTagsError,
         command.syncUuid);
-    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(GitRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
-  } else if (tags.isEmpty()) {
-    const auto lastError = GitRepo::getLastError();
+  } else if (failed) {
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetCommitTagsError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
-                                    lastError.errorCode, lastError.error});
+    errorEvent.addData(GitRepoError{command.uuid, errorAfter.errorMessage,
+                                    errorAfter.errorCode, errorAfter.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -5408,7 +5443,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetCommitTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitTagsError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5427,7 +5462,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetCommitHeads(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitHeadsError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5446,7 +5481,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetCommitIsHead(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5465,7 +5500,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetCommitStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitStatusError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5484,7 +5519,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetLfsStorageStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetLfsStorageStatusError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5503,7 +5538,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetStashStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetStashStatusError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5522,7 +5557,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetIsMergeInProgress(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerGetIsMergeInProgressError,
         tr("Git repository has not been opened."), command);
@@ -5542,7 +5577,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetIsRebaseInProgress(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerGetIsRebaseInProgressError,
         tr("Git repository has not been opened."), command);
@@ -5562,7 +5597,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetSubmodulePath(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetSubmodulePathError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5581,7 +5616,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetUpstream(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetUpstreamError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5600,7 +5635,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteAllStashes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteAllStashesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5619,7 +5654,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5638,7 +5673,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteRemoteBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5657,7 +5692,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteStashError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5676,7 +5711,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteSubmodule(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5695,7 +5730,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteTagError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5714,7 +5749,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDeleteRemoteTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5733,7 +5768,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForBlame(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerBlameError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5752,7 +5787,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDiffFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDiffFilesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5771,7 +5806,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDiffFilesFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5790,7 +5825,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetFileSizeFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
         tr("Git repository has not been opened."), command);
@@ -5810,7 +5845,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForDiscardFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerDiscardFilesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5829,7 +5864,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForGetBranchHistory(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5862,6 +5897,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForInitRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoInitRepoCommand(command));
 
@@ -5880,7 +5916,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListConflicts(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListConflictsError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5899,7 +5935,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListLocalBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5918,7 +5954,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListRemoteBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5938,7 +5974,7 @@ void GitRepoManagerProcessingState::
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::
                     GitRepoManagerListRemoteBranchesWithStatusError,
                 tr("Git repository has not been opened."), command);
@@ -5959,7 +5995,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListStashes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListStashesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5978,7 +6014,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListSubmodules(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -5997,7 +6033,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListTagsError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6016,7 +6052,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForListWorktrees(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerListWorktreesError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6035,7 +6071,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForAddWorktree(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerAddWorktreeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6054,7 +6090,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForRemoveWorktree(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerRemoveWorktreeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6073,7 +6109,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForLockWorktree(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerLockWorktreeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6092,7 +6128,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForUnlockWorktree(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerUnlockWorktreeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6111,7 +6147,7 @@ void GitRepoManagerProcessingState::scheduleWorkerForMerge(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::GitRepoManagerMergeError,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -6121,6 +6157,188 @@ void GitRepoManagerProcessingState::scheduleWorkerForMerge(
   (*it)->commandsQueue.push(new GitRepoMergeCommand(command));
 
   LOG_PERF(0, "Exit");
+}
+
+// The error event of a command, for answering it without running it.
+static EventManager::EventType errorEventFor(const GitRepoCommandType type) {
+  switch (type) {
+  case GitRepoCommandType::AbortMerge:
+    return EventManager::EventType::GitRepoManagerAbortMergeError;
+  case GitRepoCommandType::AbortRebase:
+    return EventManager::EventType::GitRepoManagerAbortRebaseError;
+  case GitRepoCommandType::AddRemote:
+    return EventManager::EventType::GitRepoManagerAddRemoteError;
+  case GitRepoCommandType::AddSubmodule:
+    return EventManager::EventType::GitRepoManagerAddSubmoduleError;
+  case GitRepoCommandType::AddTarget:
+    return EventManager::EventType::GitRepoManagerAddTargetError;
+  case GitRepoCommandType::AddWorktree:
+    return EventManager::EventType::GitRepoManagerAddWorktreeError;
+  case GitRepoCommandType::EditTarget:
+    return EventManager::EventType::GitRepoManagerEditTargetError;
+  case GitRepoCommandType::DeleteTarget:
+    return EventManager::EventType::GitRepoManagerDeleteTargetError;
+  case GitRepoCommandType::SetDefaultTarget:
+    return EventManager::EventType::GitRepoManagerSetDefaultTargetError;
+  case GitRepoCommandType::Amend:
+    return EventManager::EventType::GitRepoManagerAmendError;
+  case GitRepoCommandType::Blame:
+    return EventManager::EventType::GitRepoManagerBlameError;
+  case GitRepoCommandType::ApplyPatch:
+    return EventManager::EventType::GitRepoManagerApplyPatchError;
+  case GitRepoCommandType::ApplyStash:
+    return EventManager::EventType::GitRepoManagerApplyStashError;
+  case GitRepoCommandType::CheckoutBranch:
+    return EventManager::EventType::GitRepoManagerCheckoutBranchError;
+  case GitRepoCommandType::CheckoutCommit:
+    return EventManager::EventType::GitRepoManagerCheckoutCommitError;
+  case GitRepoCommandType::CherryPick:
+    return EventManager::EventType::GitRepoManagerCherryPickError;
+  case GitRepoCommandType::Clone:
+    return EventManager::EventType::GitRepoManagerCloneRepoError;
+  case GitRepoCommandType::Close:
+    return EventManager::EventType::GitRepoManagerCloseRepoError;
+  case GitRepoCommandType::CommitStaged:
+    return EventManager::EventType::GitRepoManagerCommitStagedError;
+  case GitRepoCommandType::CommitRebase:
+    return EventManager::EventType::GitRepoManagerCommitRebaseError;
+  case GitRepoCommandType::CreateBranchFromCommit:
+    return EventManager::EventType::GitRepoManagerCreateBranchFromCommitError;
+  case GitRepoCommandType::CreatePatchFromCommit:
+    return EventManager::EventType::GitRepoManagerCreatePatchFromCommitError;
+  case GitRepoCommandType::CreateTagFromCommit:
+    return EventManager::EventType::GitRepoManagerCreateTagFromCommitError;
+  case GitRepoCommandType::DeleteBranch:
+    return EventManager::EventType::GitRepoManagerDeleteBranchError;
+  case GitRepoCommandType::DeleteRemoteBranch:
+    return EventManager::EventType::GitRepoManagerDeleteRemoteBranchError;
+  case GitRepoCommandType::DeleteStash:
+    return EventManager::EventType::GitRepoManagerDeleteStashError;
+  case GitRepoCommandType::DeleteAllStashes:
+    return EventManager::EventType::GitRepoManagerDeleteAllStashesError;
+  case GitRepoCommandType::DeleteSubmodule:
+    return EventManager::EventType::GitRepoManagerDeleteSubmoduleError;
+  case GitRepoCommandType::DeleteTag:
+    return EventManager::EventType::GitRepoManagerDeleteTagError;
+  case GitRepoCommandType::DeleteRemoteTag:
+    return EventManager::EventType::GitRepoManagerDeleteRemoteTagError;
+  case GitRepoCommandType::DiffFiles:
+    return EventManager::EventType::GitRepoManagerDiffFilesError;
+  case GitRepoCommandType::DiffFilesFromCommit:
+    return EventManager::EventType::GitRepoManagerDiffFilesFromCommitError;
+  case GitRepoCommandType::DiscardFiles:
+    return EventManager::EventType::GitRepoManagerDiscardFilesError;
+  case GitRepoCommandType::FetchAll:
+    return EventManager::EventType::GitRepoManagerFetchAllError;
+  case GitRepoCommandType::FetchRemote:
+    return EventManager::EventType::GitRepoManagerFetchRemoteError;
+  case GitRepoCommandType::GetActiveBranch:
+    return EventManager::EventType::GitRepoManagerGetActiveBranchError;
+  case GitRepoCommandType::GetBranchHistory:
+    return EventManager::EventType::GitRepoManagerGetBranchHistoryError;
+  case GitRepoCommandType::GetCommitBranches:
+    return EventManager::EventType::GitRepoManagerGetCommitBranchesError;
+  case GitRepoCommandType::GetCommitTags:
+    return EventManager::EventType::GitRepoManagerGetCommitTagsError;
+  case GitRepoCommandType::GetCommitHeads:
+    return EventManager::EventType::GitRepoManagerGetCommitHeadsError;
+  case GitRepoCommandType::GetCommitIsHead:
+    return EventManager::EventType::GitRepoManagerGetCommitIsHeadError;
+  case GitRepoCommandType::GetIsMergeInProgress:
+    return EventManager::EventType::GitRepoManagerGetIsMergeInProgressError;
+  case GitRepoCommandType::GetIsRebaseInProgress:
+    return EventManager::EventType::GitRepoManagerGetIsRebaseInProgressError;
+  case GitRepoCommandType::GetCommitStatus:
+    return EventManager::EventType::GitRepoManagerGetCommitStatusError;
+  case GitRepoCommandType::GetFileSizeFromCommit:
+    return EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError;
+  case GitRepoCommandType::GetStashStatus:
+    return EventManager::EventType::GitRepoManagerGetStashStatusError;
+  case GitRepoCommandType::GetSubmodulePath:
+    return EventManager::EventType::GitRepoManagerGetSubmodulePathError;
+  case GitRepoCommandType::GetUpstream:
+    return EventManager::EventType::GitRepoManagerGetUpstreamError;
+  case GitRepoCommandType::GitFlow:
+    return EventManager::EventType::GitRepoManagerGitFlowError;
+  case GitRepoCommandType::Init:
+    return EventManager::EventType::GitRepoManagerInitRepoError;
+  case GitRepoCommandType::ListConflicts:
+    return EventManager::EventType::GitRepoManagerListConflictsError;
+  case GitRepoCommandType::ListLocalBranches:
+    return EventManager::EventType::GitRepoManagerListLocalBranchesError;
+  case GitRepoCommandType::ListRemoteBranches:
+    return EventManager::EventType::GitRepoManagerListRemoteBranchesError;
+  case GitRepoCommandType::ListRemoteBranchesWithStatus:
+    return EventManager::EventType::GitRepoManagerListRemoteBranchesWithStatusError;
+  case GitRepoCommandType::ListRemotes:
+    return EventManager::EventType::GitRepoManagerListRemotesError;
+  case GitRepoCommandType::ListStashes:
+    return EventManager::EventType::GitRepoManagerListStashesError;
+  case GitRepoCommandType::ListSubmodules:
+    return EventManager::EventType::GitRepoManagerListSubmodulesError;
+  case GitRepoCommandType::ListSubmodulesWithStatus:
+    return EventManager::EventType::GitRepoManagerListSubmodulesWithStatusError;
+  case GitRepoCommandType::ListTags:
+    return EventManager::EventType::GitRepoManagerListTagsError;
+  case GitRepoCommandType::ListWorktrees:
+    return EventManager::EventType::GitRepoManagerListWorktreesError;
+  case GitRepoCommandType::LockWorktree:
+    return EventManager::EventType::GitRepoManagerLockWorktreeError;
+  case GitRepoCommandType::UnlockWorktree:
+    return EventManager::EventType::GitRepoManagerUnlockWorktreeError;
+  case GitRepoCommandType::Merge:
+    return EventManager::EventType::GitRepoManagerMergeError;
+  case GitRepoCommandType::Rebase:
+    return EventManager::EventType::GitRepoManagerRebaseError;
+  case GitRepoCommandType::Squash:
+    return EventManager::EventType::GitRepoManagerSquashError;
+  case GitRepoCommandType::Bisect:
+    return EventManager::EventType::GitRepoManagerBisectError;
+  case GitRepoCommandType::Open:
+    return EventManager::EventType::GitRepoManagerOpenRepoError;
+  case GitRepoCommandType::Pull:
+    return EventManager::EventType::GitRepoManagerPullError;
+  case GitRepoCommandType::Push:
+    return EventManager::EventType::GitRepoManagerPushError;
+  case GitRepoCommandType::PushTag:
+    return EventManager::EventType::GitRepoManagerPushTagError;
+  case GitRepoCommandType::PushAllTags:
+    return EventManager::EventType::GitRepoManagerPushAllTagsError;
+  case GitRepoCommandType::RemoveRemote:
+    return EventManager::EventType::GitRepoManagerRemoveRemoteError;
+  case GitRepoCommandType::RemoveWorktree:
+    return EventManager::EventType::GitRepoManagerRemoveWorktreeError;
+  case GitRepoCommandType::RenameBranch:
+    return EventManager::EventType::GitRepoManagerRenameBranchError;
+  case GitRepoCommandType::RenameTag:
+    return EventManager::EventType::GitRepoManagerRenameTagError;
+  case GitRepoCommandType::Reset:
+    return EventManager::EventType::GitRepoManagerResetError;
+  case GitRepoCommandType::Revert:
+    return EventManager::EventType::GitRepoManagerRevertError;
+  case GitRepoCommandType::SetDefaultRemote:
+    return EventManager::EventType::GitRepoManagerSetDefaultRemoteError;
+  case GitRepoCommandType::Workflow:
+    return EventManager::EventType::GitRepoManagerWorkflowError;
+  case GitRepoCommandType::SetUpstream:
+    return EventManager::EventType::GitRepoManagerSetUpstreamError;
+  case GitRepoCommandType::StageFiles:
+    return EventManager::EventType::GitRepoManagerStageFilesError;
+  case GitRepoCommandType::Stash:
+    return EventManager::EventType::GitRepoManagerStashError;
+  case GitRepoCommandType::Status:
+    return EventManager::EventType::GitRepoManagerStatusError;
+  case GitRepoCommandType::SubmoduleUpdate:
+    return EventManager::EventType::GitRepoManagerSubmoduleUpdateError;
+  case GitRepoCommandType::UnstageFiles:
+    return EventManager::EventType::GitRepoManagerUnstageFilesError;
+  case GitRepoCommandType::UpdateRemote:
+    return EventManager::EventType::GitRepoManagerUpdateRemoteError;
+  case GitRepoCommandType::GetLfsStorageStatus:
+    return EventManager::EventType::GitRepoManagerGetLfsStorageStatusError;
+  default:
+    return EventManager::EventType::Null;
+  }
 }
 
 void GitRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
@@ -6138,6 +6356,29 @@ void GitRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
     GitRepoCommand *command = ctx->commandsQueue.pop();
     if (!command) {
       LOG_ERROR(Log::ErrorId::Git, "Internal error. Enqueued command is null.");
+      continue;
+    }
+
+    // Commands queued behind an open that failed find no repository. They
+    // are answered without running: GitRepo expects a repository.
+    bool hasRepository = false;
+    {
+      LOCKGUARD(_contextsMutex);
+      hasRepository = ctx->gitRepo != nullptr;
+    }
+    const bool needsRepository =
+        command->type != GitRepoCommandType::Open &&
+        command->type != GitRepoCommandType::Clone &&
+        command->type != GitRepoCommandType::Init &&
+        command->type != GitRepoCommandType::Close &&
+        command->type != GitRepoCommandType::Quit;
+    if (needsRepository && !hasRepository) {
+      const EventManager::EventType errorEvent = errorEventFor(command->type);
+      if (errorEvent != EventManager::EventType::Null) {
+        reportError(errorEvent, tr("Git repository has not been opened."),
+                    *command);
+      }
+      delete command;
       continue;
     }
 
@@ -6828,6 +7069,14 @@ void GitRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoUpdateRemoteCommand *>(command);
       if (updateRemoteCommand) {
         updateRemoteWorker(*updateRemoteCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetLfsStorageStatus: {
+      const auto *lfsCommand =
+          dynamic_cast<const GitRepoGetLfsStorageStatusCommand *>(command);
+      if (lfsCommand) {
+        getLfsStorageStatusWorker(*lfsCommand);
       }
       break;
     }

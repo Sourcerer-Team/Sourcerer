@@ -18,12 +18,12 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QLocale>
 #include <QTextStream>
 #include <QTimeZone>
 
-#include <openssl/x509.h>
-
+#include <atomic>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -73,6 +73,11 @@ QString buildCommitMessage(const QString &summary, const QString &message,
   while (!commitMessage.isEmpty() &&
          (commitMessage.endsWith('\n') || commitMessage.endsWith('\r'))) {
     commitMessage.chop(1);
+  }
+
+  // Like `git commit -s`, don't repeat a sign-off that ends the message.
+  if (commitMessage.section('\n', -1).trimmed() == signoffLine) {
+    return commitMessage;
   }
 
   if (!commitMessage.isEmpty()) {
@@ -1691,6 +1696,117 @@ QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to write workflow config while setting the workflow.");
+  case GitError::MergeFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The merge stopped with conflicts. Resolve them and commit.");
+  case GitError::RemoveWorktreeHasChanges:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The worktree has uncommitted changes. Remove it with force to "
+        "discard them.");
+  case GitError::RenameBranchInvalidName:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The new branch name is not valid.");
+  case GitError::AddTargetRemoteNotFound:
+    return QCoreApplication::translate(
+        "GitRepoError", "The remote of the target does not exist.");
+  case GitError::CherryPickCommitFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The cherry-pick stopped with conflicts. Resolve them and commit.");
+  case GitError::CherryPickCommitIsEmpty:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The cherry-pick changes nothing, the commit is applied already.");
+  case GitError::RevertCommitFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The revert stopped with conflicts. Resolve them and commit.");
+  case GitError::RevertCommitIsEmpty:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The revert changes nothing, the commit is reverted already.");
+  case GitError::MergeUnrelatedHistories:
+    return QCoreApplication::translate(
+        "GitRepoError", "The branches have no common history.");
+  case GitError::DeleteBranchNotFullyMerged:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch is not fully merged. Delete it with force to lose its "
+        "commits.");
+  case GitError::AddTargetAlreadyExists:
+    return QCoreApplication::translate("GitRepoError",
+                                       "A target with this name exists.");
+  case GitError::EditTargetNotFound:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The target does not exist.");
+  case GitError::DeleteTargetNotFound:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The target does not exist.");
+  case GitError::SetUpstreamRemoteNotFound:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The remote does not exist.");
+  case GitError::DeleteSubmoduleFailedToUpdateConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to update the configuration while deleting the submodule.");
+  case GitError::AddSubmoduleAlreadyExists:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "A submodule with this name exists.");
+  case GitError::PushTagExistsOnRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The tag exists on the remote with another target.");
+  case GitError::PullBranchNotCheckedOutCannotFastForward:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch is not checked out and can't be fast-forwarded. Check it "
+        "out to merge.");
+  case GitError::PullRebaseFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The rebase stopped with conflicts and was aborted.");
+  case GitError::PushNoUpstreamConfigured:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch has no upstream. Choose a remote branch to push to.");
+  case GitError::CloneRepositoryFailedToCreateDirectory:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create the destination directory.");
+  case GitError::GitFlowUnknownBranchType:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch type is not a Git Flow branch type.");
+  case GitError::GitFlowTagExists:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The tag for this Git Flow branch already exists.");
+  case GitError::DeleteSubmoduleInvalidName:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The submodule name is not valid.");
+  case GitError::AbortMergeNothingToAbort:
+    return QCoreApplication::translate(
+        "GitRepoError", "No merge, cherry-pick or revert is in progress.");
+  case GitError::AbortRebaseNothingToAbort:
+    return QCoreApplication::translate("GitRepoError",
+                                       "No rebase is in progress.");
+  case GitError::GetUpstreamNotConfigured:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The branch has no upstream.");
+  case GitError::UpdateRemoteNotFound:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The remote does not exist.");
+  case GitError::UpdateRemoteInvalidArguments:
+    return QCoreApplication::translate(
+        "GitRepoError", "The remote name and the fetch URL can't be empty.");
+  case GitError::EditTargetInvalidArguments:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The remote, the target name and the fetch URL can't be empty, and "
+        "the Default target is changed with the remote.");
   case GitError::Last:
     return QCoreApplication::translate("GitRepoError",
                                        "Invalid Git error marker.");
@@ -1714,10 +1830,21 @@ void setErrorContext(const GitError errorType, const QString &gitErrorMessage,
 void setError(const GitError errorType, const int error) {
   const git_error *gitError = git_error_last();
   const int klass = gitError ? gitError->klass : 0;
-  const QString libgitMessage =
-      gitError && gitError->message
+  QString libgitMessage =
+      gitError && gitError->message && klass != GIT_ERROR_NONE
           ? capitalizeFirst(QString::fromUtf8(gitError->message))
           : QString();
+  // Errors that libgit2 didn't report itself still say what went wrong.
+  if (libgitMessage.trimmed().isEmpty()) {
+    libgitMessage = gitErrorMessage(errorType);
+  }
+  // A refused certificate: our reason, libgit2 has a generic one for SSH.
+  if (error == GIT_ECERTIFICATE) {
+    const QString rejection = takeCertificateRejection();
+    if (!rejection.isEmpty()) {
+      libgitMessage = rejection;
+    }
+  }
 
   setErrorContext(errorType, libgitMessage, encodeLibgitError(error, klass));
 
@@ -1727,6 +1854,14 @@ void setError(const GitError errorType, const int error) {
       "'{}', libgit message is '{}'",
       static_cast<int>(errorType), error, klass,
       gitErrorMessage(errorType).toStdString(), libgitMessage.toStdString());
+}
+
+void setOwnError(const GitError errorType, const int error) {
+  setErrorContext(errorType, gitErrorMessage(errorType),
+                  encodeLibgitError(error, GIT_ERROR_INVALID));
+  LOG_ERROR(Log::ErrorId::Git, "Error type is {}, error message is '{}'",
+            static_cast<int>(errorType),
+            gitErrorMessage(errorType).toStdString());
 }
 
 bool markConflictedFiles(git_repository *repo, const QStringList &filePaths) {
@@ -1964,67 +2099,23 @@ static bool createInitialCommit(git_repository *repo,
   git_tree_free(tree);
   git_signature_free(sig);
 
-  git_branch_iterator *it = nullptr;
-
-  error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
-  if (error) {
-    setError(GitError::CreateInitialCommitFailedToCreateBranchIterator, error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (!it) {
-    LOG_ERROR(Log::ErrorId::Git, "Invalid branch iterator.");
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  bool foundMaster = false;
+  // HEAD points at the branch libgit2 picked (init.defaultBranch, or master
+  // when it is not set). Rename it if it differs from the requested one.
   git_reference *branchRef = nullptr;
-  git_branch_t branchType = GIT_BRANCH_LOCAL;
 
-  for (;;) {
-    error = git_branch_next(&branchRef, &branchType, it);
-    if (error == GIT_ITEROVER)
-      break;
-
-    if (error) {
-      setError(GitError::CreateInitialCommitFailedToReadNextBranch, error);
-      break;
-    }
-
-    if (!branchRef) {
-      LOG_ERROR(Log::ErrorId::Git, "Invalid reference.");
-      continue;
-    }
-
-    const char *branchName = nullptr;
-
-    error = git_branch_name(&branchName, branchRef);
-    if (error == GIT_EINVALID) {
-      git_reference_free(branchRef);
-      LOG_ERROR(Log::ErrorId::Git,
-                "Reference is not a local or a remote branch.");
-      continue;
-    }
-
-    if (error) {
-      git_reference_free(branchRef);
-      setError(GitError::CreateInitialCommitFailedToReadBranchName, error);
-      break;
-    }
-
-    if (strcmp(branchName, "master") == 0) {
-      foundMaster = true;
-      break;
-    }
-  }
-
-  if (!foundMaster) {
-    git_reference_free(branchRef);
-    LOG_ERROR(Log::ErrorId::Git, "Coldn't find master branch.");
+  error = git_repository_head(&branchRef, repo);
+  if (error) {
+    setError(GitError::CreateInitialCommitFailedToReadBranchName, error);
     LOG_PERF(0, "Exit");
     return false;
+  }
+
+  if (defaultBranchName.isEmpty() ||
+      QString::fromUtf8(git_reference_shorthand(branchRef)) ==
+          defaultBranchName) {
+    git_reference_free(branchRef);
+    LOG_PERF(0, "Exit");
+    return true;
   }
 
   git_reference *newRef = nullptr;
@@ -2144,10 +2235,27 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
   return commit;
 }
 
+#ifdef SOURCERER_GITREPO_TESTING
+static std::atomic<int> gCommercialPlanOverride{-1};
+
+namespace Testing {
+
+void setCommercialPlanOverride(int value) { gCommercialPlanOverride = value; }
+
+} // namespace Testing
+#endif
+
 namespace Private {
 
 bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
+
+#ifdef SOURCERER_GITREPO_TESTING
+  if (const int forced = gCommercialPlanOverride; forced >= 0) {
+    LOG_PERF(0, "Exit");
+    return forced == 1;
+  }
+#endif
 
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
@@ -2198,6 +2306,12 @@ bool isCommercialPlan() {
          (claims.plan == "Pro" || claims.plan == "Business");
 }
 
+bool isSshOrGitUrl(const QString &url) {
+  return url.startsWith("git@") ||
+         url.startsWith("git://", Qt::CaseInsensitive) ||
+         url.startsWith("ssh://", Qt::CaseInsensitive);
+}
+
 } // namespace Private
 
 GitErrorContext getLastError() {
@@ -2225,6 +2339,7 @@ void initForCurrentThread() {
   LOG_DEBUG("Initializing libgit2 for current thread");
 
   const int numberOfCalls = git_libgit2_init();
+  addSystemRootCertificates();
 
   if (!GitRepo::Lfs::initialize()) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to initialize Git LFS support");
@@ -2339,6 +2454,7 @@ bool initRepository(const QString &repoName, const QString &workingDir,
   git_repository *repo = nullptr;
 
   const QString repoPath = workingDir + "/" + repoName;
+  const bool repoPathExisted = QFileInfo::exists(repoPath);
 
   error = git_repository_init_ext(&repo, repoPath.toStdString().c_str(), &opts);
   if (error) {
@@ -2357,6 +2473,12 @@ bool initRepository(const QString &repoName, const QString &workingDir,
   const bool created = createInitialCommit(repo, defaultBranch, author, email);
   if (!created) {
     closeRepository(repo);
+    // Remove the half made repository so that a retry can succeed.
+    if (repoPathExisted) {
+      QDir(repoPath + QStringLiteral("/.git")).removeRecursively();
+    } else {
+      QDir(repoPath).removeRecursively();
+    }
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");
     LOG_PERF(0, "Exit");
     return false;
@@ -2479,159 +2601,6 @@ void checkoutProgressCallback(const char *path, size_t completed_steps,
   }
 }
 
-int certificateCheckCallback(git_cert *cert, int valid, const char *host,
-                             void *payload) {
-  if (!cert || !host) {
-    LOG_ERROR(Log::ErrorId::Network,
-              "Certificate check called with null cert or host");
-    return GIT_ECERTIFICATE;
-  }
-
-  const char *certTypeStr = nullptr;
-  switch (cert->cert_type) {
-  case GIT_CERT_X509:
-    certTypeStr = "X.509";
-    break;
-  case GIT_CERT_HOSTKEY_LIBSSH2:
-    certTypeStr = "SSH hostkey";
-    break;
-  case GIT_CERT_STRARRAY:
-    certTypeStr = "certificate array";
-    break;
-  default:
-    certTypeStr = "unknown type";
-    break;
-  }
-
-  LOG_INFO("Certificate check for host: '{}', type: {}, valid: {}", host,
-           certTypeStr, valid);
-
-  // If the certificate is valid according to libgit2, accept it
-  if (valid) {
-    LOG_DEBUG("Certificate for host '{}' is valid", host);
-    return 0; // Accept
-  }
-
-  // Certificate is not valid - log warning with details
-  LOG_WARN("Certificate validation failed for host '{}' (type: {}). "
-           "Accepting anyway to maintain connectivity. "
-           "In production, consider enabling strict SSL verification.",
-           host, certTypeStr);
-
-  // For X.509 certificates, perform detailed validation
-  if (cert->cert_type == GIT_CERT_X509) {
-    git_cert_x509 *x509_cert = reinterpret_cast<git_cert_x509 *>(cert);
-    if (x509_cert && x509_cert->data && x509_cert->len > 0) {
-      LOG_DEBUG("X.509 certificate data present (size: {} bytes)",
-                x509_cert->len);
-
-      // Parse the certificate using OpenSSL
-      const unsigned char *cert_data =
-          reinterpret_cast<const unsigned char *>(x509_cert->data);
-      X509 *x509 =
-          d2i_X509(nullptr, &cert_data, static_cast<long>(x509_cert->len));
-
-      if (x509) {
-        // Get subject name
-        char subject[256] = {0};
-        X509_NAME_oneline(X509_get_subject_name(x509), subject,
-                          sizeof(subject));
-
-        // Get issuer name
-        char issuer[256] = {0};
-        X509_NAME_oneline(X509_get_issuer_name(x509), issuer, sizeof(issuer));
-
-        LOG_INFO("Certificate subject: {}", subject);
-        LOG_INFO("Certificate issuer: {}", issuer);
-
-        // Check if it's self-signed
-        bool isSelfSigned = (strcmp(subject, issuer) == 0);
-        if (isSelfSigned) {
-          LOG_WARN("Certificate for '{}' is self-signed", host);
-        }
-
-        // Perform certificate chain validation using OpenSSL
-        X509_STORE *store = X509_STORE_new();
-        if (store) {
-          // Load system default CA certificates
-          if (X509_STORE_set_default_paths(store) == 1) {
-            LOG_DEBUG("Loaded system CA certificates");
-
-            // Create verification context
-            X509_STORE_CTX *ctx = X509_STORE_CTX_new();
-            if (ctx) {
-              // Initialize context with certificate and store
-              if (X509_STORE_CTX_init(ctx, store, x509, nullptr) == 1) {
-                // Set hostname for verification
-                X509_VERIFY_PARAM *param = X509_STORE_CTX_get0_param(ctx);
-                if (param) {
-                  // Set hostname verification flags
-#ifdef X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS
-                  X509_VERIFY_PARAM_set_hostflags(
-                      param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-#else
-                  X509_VERIFY_PARAM_set_hostflags(param, 0);
-#endif
-                  X509_VERIFY_PARAM_set1_host(param, host, 0);
-                }
-
-                // Perform verification
-                int verifyResult = X509_verify_cert(ctx);
-                if (verifyResult == 1) {
-                  LOG_INFO(
-                      "Certificate chain validation successful for host '{}'",
-                      host);
-                } else {
-                  int error = X509_STORE_CTX_get_error(ctx);
-                  const char *errorStr = X509_verify_cert_error_string(error);
-                  LOG_WARN(
-                      "Certificate chain validation failed for host '{}': {} "
-                      "(error code: {})",
-                      host, errorStr, error);
-
-                  // Log additional details about the failure
-                  if (error == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
-                      error == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
-                    LOG_WARN("Certificate chain contains self-signed "
-                             "certificate");
-                  } else if (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT ||
-                             error ==
-                                 X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
-                    LOG_WARN("Unable to verify certificate issuer");
-                  } else if (error == X509_V_ERR_CERT_HAS_EXPIRED ||
-                             error == X509_V_ERR_CERT_NOT_YET_VALID) {
-                    LOG_WARN("Certificate validity period issue");
-                  }
-                }
-              }
-              X509_STORE_CTX_free(ctx);
-            } else {
-              LOG_WARN("Failed to create X509_STORE_CTX");
-            }
-          } else {
-            LOG_WARN("Failed to load system CA certificates");
-          }
-          X509_STORE_free(store);
-        } else {
-          LOG_WARN("Failed to create X509_STORE");
-        }
-
-        X509_free(x509);
-      } else {
-        LOG_WARN("Failed to parse X.509 certificate data");
-      }
-    }
-  }
-
-  // TODO: Add configuration option to enable strict SSL verification
-  // For now, accept invalid certificates to maintain compatibility
-  // with self-signed certificates and development environments
-
-  // Return 0 to accept the certificate
-  // Return GIT_ECERTIFICATE to reject it
-  return 0; // Accept even if invalid
-}
-
 void finishFetchProgress(const QString &uuid, const bool error,
                          const bool cloning) {
 
@@ -2665,19 +2634,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   LOG_DEBUG("  Destination directory: '{}'", destinationDir.toStdString());
   LOG_DEBUG("  UUID: '{}'", uuid.toStdString());
 
-  const QDir workingDir;
-  const bool workingDirExisted = workingDir.exists(destinationDir);
-  LOG_DEBUG("Destination directory already existed: {}", workingDirExisted);
-
-  if (!workingDir.mkpath(destinationDir)) {
-    LOG_ERROR(Log::ErrorId::Git, "can't create destination dir '{}'",
-              destinationDir.toStdString());
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-  LOG_DEBUG("Destination directory created/validated successfully");
-
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool gitSchema = isSshOrGitUrl(url);
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
             commercial);
@@ -2690,6 +2647,29 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  const QDir workingDir;
+  const bool workingDirExisted = workingDir.exists(destinationDir);
+  LOG_DEBUG("Destination directory already existed: {}", workingDirExisted);
+
+  // The topmost directory the clone creates, removed again if it fails.
+  QString createdRoot = QDir::cleanPath(QDir(destinationDir).absolutePath());
+  while (!workingDirExisted) {
+    const QString parent = QFileInfo(createdRoot).absolutePath();
+    if (parent == createdRoot || QFileInfo::exists(parent)) {
+      break;
+    }
+    createdRoot = parent;
+  }
+
+  if (!workingDir.mkpath(destinationDir)) {
+    LOG_ERROR(Log::ErrorId::Git, "can't create destination dir '{}'",
+              destinationDir.toStdString());
+    setError(GitError::CloneRepositoryFailedToCreateDirectory, GIT_EDIRECTORY);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  LOG_DEBUG("Destination directory created/validated successfully");
 
   git_repository *repo = nullptr;
   git_clone_options clone_opts = GIT_CLONE_OPTIONS_INIT;
@@ -2738,7 +2718,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
     if (!workingDirExisted) {
       LOG_DEBUG("Cleaning up destination directory as clone failed");
-      QDir dirToRemove(destinationDir);
+      QDir dirToRemove(createdRoot);
       if (!dirToRemove.removeRecursively()) {
         LOG_WARN(
             "Failed to clean up destination directory after clone failure");

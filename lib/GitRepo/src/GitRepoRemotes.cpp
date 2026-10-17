@@ -25,6 +25,207 @@ namespace GitRepo {
 
 using namespace Private;
 
+namespace {
+
+// Targets (more URL pairs per remote) are kept as
+// sourcerer-target.<remote>:<target>.fetchUrl and .pushUrl. Remote names can't
+// contain ':'. Older versions used remote.<remote>.target.<target>.*, which git
+// reads as a remote called "<remote>.target.<target>"; those are migrated.
+constexpr auto TARGET_SECTION = "sourcerer-target.";
+constexpr auto LEGACY_TARGET_INFIX = ".target.";
+
+struct TargetEntry {
+  QString name; // Full configuration key as stored.
+  QString remote;
+  QString target;
+  QString property; // "fetchurl" or "pushurl", lower case.
+  QString value;
+};
+
+QString targetKey(const QString &remote, const QString &target,
+                  const char *property) {
+  return QStringLiteral("%1%2:%3.%4")
+      .arg(QLatin1String(TARGET_SECTION), remote, target,
+           QLatin1String(property));
+}
+
+// Splits "<prefix><remote>:<target>.<property>" (or the legacy form) into its
+// parts. Returns false for other keys.
+bool parseTargetEntry(const QString &name, const QString &value,
+                      TargetEntry *entry) {
+  const int lastDot = name.lastIndexOf('.');
+  if (lastDot < 0) {
+    return false;
+  }
+  entry->name = name;
+  entry->value = value;
+  entry->property = name.mid(lastDot + 1).toLower();
+  if (entry->property != QStringLiteral("fetchurl") &&
+      entry->property != QStringLiteral("pushurl")) {
+    return false;
+  }
+
+  const QString section = QLatin1String(TARGET_SECTION);
+  if (name.startsWith(section, Qt::CaseInsensitive)) {
+    const QString subsection = name.mid(section.length(),
+                                        lastDot - section.length());
+    const int colon = subsection.indexOf(':');
+    if (colon <= 0) {
+      return false;
+    }
+    entry->remote = subsection.left(colon);
+    entry->target = subsection.mid(colon + 1);
+    return !entry->target.isEmpty();
+  }
+
+  const QString legacyPrefix = QStringLiteral("remote.");
+  if (name.startsWith(legacyPrefix, Qt::CaseInsensitive)) {
+    const QString rest = name.mid(legacyPrefix.length(),
+                                  lastDot - legacyPrefix.length());
+    const int infix = rest.indexOf(QLatin1String(LEGACY_TARGET_INFIX));
+    if (infix <= 0) {
+      return false;
+    }
+    entry->remote = rest.left(infix);
+    entry->target = rest.mid(infix + int(strlen(LEGACY_TARGET_INFIX)));
+    return !entry->target.isEmpty();
+  }
+
+  return false;
+}
+
+// Every target entry of the configuration, legacy ones included.
+QVector<TargetEntry> readTargetEntries(git_config *config) {
+  QVector<TargetEntry> entries;
+  git_config_iterator *iterator = nullptr;
+  if (git_config_iterator_new(&iterator, config) != 0) {
+    return entries;
+  }
+
+  git_config_entry *entry = nullptr;
+  while (git_config_next(&entry, iterator) == 0) {
+    if (!entry || !entry->name || !entry->value) {
+      continue;
+    }
+    TargetEntry target;
+    if (parseTargetEntry(QString::fromUtf8(entry->name),
+                         QString::fromUtf8(entry->value), &target)) {
+      entries += target;
+    }
+  }
+  git_config_iterator_free(iterator);
+  return entries;
+}
+
+bool isLegacyTargetEntry(const TargetEntry &entry) {
+  return !entry.name.startsWith(QLatin1String(TARGET_SECTION),
+                                Qt::CaseInsensitive);
+}
+
+// Moves legacy target entries to the sourcerer-target section.
+void migrateLegacyTargets(git_config *config) {
+  const QVector<TargetEntry> entries = readTargetEntries(config);
+  for (const TargetEntry &entry : entries) {
+    if (!isLegacyTargetEntry(entry)) {
+      continue;
+    }
+    const QByteArray newKey =
+        targetKey(entry.remote, entry.target,
+                  entry.property == QStringLiteral("fetchurl") ? "fetchUrl"
+                                                                : "pushUrl")
+            .toUtf8();
+    git_config_entry *existing = nullptr;
+    if (git_config_get_entry(&existing, config, newKey.constData()) == 0) {
+      git_config_entry_free(existing);
+    } else {
+      git_config_set_string(config, newKey.constData(),
+                            entry.value.toUtf8().constData());
+    }
+    git_config_delete_entry(config, entry.name.toUtf8().constData());
+  }
+}
+
+void migrateLegacyTargets(git_repository *repo) {
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo) == 0) {
+    migrateLegacyTargets(config);
+    git_config_free(config);
+  }
+}
+
+// Reads one target's URLs. Returns false if it has no fetch URL.
+bool readTarget(git_config *config, const QString &remote,
+                const QString &target, QString *fetchUrl, QString *pushUrl) {
+  *fetchUrl = QString();
+  *pushUrl = QString();
+  for (const TargetEntry &entry : readTargetEntries(config)) {
+    if (isLegacyTargetEntry(entry) || entry.remote != remote ||
+        entry.target != target) {
+      continue;
+    }
+    if (entry.property == QStringLiteral("fetchurl")) {
+      *fetchUrl = entry.value;
+    } else {
+      *pushUrl = entry.value;
+    }
+  }
+  return !fetchUrl->isEmpty();
+}
+
+// Writes a target. An empty push URL removes it, pushes then use the fetch URL.
+int writeTarget(git_config *config, const QString &remote,
+                const QString &target, const QString &fetchUrl,
+                const QString &pushUrl, bool *fetchFailed) {
+  *fetchFailed = true;
+  int error = git_config_set_string(
+      config, targetKey(remote, target, "fetchUrl").toUtf8().constData(),
+      fetchUrl.toUtf8().constData());
+  if (error) {
+    return error;
+  }
+  *fetchFailed = false;
+
+  const QByteArray pushKey = targetKey(remote, target, "pushUrl").toUtf8();
+  if (pushUrl.isEmpty()) {
+    error = git_config_delete_entry(config, pushKey.constData());
+    return error == GIT_ENOTFOUND ? 0 : error;
+  }
+  return git_config_set_string(config, pushKey.constData(),
+                               pushUrl.toUtf8().constData());
+}
+
+// Removes every entry of a remote's targets, or moves them to `newRemote`.
+void moveTargets(git_config *config, const QString &remote,
+                 const QString &newRemote) {
+  for (const TargetEntry &entry : readTargetEntries(config)) {
+    if (isLegacyTargetEntry(entry) || entry.remote != remote) {
+      continue;
+    }
+    if (!newRemote.isEmpty()) {
+      git_config_set_string(
+          config,
+          targetKey(newRemote, entry.target,
+                    entry.property == QStringLiteral("fetchurl") ? "fetchUrl"
+                                                                  : "pushUrl")
+              .toUtf8()
+              .constData(),
+          entry.value.toUtf8().constData());
+    }
+    git_config_delete_entry(config, entry.name.toUtf8().constData());
+  }
+}
+
+bool remoteExists(git_repository *repo, const QString &remoteName) {
+  git_remote *remote = nullptr;
+  if (git_remote_lookup(&remote, repo, remoteName.toUtf8().constData()) != 0) {
+    return false;
+  }
+  git_remote_free(remote);
+  return true;
+}
+
+} // namespace
+
 bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Starting {} operation for active branch: '{}'",
@@ -111,7 +312,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   bool gitSchema = false;
   int retries = 0;
   const QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+  if (isSshOrGitUrl(urlStr)) {
     gitSchema = true;
     LOG_DEBUG("Using git schema for authentication");
   }
@@ -212,6 +413,59 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
 
+  // A branch that isn't checked out can only be fast-forwarded, merging or
+  // rebasing it needs its files.
+  {
+    git_reference *localRef = nullptr;
+    error = git_branch_lookup(&localRef, repo,
+                              targetBranchName.toUtf8().constData(),
+                              GIT_BRANCH_LOCAL);
+    if (error) {
+      setError(GitError::PullFailedToLookupReference, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    if (git_branch_is_head(localRef) != 1) {
+      const QString upstreamRefName =
+          QString("refs/remotes/%1/%2").arg(remoteName, remoteBranchName);
+      git_oid upstreamOid{};
+      error = git_reference_name_to_id(&upstreamOid, repo,
+                                       upstreamRefName.toUtf8().constData());
+      if (error) {
+        setError(GitError::PullFailedToLookupReference, error);
+        git_reference_free(localRef);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      const git_oid *localOid = git_reference_target(localRef);
+      bool success = true;
+      if (localOid && !git_oid_equal(localOid, &upstreamOid)) {
+        if (git_graph_descendant_of(repo, &upstreamOid, localOid) == 1) {
+          git_reference *updated = nullptr;
+          error = git_reference_set_target(&updated, localRef, &upstreamOid,
+                                           "pull: Fast-forward");
+          git_reference_free(updated);
+          if (error) {
+            setError(GitError::PullFailedToSetReferenceTarget, error);
+            success = false;
+          }
+        } else {
+          setError(GitError::PullBranchNotCheckedOutCannotFastForward,
+                   GIT_ENONFASTFORWARD);
+          success = false;
+        }
+      }
+
+      git_reference_free(localRef);
+      LOG_PERF(0, "Exit");
+      return success;
+    }
+
+    git_reference_free(localRef);
+  }
+
   // Merge/rebase the upstream branch into the active branch
   git_reference *head = nullptr;
   error = git_repository_head(&head, repo);
@@ -295,6 +549,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
       if (error == GIT_EUNMERGED) {
         LOG_ERROR(Log::ErrorId::Git,
                   "Rebase stopped because conflicts must be resolved manually");
+        setError(GitError::PullRebaseFailedWithConflicts, error);
       } else {
         setError(GitError::PullFailedToCommitRebaseStep, error);
       }
@@ -311,7 +566,9 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
         rebaseSuccess = false;
       }
     } else if (rebaseSuccess) {
-      setError(GitError::PullFailedToAbortRebase, error);
+      // git_rebase_next failed, e.g. local changes are in the way.
+      setError(GitError::PullFailedToCommitRebaseStep, error);
+      git_rebase_abort(rebaseSession);
       rebaseSuccess = false;
     }
 
@@ -460,7 +717,7 @@ static bool fetchRemoteInternal(git_repository *repo,
 
   bool gitSchema = false;
   const QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+  if (isSshOrGitUrl(urlStr)) {
     gitSchema = true;
     LOG_DEBUG("Using git schema for authentication");
   }
@@ -604,14 +861,17 @@ bool fetchAll(git_repository *repo) {
 
   LOG_DEBUG("Found {} unique remotes to fetch", remotesToFetch.size());
 
+  // A remote that fails doesn't stop the others, but fails the whole fetch
+  // with its error.
+  bool success = true;
   for (const QString &remoteName : remotesToFetch) {
     if (!fetchRemoteInternal(repo, remoteName)) {
-      continue;
+      success = false;
     }
   }
 
   LOG_PERF(0, "Exit");
-  return true;
+  return success;
 }
 
 bool push(git_repository *repo, const QString &activeBranchName, bool force) {
@@ -672,6 +932,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
               "Branch '{}' has no remote configured. Specify a remote for this "
               "branch before pushing.",
               targetBranchName.toStdString());
+    setError(GitError::PushNoUpstreamConfigured, GIT_ENOTFOUND);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -725,7 +986,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   bool gitSchema = false;
   int retries = 0;
   const QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+  if (isSshOrGitUrl(urlStr)) {
     gitSchema = true;
     LOG_DEBUG("Using git schema for authentication");
   }
@@ -857,112 +1118,57 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
     return false;
   }
 
+  // Like `git branch --set-upstream-to`, the remote has to exist.
+  if (!remoteExists(repo, remoteName)) {
+    setError(GitError::SetUpstreamRemoteNotFound, GIT_ENOTFOUND);
+    git_reference_free(localRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   // Try to set upstream using libgit2's function
   error = git_branch_set_upstream(
       localRef,
       QString("%1/%2").arg(remoteName, remoteBranchName).toStdString().c_str());
 
-  // If it fails because the remote branch doesn't exist yet, set it manually in
-  // config This allows users to set upstream on branches that will be created
-  // on the next push
+  // If it fails because the remote branch doesn't exist yet, the branch
+  // configuration is written directly. This allows users to set upstream on
+  // branches that will be created on the next push. The repository
+  // configuration is used so that git's syntax, includes and linked worktrees
+  // (which share the configuration of the main repository) are handled.
   if (error == GIT_ENOTFOUND || error == GIT_EINVALIDSPEC) {
     LOG_WARN("Remote branch '{}' does not exist, setting upstream directly in "
              "config",
              QString("%1/%2").arg(remoteName, remoteBranchName));
 
-    // Get the git config file path
-    const QString configPath =
-        QString::fromUtf8(git_repository_path(repo)) + "config";
-
-    // Read the existing config file
-    QString configContent;
-    QFile configFile(configPath);
-    if (configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      configContent = QString::fromUtf8(configFile.readAll());
-      configFile.close();
+    git_config *config = nullptr;
+    error = git_repository_config(&config, repo);
+    if (!error) {
+      const QString section =
+          QStringLiteral("branch.%1.").arg(localBranchName);
+      error = git_config_set_string(
+          config, (section + QStringLiteral("remote")).toUtf8().constData(),
+          remoteName.toUtf8().constData());
+      if (!error) {
+        error = git_config_set_string(
+            config, (section + QStringLiteral("merge")).toUtf8().constData(),
+            QStringLiteral("refs/heads/%1")
+                .arg(remoteBranchName)
+                .toUtf8()
+                .constData());
+      }
+      git_config_free(config);
     }
 
-    // Parse and update the config
-    QStringList lines = configContent.split('\n');
-    bool foundBranchSection = false;
-    bool foundRemote = false;
-    bool foundMerge = false;
-    int sectionStart = -1;
-    int sectionEnd = -1;
-
-    // Find the branch section
-    for (int i = 0; i < lines.size(); ++i) {
-      const QString line = lines[i].trimmed();
-
-      if (line == QString("[branch \"%1\"]").arg(localBranchName)) {
-        foundBranchSection = true;
-        sectionStart = i;
-
-        // Find the end of this section (next [section] or end of file)
-        for (int j = i + 1; j < lines.size(); ++j) {
-          const QString nextLine = lines[j].trimmed();
-          if (nextLine.startsWith('[')) {
-            sectionEnd = j - 1;
-            break;
-          }
-        }
-        if (sectionEnd == -1) {
-          sectionEnd = lines.size() - 1;
-        }
-
-        // Look for remote and merge entries in this section
-        for (int j = sectionStart + 1; j <= sectionEnd; ++j) {
-          const QString sectionLine = lines[j].trimmed();
-          if (sectionLine.startsWith("remote =")) {
-            lines[j] = QString("\tremote = %1").arg(remoteName);
-            foundRemote = true;
-          } else if (sectionLine.startsWith("merge =")) {
-            lines[j] = QString("\tmerge = refs/heads/%1").arg(remoteBranchName);
-            foundMerge = true;
-          }
-        }
-        break;
-      }
-    }
-
-    // Add missing entries to the section or create the section
-    if (foundBranchSection) {
-      // Insert missing entries at the end of the section (before sectionEnd)
-      int insertPos = sectionEnd + 1;
-      if (!foundRemote) {
-        lines.insert(insertPos++, QString("\tremote = %1").arg(remoteName));
-      }
-      if (!foundMerge) {
-        lines.insert(insertPos,
-                     QString("\tmerge = refs/heads/%1").arg(remoteBranchName));
-      }
-    } else {
-      // Create new section at the end of the file
-      if (!configContent.isEmpty() && !configContent.endsWith('\n')) {
-        lines.append(""); // Empty line before new section
-      }
-      lines.append(QString("[branch \"%1\"]").arg(localBranchName));
-      lines.append(QString("\tremote = %1").arg(remoteName));
-      lines.append(QString("\tmerge = refs/heads/%1").arg(remoteBranchName));
-    }
-
-    // Write back to config file
-    configFile.setFileName(configPath);
-    if (!configFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-      LOG_ERROR(Log::ErrorId::Git,
-                "Failed to write .git/config file when setting upstream");
-      git_reference_free(localRef);
+    git_reference_free(localRef);
+    if (error) {
+      setError(GitError::SetUpstreamFailedToSetBranchUpstream, error);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    configFile.write(lines.join('\n').toUtf8());
-    configFile.close();
-
-    LOG_INFO("Set upstream for branch '{}' to '{}/{}' via config file",
+    LOG_INFO("Set upstream for branch '{}' to '{}/{}' via config",
              localBranchName, remoteName, remoteBranchName);
-
-    git_reference_free(localRef);
     LOG_PERF(0, "Exit");
     return true;
   }
@@ -1035,13 +1241,11 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
     }
     git_reference_free(upstreamRef);
   } else {
-    // Fallback: git_branch_upstream returned GIT_ENOTFOUND, so read from git
-    // config by iterating through all entries
-    const QString configPath = QString::fromUtf8(git_repository_workdir(repo)) +
-                               ".git" + QDir::separator() + "config";
-
+    // Fallback: the remote branch doesn't exist (yet), read the branch
+    // configuration. The repository configuration follows includes and is
+    // shared by linked worktrees.
     git_config *config = nullptr;
-    error = git_config_open_ondisk(&config, configPath.toStdString().c_str());
+    error = git_repository_config(&config, repo);
     if (error) {
       setError(GitError::GetUpstreamFailedToOpenGitConfig, error);
       git_reference_free(localRef);
@@ -1049,46 +1253,37 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
       return {};
     }
 
-    const QString remoteConfigKey =
-        QString("branch.%1.remote").arg(localBranchName);
-    const QString mergeConfigKey =
-        QString("branch.%1.merge").arg(localBranchName);
-
-    // Iterate through config entries to find the keys we're looking for
-    git_config_iterator *iterator = nullptr;
-    error = git_config_iterator_new(&iterator, config);
-    if (!error) {
-      git_config_entry *entry = nullptr;
-      while (!git_config_next(&entry, iterator)) {
-        if (entry && entry->name && entry->value) {
-          const QString entryName = QString::fromUtf8(entry->name);
-          const QString entryValue = QString::fromUtf8(entry->value);
-
-          if (entryName == remoteConfigKey) {
-            remoteName = entryValue;
-          } else if (entryName == mergeConfigKey) {
-            QString mergeRef = entryValue;
-            if (mergeRef.startsWith("refs/heads/")) {
-              remoteBranchName =
-                  mergeRef.mid(11); // Remove "refs/heads/" prefix
-            } else {
-              remoteBranchName = mergeRef;
-            }
-          }
-        }
-      }
-      git_config_iterator_free(iterator);
+    const QString section = QStringLiteral("branch.%1.").arg(localBranchName);
+    git_buf value = GIT_BUF_INIT;
+    if (git_config_get_string_buf(
+            &value, config,
+            (section + QStringLiteral("remote")).toUtf8().constData()) == 0) {
+      remoteName = QString::fromUtf8(value.ptr);
     }
+    git_buf_dispose(&value);
+    if (git_config_get_string_buf(
+            &value, config,
+            (section + QStringLiteral("merge")).toUtf8().constData()) == 0) {
+      const QString mergeRef = QString::fromUtf8(value.ptr);
+      remoteBranchName = mergeRef.startsWith(QStringLiteral("refs/heads/"))
+                             ? mergeRef.mid(11)
+                             : mergeRef;
+    }
+    git_buf_dispose(&value);
 
     git_config_free(config);
   }
 
   git_reference_free(localRef);
 
+  const bool configured = !remoteName.isEmpty() && !remoteBranchName.isEmpty();
+  if (!configured) {
+    setOwnError(GitError::GetUpstreamNotConfigured, GIT_ENOTFOUND);
+  }
+
   LOG_PERF(0, "Exit");
 
-  return std::make_tuple(!remoteName.isEmpty() && !remoteBranchName.isEmpty(),
-                         remoteName, remoteBranchName);
+  return std::make_tuple(configured, remoteName, remoteBranchName);
 }
 
 QVector<RemoteInfo> listRemotes(git_repository *repo) {
@@ -1102,6 +1297,9 @@ QVector<RemoteInfo> listRemotes(git_repository *repo) {
     LOG_PERF(0, "Exit");
     return {};
   }
+
+  // Before listing: legacy targets look like remotes to libgit2 as well.
+  migrateLegacyTargets(repo);
 
   git_strarray remote_list;
   int error = git_remote_list(&remote_list, repo);
@@ -1154,64 +1352,30 @@ QVector<RemoteInfo> listRemotes(git_repository *repo) {
     QVector<RemoteTarget> targets;
     targets.append(RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl});
 
-    // Load additional targets from git config
+    // Load additional targets from git config, sorted by name.
     git_config *config = nullptr;
     error = git_repository_config(&config, repo);
     if (!error && config) {
-      git_config_iterator *iterator = nullptr;
-      error = git_config_iterator_new(&iterator, config);
-      if (!error) {
-        git_config_entry *entry = nullptr;
-        const QString targetPrefix =
-            QString("remote.%1.target.").arg(remoteName);
-
-        // Map to collect targets: targetName -> (fetchUrl, pushUrl)
-        QMap<QString, QPair<QString, QString>> targetMap;
-
-        while (!git_config_next(&entry, iterator)) {
-          if (entry && entry->name && entry->value) {
-            const QString entryName = QString::fromUtf8(entry->name);
-            const QString entryValue = QString::fromUtf8(entry->value);
-
-            // Check if this entry is for a target of this remote
-            if (entryName.startsWith(targetPrefix)) {
-              // Extract target name and property (fetchUrl or pushUrl)
-              const QString suffix = entryName.mid(targetPrefix.length());
-              const QStringList parts = suffix.split('.');
-
-              if (parts.size() >= 2) {
-                const QString targetName = parts[0];
-                const QString property = parts[1];
-
-                if (!targetMap.contains(targetName)) {
-                  targetMap[targetName] = {QString(), QString()};
-                }
-
-                if (property == "fetchurl") {
-                  targetMap[targetName].first = entryValue;
-                } else if (property == "pushurl") {
-                  targetMap[targetName].second = entryValue;
-                }
-              }
-            }
-          }
+      QMap<QString, QPair<QString, QString>> targetMap;
+      for (const TargetEntry &entry : readTargetEntries(config)) {
+        if (isLegacyTargetEntry(entry) || entry.remote != remoteName) {
+          continue;
         }
-
-        // Add all collected targets
-        for (auto it = targetMap.constBegin(); it != targetMap.constEnd();
-             ++it) {
-          const QString targetName = it.key();
-          const QString targetFetchUrl = it.value().first;
-          const QString targetPushUrl =
-              it.value().second.isEmpty() ? targetFetchUrl : it.value().second;
-
-          if (!targetFetchUrl.isEmpty() && targetName != "Default") {
-            targets.append(
-                RemoteTarget{targetName, targetFetchUrl, targetPushUrl});
-          }
+        if (entry.property == QStringLiteral("fetchurl")) {
+          targetMap[entry.target].first = entry.value;
+        } else {
+          targetMap[entry.target].second = entry.value;
         }
+      }
 
-        git_config_iterator_free(iterator);
+      for (auto it = targetMap.constBegin(); it != targetMap.constEnd();
+           ++it) {
+        const QString targetFetchUrl = it.value().first;
+        const QString targetPushUrl =
+            it.value().second.isEmpty() ? targetFetchUrl : it.value().second;
+        if (!targetFetchUrl.isEmpty() && it.key() != "Default") {
+          targets.append(RemoteTarget{it.key(), targetFetchUrl, targetPushUrl});
+        }
       }
       git_config_free(config);
     }
@@ -1297,10 +1461,32 @@ QString getDefaultRemote(git_repository *repo) {
     git_reference_free(current_ref);
   }
 
-  // Fall back to "origin" if upstream not found
-  LOG_DEBUG("Using fallback default remote: 'origin'");
+  // Fall back to "origin", or else the first remote by name, as long as it
+  // exists. Without remotes there is no default.
+  if (remoteExists(repo, QStringLiteral("origin"))) {
+    LOG_DEBUG("Using fallback default remote: 'origin'");
+    LOG_PERF(0, "Exit");
+    return "origin";
+  }
+
+  QString firstRemote;
+  git_strarray remoteNames = {nullptr, 0};
+  if (git_remote_list(&remoteNames, repo) == 0) {
+    for (size_t i = 0; i < remoteNames.count; ++i) {
+      const QString name = QString::fromUtf8(remoteNames.strings[i]);
+      if (name.contains(QLatin1String(LEGACY_TARGET_INFIX))) {
+        continue;
+      }
+      if (firstRemote.isEmpty() || name < firstRemote) {
+        firstRemote = name;
+      }
+    }
+    git_strarray_dispose(&remoteNames);
+  }
+
+  LOG_DEBUG("Using fallback default remote: '{}'", firstRemote.toStdString());
   LOG_PERF(0, "Exit");
-  return "origin";
+  return firstRemote;
 }
 
 bool setDefaultRemote(git_repository *repo, const QString &remoteName) {
@@ -1434,6 +1620,12 @@ bool removeRemote(git_repository *repo, const QString &remoteName) {
     return false;
   }
 
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo) == 0) {
+    moveTargets(config, remoteName, QString());
+    git_config_free(config);
+  }
+
   LOG_DEBUG("Successfully removed remote '{}'", remoteName.toStdString());
   LOG_PERF(0, "Exit");
   return true;
@@ -1457,6 +1649,13 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
 
   if (remoteName.isEmpty() || newRemoteName.isEmpty() || fetchUrl.isEmpty()) {
     LOG_ERROR(Log::ErrorId::Git, "Remote names and fetch URL cannot be empty");
+    setOwnError(GitError::UpdateRemoteInvalidArguments, GIT_EINVALID);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!remoteExists(repo, remoteName)) {
+    setOwnError(GitError::UpdateRemoteNotFound, GIT_ENOTFOUND);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1476,6 +1675,23 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
       return false;
     }
     effectiveRemoteName = newRemoteName;
+
+    // The targets and the chosen default follow the rename.
+    git_config *config = nullptr;
+    if (git_repository_config(&config, repo) == 0) {
+      migrateLegacyTargets(config);
+      moveTargets(config, remoteName, newRemoteName);
+
+      git_buf defaultRemote = GIT_BUF_INIT;
+      if (git_config_get_string_buf(&defaultRemote, config,
+                                    "sourcerer.defaultremote") == 0 &&
+          QString::fromUtf8(defaultRemote.ptr) == remoteName) {
+        git_config_set_string(config, "sourcerer.defaultremote",
+                              newRemoteName.toUtf8().constData());
+      }
+      git_buf_dispose(&defaultRemote);
+      git_config_free(config);
+    }
   }
 
   // Set fetch URL
@@ -1490,9 +1706,16 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Set push URL
-  error = git_remote_set_pushurl(repo, effectiveRemoteName.toUtf8().constData(),
-                                 pushUrl.toUtf8().constData());
+  // Set push URL. libgit2 refuses an empty one, a null one removes it so that
+  // pushes use the fetch URL.
+  const QByteArray pushUrlUtf8 = pushUrl.toUtf8();
+  error = git_remote_set_pushurl(
+      repo, effectiveRemoteName.toUtf8().constData(),
+      pushUrl.isEmpty() ? nullptr : pushUrlUtf8.constData());
+  // Removing a push URL that isn't set is fine.
+  if (error == GIT_ENOTFOUND && pushUrl.isEmpty()) {
+    error = 0;
+  }
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set push URL for remote '{}': error={}",
@@ -1539,7 +1762,14 @@ bool addTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Get config
+  if (!remoteExists(repo, remoteName)) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote '{}' not found",
+              remoteName.toStdString());
+    setError(GitError::AddTargetRemoteNotFound, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_config *config = nullptr;
   int error = git_repository_config(&config, repo);
   if (error) {
@@ -1550,39 +1780,34 @@ bool addTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Set fetch URL
-  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
-                                     .arg(remoteName, targetName);
-  error = git_config_set_string(config, fetchConfigKey.toUtf8().constData(),
-                                fetchUrl.toUtf8().constData());
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to set fetch URL for target '{}' on remote '{}': "
-              "error={}",
-              targetName.toStdString(), remoteName.toStdString(), error);
-    setError(GitError::AddTargetFailedToSetFetchUrlConfig, error);
+  migrateLegacyTargets(config);
+
+  QString existingFetchUrl;
+  QString existingPushUrl;
+  if (readTarget(config, remoteName, targetName, &existingFetchUrl,
+                 &existingPushUrl)) {
+    LOG_ERROR(Log::ErrorId::Git, "Target '{}' exists on remote '{}'",
+              targetName.toStdString(), remoteName.toStdString());
+    setError(GitError::AddTargetAlreadyExists, GIT_EEXISTS);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Set push URL
-  const QString pushConfigKey =
-      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
-  error = git_config_set_string(config, pushConfigKey.toUtf8().constData(),
-                                pushUrl.toUtf8().constData());
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to set push URL for target '{}' on remote '{}': "
-              "error={}",
-              targetName.toStdString(), remoteName.toStdString(), error);
-    setError(GitError::AddTargetFailedToSetPushUrlConfig, error);
-    git_config_free(config);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
+  bool fetchFailed = false;
+  error = writeTarget(config, remoteName, targetName, fetchUrl, pushUrl,
+                      &fetchFailed);
   git_config_free(config);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to write target '{}' on remote '{}': error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    setError(fetchFailed ? GitError::AddTargetFailedToSetFetchUrlConfig
+                         : GitError::AddTargetFailedToSetPushUrlConfig,
+             error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   LOG_DEBUG("Successfully added target '{}' to remote '{}'",
             targetName.toStdString(), remoteName.toStdString());
@@ -1609,6 +1834,7 @@ bool editTarget(git_repository *repo, const QString &remoteName,
   if (remoteName.isEmpty() || targetName.isEmpty() || newFetchUrl.isEmpty()) {
     LOG_ERROR(Log::ErrorId::Git,
               "Remote name, target name, and fetch URL cannot be empty");
+    setOwnError(GitError::EditTargetInvalidArguments, GIT_EINVALID);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1617,11 +1843,19 @@ bool editTarget(git_repository *repo, const QString &remoteName,
   if (targetName == QStringLiteral("Default")) {
     LOG_ERROR(Log::ErrorId::Git,
               "Cannot edit 'Default' target - use updateRemote instead");
+    setOwnError(GitError::EditTargetInvalidArguments, GIT_EINVALID);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Get config
+  if (!remoteExists(repo, remoteName)) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote '{}' not found",
+              remoteName.toStdString());
+    setError(GitError::AddTargetRemoteNotFound, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_config *config = nullptr;
   int error = git_repository_config(&config, repo);
   if (error) {
@@ -1632,39 +1866,33 @@ bool editTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Set fetch URL
-  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
-                                     .arg(remoteName, targetName);
-  error = git_config_set_string(config, fetchConfigKey.toUtf8().constData(),
-                                newFetchUrl.toUtf8().constData());
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to set fetch URL for target '{}' on remote '{}': "
-              "error={}",
-              targetName.toStdString(), remoteName.toStdString(), error);
-    setError(GitError::EditTargetFailedToSetFetchUrlConfig, error);
+  migrateLegacyTargets(config);
+
+  QString oldFetchUrl;
+  QString oldPushUrl;
+  if (!readTarget(config, remoteName, targetName, &oldFetchUrl, &oldPushUrl)) {
+    LOG_ERROR(Log::ErrorId::Git, "Target '{}' not found on remote '{}'",
+              targetName.toStdString(), remoteName.toStdString());
+    setError(GitError::EditTargetNotFound, GIT_ENOTFOUND);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Set push URL
-  const QString pushConfigKey =
-      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
-  error = git_config_set_string(config, pushConfigKey.toUtf8().constData(),
-                                newPushUrl.toUtf8().constData());
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to set push URL for target '{}' on remote '{}': "
-              "error={}",
-              targetName.toStdString(), remoteName.toStdString(), error);
-    setError(GitError::EditTargetFailedToSetPushUrlConfig, error);
-    git_config_free(config);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
+  bool fetchFailed = false;
+  error = writeTarget(config, remoteName, targetName, newFetchUrl, newPushUrl,
+                      &fetchFailed);
   git_config_free(config);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to write target '{}' on remote '{}': error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    setError(fetchFailed ? GitError::EditTargetFailedToSetFetchUrlConfig
+                         : GitError::EditTargetFailedToSetPushUrlConfig,
+             error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   LOG_DEBUG("Successfully edited target '{}' on remote '{}'",
             targetName.toStdString(), remoteName.toStdString());
@@ -1700,7 +1928,6 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Get config
   git_config *config = nullptr;
   int error = git_repository_config(&config, repo);
   if (error) {
@@ -1711,10 +1938,21 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Delete fetch URL
-  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
-                                     .arg(remoteName, targetName);
-  error = git_config_delete_entry(config, fetchConfigKey.toUtf8().constData());
+  migrateLegacyTargets(config);
+
+  QString oldFetchUrl;
+  QString oldPushUrl;
+  if (!readTarget(config, remoteName, targetName, &oldFetchUrl, &oldPushUrl)) {
+    LOG_ERROR(Log::ErrorId::Git, "Target '{}' not found on remote '{}'",
+              targetName.toStdString(), remoteName.toStdString());
+    setError(GitError::DeleteTargetNotFound, GIT_ENOTFOUND);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_config_delete_entry(
+      config, targetKey(remoteName, targetName, "fetchUrl").toUtf8().constData());
   if (error && error != GIT_ENOTFOUND) {
     LOG_WARN("Failed to delete fetch URL config for target '{}' on remote "
              "'{}': error={}",
@@ -1722,10 +1960,8 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
     setError(GitError::DeleteTargetFailedToDeleteFetchUrlConfig, error);
   }
 
-  // Delete push URL
-  const QString pushConfigKey =
-      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
-  error = git_config_delete_entry(config, pushConfigKey.toUtf8().constData());
+  error = git_config_delete_entry(
+      config, targetKey(remoteName, targetName, "pushUrl").toUtf8().constData());
   if (error && error != GIT_ENOTFOUND) {
     LOG_WARN("Failed to delete push URL config for target '{}' on remote "
              "'{}': error={}",
@@ -1767,7 +2003,6 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
     return true;
   }
 
-  // Get config
   git_config *config = nullptr;
   int error = git_repository_config(&config, repo);
   if (error) {
@@ -1778,160 +2013,51 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  // Get the new default target's fetch and push URLs
-  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
-                                     .arg(remoteName, targetName);
-  const QString pushConfigKey =
-      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
+  migrateLegacyTargets(config);
 
-  git_config_iterator *iter = nullptr;
-
-  error = git_config_iterator_new(&iter, config);
-  if (error) {
-    setError(GitError::SetDefaultTargetFailedToCreateConfigIterator, error);
-    git_config_free(config);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // Find the actual stored keys (they might be lowercase due to git config
-  // normalization)
-  char *newFetchUrl = nullptr;
-  char *newPushUrl = nullptr;
-  git_config_entry *entry = nullptr;
-
-  const QString targetPrefix =
-      QString("remote.%1.target.%2.").arg(remoteName, targetName);
-
-  while ((error = git_config_next(&entry, iter)) == 0) {
-    if (entry && entry->name) {
-      const QString entryName = QString::fromUtf8(entry->name);
-      LOG_DEBUG("Config entry: {}", entryName.toStdString());
-
-      if (entryName.startsWith(targetPrefix, Qt::CaseInsensitive)) {
-        const QString suffix = entryName.mid(targetPrefix.length());
-        if (suffix.compare("fetchUrl", Qt::CaseInsensitive) == 0) {
-          newFetchUrl = strdup(entry->value);
-          LOG_DEBUG("Found fetch URL: {}", newFetchUrl ? newFetchUrl : "null");
-        } else if (suffix.compare("pushUrl", Qt::CaseInsensitive) == 0) {
-          newPushUrl = strdup(entry->value);
-          LOG_DEBUG("Found push URL: {}", newPushUrl ? newPushUrl : "null");
-        }
-      }
-    }
-  }
-
-  git_config_iterator_free(iter);
-
-  if (!newFetchUrl) {
-    if (newPushUrl) {
-      free(newPushUrl);
-    }
+  QString newFetchUrl;
+  QString newPushUrl;
+  if (!readTarget(config, remoteName, targetName, &newFetchUrl, &newPushUrl)) {
     LOG_ERROR(
         Log::ErrorId::Git,
         "Failed to get fetch URL for target '{}' on remote '{}': key not found",
         targetName.toStdString(), remoteName.toStdString());
+    setError(GitError::EditTargetNotFound, GIT_ENOTFOUND);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // If push URL not found, use fetch URL as fallback
-  if (!newPushUrl) {
-    newPushUrl = newFetchUrl;
-    LOG_DEBUG("Push URL not set, using fetch URL as fallback");
-  }
-
-  // Save current default target's URLs before switching
-  char *currentFetchUrl = nullptr;
-  char *currentPushUrl = nullptr;
-
-  // Iterate config to find current fetch and push URLs
-  git_config_iterator *defaultIter = nullptr;
-  error = git_config_iterator_new(&defaultIter, config);
+  git_remote *remote = nullptr;
+  error = git_remote_lookup(&remote, repo, remoteName.toUtf8().constData());
   if (error) {
-    LOG_WARN("Failed to create config iterator for default URLs: error={}",
-             error);
-  } else {
-    git_config_entry *defaultEntry = nullptr;
-    const QString defaultPrefix = QString("remote.%1.").arg(remoteName);
-
-    while ((error = git_config_next(&defaultEntry, defaultIter)) == 0) {
-      if (defaultEntry && defaultEntry->name) {
-        const QString entryName = QString::fromUtf8(defaultEntry->name);
-
-        if (entryName.startsWith(defaultPrefix, Qt::CaseInsensitive)) {
-          const QString suffix = entryName.mid(defaultPrefix.length());
-          if (suffix.compare("url", Qt::CaseInsensitive) == 0) {
-            currentFetchUrl = strdup(defaultEntry->value);
-            LOG_DEBUG("Found current fetch URL: {}",
-                      currentFetchUrl ? currentFetchUrl : "null");
-          } else if (suffix.compare("pushurl", Qt::CaseInsensitive) == 0) {
-            currentPushUrl = strdup(defaultEntry->value);
-            LOG_DEBUG("Found current push URL: {}",
-                      currentPushUrl ? currentPushUrl : "null");
-          }
-        }
-      }
-    }
-    git_config_iterator_free(defaultIter);
-  }
-
-  if (!currentFetchUrl) {
-    if (newFetchUrl) {
-      free(newFetchUrl);
-    }
-    if (newPushUrl) {
-      free(newPushUrl);
-    }
-    if (currentPushUrl) {
-      free(currentPushUrl);
-    }
-
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to get current fetch URL for remote '{}': key not found",
-              remoteName.toStdString());
+    LOG_ERROR(Log::ErrorId::Git, "Remote '{}' not found: error={}",
+              remoteName.toStdString(), error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
   }
+  const QString currentFetchUrl = QString::fromUtf8(git_remote_url(remote));
+  const QString currentPushUrl = git_remote_pushurl(remote)
+                                     ? QString::fromUtf8(git_remote_pushurl(remote))
+                                     : QString();
+  git_remote_free(remote);
 
-  // Set the old default target as a named target
-  const QString oldFetchKey =
-      QStringLiteral("remote.%1.target.Default.fetchUrl").arg(remoteName);
-  error = git_config_set_string(config, oldFetchKey.toUtf8().constData(),
-                                currentFetchUrl);
-  if (error) {
-    LOG_WARN("Failed to backup old default target for remote '{}': error={}",
-             remoteName.toStdString(), error);
+  // The target and the remote swap their URLs, so the previous default stays
+  // available as this target.
+  const QByteArray remoteNameUtf8 = remoteName.toUtf8();
+  const QByteArray newPushUrlUtf8 = newPushUrl.toUtf8();
+  error = git_remote_set_url(repo, remoteNameUtf8.constData(),
+                             newFetchUrl.toUtf8().constData());
+  if (!error) {
+    error = git_remote_set_pushurl(
+        repo, remoteNameUtf8.constData(),
+        newPushUrl.isEmpty() ? nullptr : newPushUrlUtf8.constData());
+    if (error == GIT_ENOTFOUND && newPushUrl.isEmpty()) {
+      error = 0;
+    }
   }
-
-  if (currentPushUrl) {
-    const QString oldPushKey =
-        QStringLiteral("remote.%1.target.Default.pushUrl").arg(remoteName);
-    git_config_set_string(config, oldPushKey.toUtf8().constData(),
-                          currentPushUrl);
-  }
-
-  // Set the new target as the default
-  const QString defaultFetchKey =
-      QStringLiteral("remote.%1.url").arg(remoteName);
-  error = git_config_set_string(config, defaultFetchKey.toUtf8().constData(),
-                                newFetchUrl);
   if (error) {
-    if (newFetchUrl) {
-      free(newFetchUrl);
-    }
-    if (newPushUrl) {
-      free(newPushUrl);
-    }
-    if (currentFetchUrl) {
-      free(currentFetchUrl);
-    }
-    if (currentPushUrl) {
-      free(currentPushUrl);
-    }
-
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set default fetch URL for remote '{}': error={}",
               remoteName.toStdString(), error);
@@ -1941,27 +2067,13 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  const QString defaultPushKey =
-      QStringLiteral("remote.%1.pushurl").arg(remoteName);
-  error = git_config_set_string(config, defaultPushKey.toUtf8().constData(),
-                                newPushUrl);
+  bool fetchFailed = false;
+  error = writeTarget(config, remoteName, targetName, currentFetchUrl,
+                      currentPushUrl, &fetchFailed);
   if (error) {
-    LOG_WARN("Failed to set default push URL for remote '{}': error={}",
-             remoteName.toStdString(), error);
-    // Continue even if push URL setting fails
-  }
-
-  if (newFetchUrl) {
-    free(newFetchUrl);
-  }
-  if (newPushUrl) {
-    free(newPushUrl);
-  }
-  if (currentFetchUrl) {
-    free(currentFetchUrl);
-  }
-  if (currentPushUrl) {
-    free(currentPushUrl);
+    LOG_WARN("Failed to keep the previous default of remote '{}' as target "
+             "'{}': error={}",
+             remoteName.toStdString(), targetName.toStdString(), error);
   }
 
   git_config_free(config);

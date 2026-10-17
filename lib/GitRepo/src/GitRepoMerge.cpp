@@ -15,153 +15,118 @@ namespace GitRepo {
 
 using namespace Private;
 
-static bool file_has_conflict_markers(const QString &path) {
-  return file_has_conflict_marker_triplet(path, "<<<<<<<",
-                                          "=======", ">>>>>>>");
+// Resolves a revision (id, branch, tag...) to the commit it points to.
+static int lookupCommitRevision(git_commit **out, git_repository *repo,
+                                const QString &revision) {
+  git_object *object = nullptr;
+  int error =
+      git_revparse_single(&object, repo, revision.toStdString().c_str());
+  if (error) {
+    return error;
+  }
+
+  error = git_object_peel(reinterpret_cast<git_object **>(out), object,
+                          GIT_OBJECT_COMMIT);
+  git_object_free(object);
+  return error;
 }
 
-static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
-                                                      git_index *index,
-                                                      QStringList *filePaths) {
-  LOG_PERF(0, "Enter");
+// libgit2 keeps the index it read before. git may have changed it since, and
+// libgit2's own change check misses a rewrite of the same size within the file
+// time resolution. Every change made here is written to disk already.
+static void reloadIndex(git_repository *repo) {
+  git_index *index = nullptr;
+  if (git_repository_index(&index, repo) == 0) {
+    git_index_read(index, true);
+    git_index_free(index);
+  }
+}
 
-  if (!repo || !index || !filePaths) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Repository, index pointer or file paths container is null when "
-              "collecting conflicted files");
-    LOG_PERF(0, "Exit");
+namespace {
+
+struct PickErrors {
+  GitError conflicts;
+  GitError empty;
+  GitError getHead;
+  GitError writeTree;
+  GitError lookupTree;
+  GitError createCommit;
+};
+
+} // namespace
+
+// Commits what git_cherrypick or git_revert left in the index and ends the
+// operation. With conflicts the operation stays in progress (CHERRY_PICK_HEAD
+// or REVERT_HEAD) for the user to resolve, commit or abort, like git does.
+static bool commitPickResult(git_repository *repo, const git_signature *author,
+                             const git_signature *committer,
+                             const char *message, const PickErrors &errors) {
+  git_index *index = nullptr;
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    setError(errors.writeTree, error);
+    return false;
+  }
+
+  if (git_index_has_conflicts(index)) {
+    git_index_free(index);
+    setError(errors.conflicts, GIT_EUNMERGED);
+    return false;
+  }
+
+  git_oid treeId;
+  error = git_index_write_tree(&treeId, index);
+  git_index_free(index);
+  if (error) {
+    setError(errors.writeTree, error);
+    git_repository_state_cleanup(repo);
     return false;
   }
 
   git_reference *headRef = nullptr;
   git_commit *headCommit = nullptr;
-  git_tree *headTree = nullptr;
-  git_diff *candidateDiff = nullptr;
-  git_index_conflict_iterator *conflictIterator = nullptr;
-  QStringList candidatePaths;
-  QSet<QString> uniqueCandidatePaths;
-
-  int error = git_repository_head(&headRef, repo);
-  if (error) {
-    setError(
-        GitError::
-            CollectConflictedFilePathsFromResultIndexFailedToGetRepositoryHead,
-        error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  error = git_reference_peel(reinterpret_cast<git_object **>(&headCommit),
-                             headRef, GIT_OBJECT_COMMIT);
-  if (error) {
-    setError(GitError::CollectConflictedFilePathsFailedToPeelHeadToCommit,
-             error);
+  error = git_repository_head(&headRef, repo);
+  if (!error) {
+    error = git_reference_peel(reinterpret_cast<git_object **>(&headCommit),
+                               headRef, GIT_OBJECT_COMMIT);
     git_reference_free(headRef);
-    LOG_PERF(0, "Exit");
+  }
+  if (error) {
+    setError(errors.getHead, error);
+    git_repository_state_cleanup(repo);
     return false;
   }
 
-  error = git_commit_tree(&headTree, headCommit);
-  if (error) {
-    setError(GitError::
-                 CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree,
-             error);
+  // Nothing changes: git stops here as well instead of making an empty commit.
+  if (git_oid_equal(&treeId, git_commit_tree_id(headCommit))) {
     git_commit_free(headCommit);
-    git_reference_free(headRef);
-    LOG_PERF(0, "Exit");
+    git_repository_state_cleanup(repo);
+    setError(errors.empty, GIT_EAPPLIED);
     return false;
   }
 
-  error = git_diff_tree_to_index(&candidateDiff, repo, headTree, index, NULL);
-  git_tree_free(headTree);
-  git_commit_free(headCommit);
-  git_reference_free(headRef);
+  git_tree *tree = nullptr;
+  error = git_tree_lookup(&tree, repo, &treeId);
   if (error) {
-    setError(
-        GitError::
-            CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex,
-        error);
-    LOG_PERF(0, "Exit");
+    setError(errors.lookupTree, error);
+    git_commit_free(headCommit);
+    git_repository_state_cleanup(repo);
     return false;
   }
 
-  const auto appendCandidatePath = [&](const char *relativePathCstr) {
-    if (!relativePathCstr) {
-      return;
-    }
-
-    const QString relativePath = QString::fromUtf8(relativePathCstr);
-    if (relativePath.isEmpty() || uniqueCandidatePaths.contains(relativePath)) {
-      return;
-    }
-
-    uniqueCandidatePaths.insert(relativePath);
-    candidatePaths.push_back(relativePath);
-  };
-
-  const size_t numDeltas = git_diff_num_deltas(candidateDiff);
-  for (size_t i = 0; i < numDeltas; ++i) {
-    const git_diff_delta *delta = git_diff_get_delta(candidateDiff, i);
-    if (!delta) {
-      continue;
-    }
-
-    appendCandidatePath(delta->new_file.path ? delta->new_file.path
-                                             : delta->old_file.path);
+  git_oid commitId;
+  const git_commit *parents[1] = {headCommit};
+  error = git_commit_create(&commitId, repo, "HEAD", author, committer, nullptr,
+                            message, tree, 1, parents);
+  git_tree_free(tree);
+  git_commit_free(headCommit);
+  if (error) {
+    setError(errors.createCommit, error);
+    git_repository_state_cleanup(repo);
+    return false;
   }
 
-  if (candidatePaths.isEmpty()) {
-    error = git_index_conflict_iterator_new(&conflictIterator, index);
-    if (error) {
-      setError(
-          GitError::
-              CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator,
-          error);
-      git_diff_free(candidateDiff);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    const git_index_entry *ancestor = nullptr;
-    const git_index_entry *ours = nullptr;
-    const git_index_entry *theirs = nullptr;
-
-    while (
-        !git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
-      const git_index_entry *entry = ours ? ours : (theirs ? theirs : ancestor);
-      if (!entry) {
-        continue;
-      }
-
-      appendCandidatePath(entry->path);
-    }
-  }
-
-  const char *repoWorkdir = git_repository_workdir(repo);
-  QString workDir;
-  if (repoWorkdir) {
-    workDir = repoWorkdir;
-  }
-
-  QSet<QString> uniquePaths;
-  for (const QString &relativePath : candidatePaths) {
-    QString filePath = QDir(workDir).absoluteFilePath(relativePath);
-    filePath = QDir::toNativeSeparators(filePath);
-
-    if (!file_has_conflict_markers(filePath) ||
-        uniquePaths.contains(relativePath)) {
-      continue;
-    }
-
-    uniquePaths.insert(relativePath);
-    filePaths->push_back(relativePath);
-  }
-
-  git_index_conflict_iterator_free(conflictIterator);
-  git_diff_free(candidateDiff);
-
-  LOG_DEBUG("Collected {} conflicted files", filePaths->size());
-  LOG_PERF(0, "Exit");
+  git_repository_state_cleanup(repo);
   return true;
 }
 
@@ -179,165 +144,51 @@ bool revertCommit(git_repository *repo, const QString &commit,
   }
 
   git_commit *targetCommit = nullptr;
-
-  int error = git_revparse_single((git_object **)&targetCommit, repo,
-                                  commit.toStdString().c_str());
+  int error = lookupCommitRevision(&targetCommit, repo, commit);
   if (error) {
     setError(GitError::RevertCommitFailedToLookupTargetCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_commit *headCommit = nullptr;
-  git_reference *headRef = nullptr;
-
-  error = git_repository_head(&headRef, repo);
-  if (error) {
-    setError(GitError::RevertCommitFailedToGetRepositoryHead, error);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  error = git_commit_lookup(&headCommit, repo, git_reference_target(headRef));
-  if (error) {
-    setError(GitError::RevertCommitFailedToGetReferenceTarget, error);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_index *revertIndex = nullptr;
-  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
-  mergeOpts.file_flags |= GIT_MERGE_FILE_ACCEPT_CONFLICTS;
-
-  error = git_revert_commit(&revertIndex, repo, targetCommit, headCommit,
-                            0, // mainline = 0 for non-merge commits
-                            &mergeOpts);
-  if (error) {
-    setError(GitError::RevertCommitFailedToPrepareRevertCommit, error);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy |= GIT_CHECKOUT_ALLOW_CONFLICTS;
-
-  error = git_checkout_index(repo, revertIndex, &checkoutOpts);
-  if (error) {
-    setError(GitError::RevertCommitFailedToCheckoutIndex, error);
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  QStringList conflictedFiles;
-  if (!collectConflictedFilePathsFromResultIndex(repo, revertIndex,
-                                                 &conflictedFiles)) {
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (!conflictedFiles.isEmpty()) {
-    git_index_free(revertIndex);
-
-    if (!markConflictedFiles(repo, conflictedFiles)) {
-      git_commit_free(headCommit);
-      git_reference_free(headRef);
-      git_commit_free(targetCommit);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-
-    LOG_DEBUG("Revert of commit '{}' completed with conflicts",
-              commit.toStdString());
-    LOG_PERF(0, "Exit");
-    return true;
-  }
-
-  git_oid treeOid;
-
-  error = git_index_write_tree_to(&treeOid, revertIndex, repo);
-  if (error) {
-    setError(GitError::RevertCommitFailedToWriteIndexTreeToRepository, error);
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_tree *revertTree = nullptr;
-
-  error = git_tree_lookup(&revertTree, repo, &treeOid);
-  if (error) {
-    setError(GitError::RevertCommitFailedToLookupTree, error);
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
   git_signature *sig = nullptr;
-
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
     setError(GitError::RevertCommitFailedToCreateSignature, error);
-    git_tree_free(revertTree);
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_oid newCommitOid;
-
-  error = git_commit_create_v(&newCommitOid, repo, "HEAD", sig, sig, nullptr,
-                              message.toStdString().c_str(), revertTree, 1,
-                              headCommit);
+  // Merges the inverse of the commit into the index and working copy and
+  // writes REVERT_HEAD. Local changes in the way stop it before anything is
+  // touched. A merge commit needs a mainline, which isn't supported.
+  git_revert_options opts = GIT_REVERT_OPTIONS_INIT;
+  reloadIndex(repo);
+  error = git_revert(repo, targetCommit, &opts);
   if (error) {
-    setError(GitError::RevertCommitFailedToCreateCommit, error);
+    setError(GitError::RevertCommitFailedToPrepareRevertCommit, error);
     git_signature_free(sig);
-    git_tree_free(revertTree);
-    git_index_free(revertIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  const PickErrors errors{GitError::RevertCommitFailedWithConflicts,
+                          GitError::RevertCommitIsEmpty,
+                          GitError::RevertCommitFailedToGetRepositoryHead,
+                          GitError::RevertCommitFailedToWriteIndexTreeToRepository,
+                          GitError::RevertCommitFailedToLookupTree,
+                          GitError::RevertCommitFailedToCreateCommit};
+  const bool committed = commitPickResult(
+      repo, sig, sig, message.toStdString().c_str(), errors);
 
   git_signature_free(sig);
-  git_tree_free(revertTree);
-  git_index_free(revertIndex);
-  git_commit_free(headCommit);
-  git_reference_free(headRef);
   git_commit_free(targetCommit);
 
   LOG_PERF(0, "Exit");
-
-  return true;
+  return committed;
 }
 
 bool cherryPickCommit(git_repository *repo, const QString &commit,
@@ -353,170 +204,61 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   }
 
   git_commit *targetCommit = nullptr;
-
-  int error = git_revparse_single((git_object **)&targetCommit, repo,
-                                  commit.toStdString().c_str());
+  int error = lookupCommitRevision(&targetCommit, repo, commit);
   if (error) {
     setError(GitError::CherryPickCommitFailedToLookupTargetCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_commit *headCommit = nullptr;
-  git_reference *headRef = nullptr;
-
-  error = git_repository_head(&headRef, repo);
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToGetRepositoryHead, error);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  error = git_commit_lookup(&headCommit, repo, git_reference_target(headRef));
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToGetReferenceTarget, error);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_index *cherryPickIndex = nullptr;
-  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
-  mergeOpts.file_flags |= GIT_MERGE_FILE_ACCEPT_CONFLICTS;
-
-  error = git_cherrypick_commit(&cherryPickIndex, repo, targetCommit,
-                                headCommit, 0, &mergeOpts);
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToPrepareCherryPickCommit, error);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy |= GIT_CHECKOUT_ALLOW_CONFLICTS;
-
-  error = git_checkout_index(repo, cherryPickIndex, &checkoutOpts);
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToCheckoutIndex, error);
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  QStringList conflictedFiles;
-  if (!collectConflictedFilePathsFromResultIndex(repo, cherryPickIndex,
-                                                 &conflictedFiles)) {
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (!conflictedFiles.isEmpty()) {
-    git_index_free(cherryPickIndex);
-
-    if (!markConflictedFiles(repo, conflictedFiles)) {
-      git_commit_free(headCommit);
-      git_reference_free(headRef);
-      git_commit_free(targetCommit);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-
-    LOG_DEBUG("Cherry-pick of commit '{}' completed with conflicts",
-              commit.toStdString());
-    LOG_PERF(0, "Exit");
-    return true;
-  }
-
-  git_oid treeOid;
-
-  error = git_index_write_tree_to(&treeOid, cherryPickIndex, repo);
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToWriteIndexTreeToRepository,
-             error);
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_tree *cherryPickTree = nullptr;
-
-  error = git_tree_lookup(&cherryPickTree, repo, &treeOid);
-  if (error) {
-    setError(GitError::CherryPickCommitFailedToLookupTree, error);
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
-    git_commit_free(targetCommit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
   git_signature *sig = nullptr;
-
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
     setError(GitError::CherryPickCommitFailedToCreateSignature, error);
-    git_tree_free(cherryPickTree);
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_oid newCommitOid;
-  const char *commitMessage = git_commit_message(targetCommit);
-
-  error = git_commit_create_v(&newCommitOid, repo, "HEAD", sig, sig, nullptr,
-                              commitMessage, cherryPickTree, 1, headCommit);
+  // Merges the commit into the index and working copy and writes
+  // CHERRY_PICK_HEAD and MERGE_MSG. Local changes in the way stop it before
+  // anything is touched. A merge commit needs a mainline, which isn't
+  // supported.
+  git_cherrypick_options opts = GIT_CHERRYPICK_OPTIONS_INIT;
+  reloadIndex(repo);
+  error = git_cherrypick(repo, targetCommit, &opts);
   if (error) {
-    setError(GitError::CherryPickCommitFailedToCreateCommit, error);
+    setError(GitError::CherryPickCommitFailedToPrepareCherryPickCommit, error);
     git_signature_free(sig);
-    git_tree_free(cherryPickTree);
-    git_index_free(cherryPickIndex);
-    git_commit_free(headCommit);
-    git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  // Like `git cherry-pick`, the picked commit keeps its author and message,
+  // the committer is the one passed in.
+  const PickErrors errors{
+      GitError::CherryPickCommitFailedWithConflicts,
+      GitError::CherryPickCommitIsEmpty,
+      GitError::CherryPickCommitFailedToGetRepositoryHead,
+      GitError::CherryPickCommitFailedToWriteIndexTreeToRepository,
+      GitError::CherryPickCommitFailedToLookupTree,
+      GitError::CherryPickCommitFailedToCreateCommit};
+  const bool committed =
+      commitPickResult(repo, git_commit_author(targetCommit), sig,
+                       git_commit_message(targetCommit), errors);
 
   git_signature_free(sig);
-  git_tree_free(cherryPickTree);
-  git_index_free(cherryPickIndex);
-  git_commit_free(headCommit);
-  git_reference_free(headRef);
   git_commit_free(targetCommit);
 
   LOG_PERF(0, "Exit");
-
-  return true;
+  return committed;
 }
 
 bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
-           const QString &email) {
+           const QString &email, const bool allowUnrelatedHistories) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -561,6 +303,21 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   }
   LOG_DEBUG("Destination branch '{}' lookup successful",
             destinationBranch.toStdString());
+
+  // Like `git merge` without --allow-unrelated-histories.
+  if (!allowUnrelatedHistories) {
+    git_oid base;
+    const int baseError =
+        git_merge_base(&base, repo, git_reference_target(srcRef),
+                       git_reference_target(dstRef));
+    if (baseError == GIT_ENOTFOUND) {
+      setError(GitError::MergeUnrelatedHistories, baseError);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
 
   git_object *dstObj = nullptr;
 
@@ -669,6 +426,24 @@ bool merge(git_repository *repo, const QString &sourceBranch,
       return false;
     }
 
+    // Update the working copy first, like `git merge`: local changes to files
+    // the merge doesn't touch are kept, conflicting ones stop the merge.
+    git_checkout_options ffOpts = GIT_CHECKOUT_OPTIONS_INIT;
+    ffOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    error = git_checkout_tree(
+        repo, reinterpret_cast<git_object *>(srcCommitObj), &ffOpts);
+    if (error) {
+      setError(GitError::MergeFailedToCheckoutDestinationTree, error);
+      git_commit_free(srcCommitObj);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
     git_reference *updatedRef = nullptr;
 
     // Update destination branch to point to source commit
@@ -685,42 +460,12 @@ bool merge(git_repository *repo, const QString &sourceBranch,
       return false;
     }
 
-    git_commit *newCommit = nullptr;
-
-    error = git_commit_lookup(&newCommit, repo, git_commit_id(srcCommitObj));
-    if (error) {
-      setError(GitError::MergeFailedToReadSecondCommitId, error);
-      git_reference_free(updatedRef);
-      git_commit_free(srcCommitObj);
-      git_annotated_commit_free(dstCommit);
-      git_annotated_commit_free(srcCommit);
-      git_reference_free(dstRef);
-      git_reference_free(srcRef);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
     git_reference_free(updatedRef);
     git_commit_free(srcCommitObj);
     git_annotated_commit_free(dstCommit);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
-
-    git_checkout_options ffOpts = GIT_CHECKOUT_OPTIONS_INIT;
-    ffOpts.checkout_strategy =
-        GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
-
-    error = git_reset(repo, reinterpret_cast<git_object *>(newCommit),
-                      GIT_RESET_HARD, &ffOpts);
-    if (error) {
-      setError(GitError::MergeFailedToCheckoutDestinationTree, error);
-      git_commit_free(newCommit);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_commit_free(newCommit);
 
     LOG_PERF(0, "Exit");
     return true;
@@ -755,6 +500,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
     if (git_index_has_conflicts(index)) {
       LOG_DEBUG("Merge has conflicts. Resolve them before committing.");
+      setError(GitError::MergeFailedWithConflicts, GIT_EUNMERGED);
       git_index_free(index);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
@@ -875,6 +621,15 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
+
+    // The merge is committed, remove MERGE_HEAD and MERGE_MSG.
+    error = git_repository_state_cleanup(repo);
+    if (error) {
+      setError(GitError::CommitStagedFailedToCleanupRepositoryState, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
     LOG_PERF(0, "Exit");
     return true;
   }
@@ -901,6 +656,8 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  reloadIndex(repo);
 
   git_reference *srcRef = nullptr;
   git_reference *dstRef = nullptr;
@@ -1418,8 +1175,10 @@ bool commitRebase(git_repository *repo, const QString &summary,
 
   git_oid oid;
 
-  // GIT_EAPPLIED: the resolved step changes nothing, so it is skipped.
-  error = git_rebase_commit(&oid, rebase, sig, sig, nullptr,
+  // GIT_EAPPLIED: the resolved step changes nothing, so it is skipped. Like
+  // `git rebase --continue`, every step keeps the author of its original
+  // commit (a null author), the committer is the one passed in.
+  error = git_rebase_commit(&oid, rebase, nullptr, sig, nullptr,
                             fullMessage.toStdString().c_str());
   if (error && error != GIT_EAPPLIED) {
     setError(GitError::CommitStagedFailedToCreateCommit, error);
@@ -1435,7 +1194,7 @@ bool commitRebase(git_repository *repo, const QString &summary,
   git_rebase_operation *operation;
   bool stepFailed = false;
   while ((error = git_rebase_next(&operation, rebase)) == 0) {
-    error = git_rebase_commit(&oid, rebase, sig, sig, nullptr, nullptr);
+    error = git_rebase_commit(&oid, rebase, nullptr, sig, nullptr, nullptr);
     if (error == GIT_EAPPLIED) {
       continue;
     }
@@ -1495,6 +1254,7 @@ bool abortRebase(git_repository *repo) {
   if (state != GIT_REPOSITORY_STATE_REBASE &&
       state != GIT_REPOSITORY_STATE_REBASE_INTERACTIVE &&
       state != GIT_REPOSITORY_STATE_REBASE_MERGE) {
+    setOwnError(GitError::AbortRebaseNothingToAbort, GIT_ENOTFOUND);
     LOG_PERF(0, "Exit");
     return false;
   }

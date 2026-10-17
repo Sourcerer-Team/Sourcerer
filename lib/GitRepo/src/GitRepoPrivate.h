@@ -29,9 +29,16 @@ void setErrorContext(const GitError errorType, const QString &gitErrorMessage,
 
 void setError(const GitError errorType, const int error);
 
+// For errors GitRepo detects itself: the message is the one of errorType,
+// not libgit2's last error (which may be about something else).
+void setOwnError(const GitError errorType, const int error);
+
 // Common helpers (GitRepo.cpp).
 
 bool isCommercialPlan();
+
+// git@host:path, git:// and ssh:// URLs, which need the commercial plan.
+bool isSshOrGitUrl(const QString &url);
 
 QString buildCommitMessage(const QString &summary, const QString &message,
                            const QString &author, const QString &email,
@@ -70,8 +77,21 @@ int fetchProgressCallback(const git_indexer_progress *stats, void *payload);
 void checkoutProgressCallback(const char *path, size_t completed_steps,
                               const size_t total_steps, void *payload);
 
+// Certificates (GitRepoCertificates.cpp).
+
+// Gives libgit2 the system's trusted root certificates. Call it after
+// git_libgit2_init.
+void addSystemRootCertificates();
+
+// Accepts certificates libgit2 trusts, and self-signed TLS certificates and
+// SSH host keys as long as they are the ones seen first for the host.
 int certificateCheckCallback(git_cert *cert, int valid, const char *host,
                              void *payload);
+
+// Why certificateCheckCallback last refused a certificate on this thread,
+// and forgets it. Empty if it accepted the last one. libgit2 replaces the
+// reason with its own message for SSH host keys.
+QString takeCertificateRejection();
 
 void finishFetchProgress(const QString &uuid, const bool error,
                          const bool cloning);
@@ -86,6 +106,9 @@ struct GitPlaintextCredentials {
 
 struct GitCredentialPayload : public CloneProgress {
   QString repoPath;
+  // How often libgit2 asked for user/password credentials in this
+  // operation. Asking again means the previous ones were rejected.
+  int credentialAttempts = 0;
 };
 
 extern Util::Mutex gGitCredentialsMutex;

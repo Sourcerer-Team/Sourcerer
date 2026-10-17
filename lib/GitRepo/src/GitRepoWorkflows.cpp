@@ -188,6 +188,13 @@ bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
     return false;
   }
 
+  if (gitFlowBranchPrefix(branchType).isEmpty()) {
+    setErrorContext(GitError::GitFlowUnknownBranchType,
+                    gitErrorMessage(GitError::GitFlowUnknownBranchType), -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const QString normalizedBranchName =
       gitFlowBranchName(branchType, branchName);
   if (normalizedBranchName.isEmpty()) {
@@ -228,12 +235,38 @@ bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
     return false;
   }
 
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty()) {
+    setErrorContext(GitError::GitFlowUnknownBranchType,
+                    gitErrorMessage(GitError::GitFlowUnknownBranchType), -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const QString normalizedBranchName =
       gitFlowBranchName(branchType, branchName);
   if (normalizedBranchName.isEmpty()) {
     LOG_ERROR(Log::ErrorId::Git, "GitFlow branch name is empty");
     LOG_PERF(0, "Exit");
     return false;
+  }
+
+  // Like git flow, a release or hotfix is tagged on the primary branch with
+  // its name, refused before anything is merged if the tag exists.
+  const bool tagged = branchType == GitFlowBranchType::Release ||
+                      branchType == GitFlowBranchType::Hotfix;
+  const QString tagName = normalizedBranchName.mid(prefix.size() + 1);
+  if (tagged) {
+    git_oid tagOid;
+    if (git_reference_name_to_id(
+            &tagOid, repo,
+            (QStringLiteral("refs/tags/") + tagName).toUtf8().constData()) ==
+        0) {
+      setErrorContext(GitError::GitFlowTagExists,
+                      gitErrorMessage(GitError::GitFlowTagExists), -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
   }
 
   const QString primaryBranchName =
@@ -265,6 +298,23 @@ bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
     return false;
   }
 
+  if (tagged) {
+    git_oid primaryOid;
+    char primaryId[GIT_OID_HEXSZ + 1] = {0};
+    if (git_reference_name_to_id(
+            &primaryOid, repo,
+            (QStringLiteral("refs/heads/") + destinationBranchName)
+                .toUtf8()
+                .constData()) == 0) {
+      git_oid_tostr(primaryId, sizeof(primaryId), &primaryOid);
+    }
+    if (!createTagFromCommit(repo, QString::fromLatin1(primaryId), tagName,
+                             author, email, tagName)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
   if (branchType == GitFlowBranchType::Release ||
       branchType == GitFlowBranchType::Hotfix) {
     if (normalizedDevelopmentBranchName != destinationBranchName &&
@@ -275,7 +325,7 @@ bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
     }
   }
 
-  if (!deleteBranch(repo, normalizedBranchName)) {
+  if (!deleteBranch(repo, normalizedBranchName, /*force=*/true)) {
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -366,7 +416,7 @@ bool finishGitLabFlowFeature(git_repository *repo, const QString &branchName,
     return false;
   }
 
-  if (!deleteBranch(repo, normalizedBranchName)) {
+  if (!deleteBranch(repo, normalizedBranchName, /*force=*/true)) {
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -483,7 +533,18 @@ bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
     return false;
   }
 
+  // A cherry-pick that stops with conflicts fails, the release branch stays
+  // checked out with the cherry-pick in progress.
   if (!cherryPickCommit(repo, commit, author, email)) {
+    if (getLastError().error == GitError::CherryPickCommitFailedWithConflicts) {
+      LOG_DEBUG("Cherry-pick of '{}' onto '{}' has conflicts",
+                commit.toStdString(), normalizedBranchName.toStdString());
+      if (conflicted) {
+        *conflicted = true;
+      }
+      LOG_PERF(0, "Exit");
+      return true;
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -621,7 +682,7 @@ bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
     return false;
   }
 
-  if (!deleteBranch(repo, normalizedBranchName)) {
+  if (!deleteBranch(repo, normalizedBranchName, /*force=*/true)) {
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -717,17 +778,37 @@ bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
     return false;
   }
 
+  git_config *snapshot = nullptr;
+  error = git_config_snapshot(&snapshot, config);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Initializing again only adds what is missing, a branch model the user
+  // changed is kept.
   const auto entries = gitFlowNextClassicPreset(main, develop);
   for (const auto &[key, value] : entries) {
+    git_config_entry *existing = nullptr;
+    if (git_config_get_entry(&existing, snapshot, key.toUtf8().constData()) ==
+        0) {
+      git_config_entry_free(existing);
+      continue;
+    }
+
     error = git_config_set_string(config, key.toUtf8().constData(),
                                   value.toUtf8().constData());
     if (error) {
       setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(snapshot);
       git_config_free(config);
       LOG_PERF(0, "Exit");
       return false;
     }
   }
+  git_config_free(snapshot);
   git_config_free(config);
 
   if (!localBranchExists(repo, develop) &&
@@ -938,7 +1019,7 @@ bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
     return false;
   }
 
-  if (!type->keepOnFinish && !deleteBranch(repo, branch)) {
+  if (!type->keepOnFinish && !deleteBranch(repo, branch, /*force=*/true)) {
     LOG_PERF(0, "Exit");
     return false;
   }

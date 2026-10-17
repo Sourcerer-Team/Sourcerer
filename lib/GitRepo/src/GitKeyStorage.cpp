@@ -1,4 +1,5 @@
 #include "GitKeyStorage.h"
+#include "GitRepo.h"
 
 #include <Log.h>
 
@@ -16,6 +17,20 @@
 #include <QStandardPaths>
 #include <QtCrypto>
 #include <qplugin.h>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
+#include <aclapi.h>
+#endif
+
+#include <string>
 
 #define THREAD_ID "GitKeyStorage"
 
@@ -48,13 +63,89 @@ GitKeyStorage &GitKeyStorage::getInstance() {
   return instance;
 }
 
+// Host names are case insensitive.
+static QString hostKey(const QString &host) { return host.trimmed().toLower(); }
+
+#ifdef SOURCERER_GITREPO_TESTING
+static QString gHomeOverride;
+
+namespace Testing {
+
+void setHomeDirectory(const QString &path) { gHomeOverride = path; }
+
+} // namespace Testing
+#endif
+
 QString GitKeyStorage::getSshDirectoryPath() {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 
-  const QString homePath =
+  QString homePath =
       QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+#ifdef SOURCERER_GITREPO_TESTING
+  if (!gHomeOverride.isEmpty()) {
+    homePath = gHomeOverride;
+  }
+#endif
   return homePath + "/.ssh";
+}
+
+// Makes path readable and writable by the current user only. On Windows a
+// protected ACL with one entry for the user, as ssh-keygen writes it:
+// OpenSSH ignores private keys anybody else can read.
+static bool restrictToOwner(const QString &path) {
+#ifdef Q_OS_WIN
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    return false;
+  }
+  DWORD size = 0;
+  GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+  QByteArray user(static_cast<qsizetype>(size), 0);
+  const bool haveUser =
+      GetTokenInformation(token, TokenUser, user.data(), size, &size);
+  CloseHandle(token);
+  if (!haveUser) {
+    return false;
+  }
+
+  EXPLICIT_ACCESSW access = {};
+  access.grfAccessPermissions = GENERIC_ALL;
+  access.grfAccessMode = SET_ACCESS;
+  access.grfInheritance = NO_INHERITANCE;
+  access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+  access.Trustee.TrusteeType = TRUSTEE_IS_USER;
+  access.Trustee.ptstrName = reinterpret_cast<LPWSTR>(
+      reinterpret_cast<TOKEN_USER *>(user.data())->User.Sid);
+  PACL acl = nullptr;
+  if (SetEntriesInAclW(1, &access, nullptr, &acl) != ERROR_SUCCESS) {
+    return false;
+  }
+  std::wstring native = QDir::toNativeSeparators(path).toStdWString();
+  const DWORD result = SetNamedSecurityInfoW(
+      native.data(), SE_FILE_OBJECT,
+      DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr,
+      nullptr, acl, nullptr);
+  LocalFree(acl);
+  return result == ERROR_SUCCESS;
+#else
+  return QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner);
+#endif
+}
+
+// A file name in the .ssh directory, nothing that leads out of it.
+static bool isValidKeyName(const QString &keyName) {
+  static const QString forbidden = QStringLiteral("/\\:*?\"<>|");
+  if (keyName.trimmed().isEmpty() || keyName == QLatin1String(".") ||
+      keyName == QLatin1String("..")) {
+    return false;
+  }
+  for (const QChar c : keyName) {
+    if (forbidden.contains(c) || c.unicode() < 0x20) {
+      return false;
+    }
+  }
+  return true;
 }
 
 QVector<GitKeyPair> GitKeyStorage::getAllKeyPairs() const {
@@ -71,12 +162,12 @@ bool GitKeyStorage::getKeyPairForHost(const QString &host,
 
   LOCKGUARD(_mutex);
 
-  if (!_keyPairs.contains(host)) {
+  if (!_keyPairs.contains(hostKey(host))) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  keyPair = _keyPairs[host];
+  keyPair = _keyPairs[hostKey(host)];
 
   LOG_PERF(0, "Exit");
   return true;
@@ -113,7 +204,7 @@ bool GitKeyStorage::setKeyPair(const QString &host, const QString &keyName,
   keyPair.publicKeyPath = publicKeyPath;
   keyPair.createdTime = QDateTime::currentMSecsSinceEpoch();
 
-  _keyPairs[host] = keyPair;
+  _keyPairs[hostKey(host)] = keyPair;
   saveKeyPairs();
 
   LOG_INFO("Key pair set successfully for host '{}'", host);
@@ -129,13 +220,13 @@ bool GitKeyStorage::removeKeyPair(const QString &host) {
 
   LOG_INFO("Removing key pair for host '{}'", host);
 
-  if (!_keyPairs.contains(host)) {
+  if (!_keyPairs.contains(hostKey(host))) {
     LOG_WARN("No key pair found for host '{}'", host);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  _keyPairs.remove(host);
+  _keyPairs.remove(hostKey(host));
   saveKeyPairs();
 
   LOG_INFO("Key pair removed successfully for host '{}'", host);
@@ -203,6 +294,12 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
                                     QString &errorMessage) {
   LOG_PERF(0, "Enter");
   LOG_INFO("Generating new SSH key pair: {}", keyName);
+  if (!isValidKeyName(keyName)) {
+    errorMessage = QString("Invalid key name: '%1'").arg(keyName);
+    LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
   // Ensure .ssh directory exists
   const QString sshDir = getSshDirectoryPath();
   QDir dir;
@@ -243,11 +340,23 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
 
   QCA::PublicKey pub = priv.toPublicKey();
 
-  // Save private key in PEM
+  // Save private key in PEM, in a file that is restricted to the owner
+  // before the key is written to it.
   QFile privFile(privateKeyPath);
-  if (!privFile.open(QIODevice::WriteOnly)) {
+  if (!privFile.open(QIODevice::WriteOnly,
+                     QFile::ReadOwner | QFile::WriteOwner)) {
     errorMessage = QString("Failed to open private key file for writing.");
     LOG_ERROR(Log::ErrorId::FileSystem, "Writing private key to file failed!");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!restrictToOwner(privateKeyPath)) {
+    privFile.close();
+    QFile::remove(privateKeyPath);
+    errorMessage =
+        QString("Failed to restrict access to the private key file.");
+    LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -268,6 +377,8 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   if (!pubFile.open(QIODevice::WriteOnly)) {
     errorMessage = QString("Failed to open public key file for writing.");
     LOG_ERROR(Log::ErrorId::FileSystem, "Writing public key to file failed!");
+    // Don't leave half a key pair, it would block the next attempt.
+    QFile::remove(privateKeyPath);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -275,12 +386,6 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   QString pubOpenSSH = toOpenSSH(pub);
   pubFile.write(pubOpenSSH.toUtf8());
   pubFile.close();
-
-  // Set private key file permissions (600 - owner read/write only)
-#ifndef Q_OS_WIN
-  QFile privateKeyFile(privateKeyPath);
-  privateKeyFile.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-#endif
 
   LOG_INFO("SSH key pair generated successfully: {}", keyName);
   LOG_PERF(0, "Exit");
@@ -339,7 +444,7 @@ void GitKeyStorage::loadKeyPairs() {
     // Verify that the key files still exist
     if (QFile::exists(keyPair.privateKeyPath) &&
         QFile::exists(keyPair.publicKeyPath)) {
-      _keyPairs[keyPair.host] = keyPair;
+      _keyPairs[hostKey(keyPair.host)] = keyPair;
     } else {
       LOG_WARN("Key pair for host '{}' no longer exists, skipping",
                keyPair.host);

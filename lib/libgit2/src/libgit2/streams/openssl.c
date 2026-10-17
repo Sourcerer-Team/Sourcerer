@@ -428,7 +428,9 @@ static int verify_server_cert(SSL *ssl, const char *host)
 				matched = !!check_host_name(host, name);
 			} else if (type == GEN_IPADD) {
 				/* Here name isn't so much a name but a binary representation of the IP */
-				matched = addr && !!memcmp(name, addr, namelen);
+				/* Sourcerer: memcmp() is 0 for equal addresses, and the lengths must agree. */
+				size_t addrlen = (addr == &addr4) ? sizeof(addr4) : sizeof(addr6);
+				matched = addr && namelen == addrlen && !memcmp(name, addr, namelen);
 			}
 		}
 	}

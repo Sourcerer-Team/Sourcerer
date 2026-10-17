@@ -32,6 +32,7 @@ add_library(GitRepo STATIC
     src/GitRepo.cpp
     src/GitRepoBisect.cpp
     src/GitRepoBranches.cpp
+    src/GitRepoCertificates.cpp
     src/GitRepoCredentials.cpp
     src/GitRepoDiff.cpp
     src/GitRepoHistory.cpp

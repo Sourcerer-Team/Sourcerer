@@ -4,9 +4,12 @@
 #include <Log.h>
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSaveFile>
+#include <QSet>
 #include <QVector>
 
-#include <cstring>
 #include <string>
 #include <tuple>
 
@@ -18,7 +21,6 @@ namespace GitRepo {
 using namespace Private;
 
 struct ListSubmodulesPayload {
-  const char *repoPath = nullptr;
   QStringList submodules;
 };
 
@@ -29,20 +31,14 @@ static int listSubmodulesCallback(git_submodule *sm, const char *name,
   }
 
   auto *listPayload = static_cast<ListSubmodulesPayload *>(payload);
-  Q_ASSERT(listPayload->repoPath);
-  if (!listPayload->repoPath) {
-    return 0;
-  }
 
-  const char *path = git_submodule_path(sm);
-  if (!path) {
-    return 0;
-  }
-
-  const QString fullPath =
-      QString("%1/../%2").arg(listPayload->repoPath).arg(path);
-
-  if (const QDir dir(fullPath); !dir.exists()) {
+  // Leave out a submodule that is only in HEAD, e.g. one deleted but not
+  // committed yet. One whose directory is missing is still listed.
+  unsigned int location = 0;
+  if (git_submodule_location(&location, sm) != 0 ||
+      !(location & (GIT_SUBMODULE_STATUS_IN_INDEX |
+                    GIT_SUBMODULE_STATUS_IN_CONFIG |
+                    GIT_SUBMODULE_STATUS_IN_WD))) {
     return 0;
   }
 
@@ -55,7 +51,6 @@ QStringList listSubmodules(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
   ListSubmodulesPayload payload;
-  payload.repoPath = git_repository_path(repo);
 
   const int error =
       git_submodule_foreach(repo, &listSubmodulesCallback, &payload);
@@ -167,6 +162,163 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
   return pathStr;
 }
 
+// Parses a config section header such as `[submodule "a \"b\""]` into its
+// section (lower case) and subsection. Returns false for any other line.
+static bool parseConfigSectionHeader(const QByteArray &line, QByteArray &section,
+                                     QByteArray &subsection,
+                                     QByteArray &rest) {
+  const QByteArray trimmed = line.trimmed();
+  if (!trimmed.startsWith('[')) {
+    return false;
+  }
+
+  qsizetype i = 1;
+  while (i < trimmed.size() && trimmed[i] != ']' && trimmed[i] != '"' &&
+         trimmed[i] != ' ' && trimmed[i] != '\t') {
+    section += trimmed[i++];
+  }
+  section = section.toLower();
+
+  while (i < trimmed.size() && (trimmed[i] == ' ' || trimmed[i] == '\t')) {
+    ++i;
+  }
+
+  if (i < trimmed.size() && trimmed[i] == '"') {
+    ++i;
+    while (i < trimmed.size() && trimmed[i] != '"') {
+      if (trimmed[i] == '\\' && i + 1 < trimmed.size()) {
+        ++i;
+      }
+      subsection += trimmed[i++];
+    }
+    if (i >= trimmed.size()) {
+      return false;
+    }
+    ++i;
+  }
+
+  if (i >= trimmed.size() || trimmed[i] != ']') {
+    return false;
+  }
+
+  rest = trimmed.mid(i + 1).trimmed();
+  return true;
+}
+
+// Removes the section `submodule.<name>` from the config file `path`: every
+// variable through libgit2, then the headers left without variables.
+static bool removeSubmoduleConfigSection(const QString &path,
+                                         const QByteArray &name) {
+  if (!QFileInfo::exists(path)) {
+    return true;
+  }
+
+  git_config *config = nullptr;
+  int error = git_config_open_ondisk(&config, path.toUtf8().constData());
+  if (error) {
+    setError(GitError::DeleteSubmoduleFailedToUpdateConfig, error);
+    return false;
+  }
+
+  // Variable names are `submodule.<name>.<key>`; the name may contain dots,
+  // the key doesn't.
+  const QByteArray prefix = "submodule." + name + ".";
+  QSet<QByteArray> keys;
+  git_config_iterator *it = nullptr;
+  error = git_config_iterator_new(&it, config);
+  if (!error) {
+    git_config_entry *entry = nullptr;
+    while ((error = git_config_next(&entry, it)) == 0) {
+      const QByteArray key(entry->name);
+      if (key.startsWith(prefix) && !key.mid(prefix.size()).contains('.')) {
+        keys.insert(key);
+      }
+    }
+    git_config_iterator_free(it);
+    if (error == GIT_ITEROVER) {
+      error = 0;
+    }
+  }
+
+  for (auto key = keys.cbegin(); !error && key != keys.cend(); ++key) {
+    error = git_config_delete_multivar(config, key->constData(), ".*");
+  }
+
+  git_config_free(config);
+
+  if (error) {
+    setError(GitError::DeleteSubmoduleFailedToUpdateConfig, error);
+    return false;
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    setError(GitError::DeleteSubmoduleFailedToUpdateConfig, GIT_ERROR);
+    return false;
+  }
+  const QList<QByteArray> lines = file.readAll().split('\n');
+  file.close();
+
+  // Drop the headers of the section that are followed by nothing but blank
+  // lines and comments.
+  QList<QByteArray> kept;
+  bool changed = false;
+  for (qsizetype i = 0; i < lines.size(); ++i) {
+    QByteArray section;
+    QByteArray subsection;
+    QByteArray rest;
+    if (parseConfigSectionHeader(lines[i], section, subsection, rest) &&
+        section == "submodule" && subsection == name && rest.isEmpty()) {
+      qsizetype next = i + 1;
+      bool empty = true;
+      for (; next < lines.size(); ++next) {
+        const QByteArray trimmed = lines[next].trimmed();
+        if (trimmed.startsWith('[')) {
+          break;
+        }
+        if (!trimmed.isEmpty() && !trimmed.startsWith('#') &&
+            !trimmed.startsWith(';')) {
+          empty = false;
+          break;
+        }
+      }
+
+      if (empty) {
+        // Keep the comments, drop the header and the blank lines.
+        for (qsizetype j = i + 1; j < next; ++j) {
+          if (!lines[j].trimmed().isEmpty()) {
+            kept += lines[j];
+          }
+        }
+        changed = true;
+        i = next - 1;
+        continue;
+      }
+    }
+
+    kept += lines[i];
+  }
+
+  if (!changed) {
+    return true;
+  }
+
+  // A file that ended with a newline still does.
+  if (!lines.isEmpty() && lines.last().isEmpty() &&
+      (kept.isEmpty() || !kept.last().isEmpty())) {
+    kept += QByteArray();
+  }
+
+  QSaveFile out(path);
+  if (!out.open(QIODevice::WriteOnly) || out.write(kept.join('\n')) < 0 ||
+      !out.commit()) {
+    setError(GitError::DeleteSubmoduleFailedToUpdateConfig, GIT_ERROR);
+    return false;
+  }
+
+  return true;
+}
+
 bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
                      const QString &submodulePath) {
   LOG_PERF(0, "Enter");
@@ -179,182 +331,130 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     return false;
   }
 
-  const std::string name = submoduleName.toStdString();
-  const std::string path = submodulePath.toStdString();
-
-  git_submodule *submodule = nullptr;
-
-  int error = git_submodule_lookup(&submodule, repo, name.c_str());
-  if (error) {
-    // Submodule lookup failed (e.g., after discarding .gitmodules)
-    // Continue with manual cleanup instead of failing
-    LOG_DEBUG(
-        "Submodule '{}' not found in metadata, proceeding with manual cleanup",
-        name);
-    submodule = nullptr;
-  }
-
-  const char *repositoryPath = git_repository_path(repo);
-  if (!repositoryPath) {
-    if (submodule) {
-      git_submodule_free(submodule);
-    }
+  const char *workdir = git_repository_workdir(repo);
+  const char *commonDir = git_repository_commondir(repo);
+  if (!workdir || !commonDir) {
+    setError(GitError::DeleteSubmoduleFailedToUpdateConfig, GIT_EBAREREPO);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  const std::string gitModulesPath =
-      QString("%1/../.gitmodules").arg(repositoryPath).toStdString();
-  const std::string gitModulesTmpPath =
-      QString("%1/../.gitmodules.tmp").arg(repositoryPath).toStdString();
+  // The name ends up in config section names and in .git/modules/<name>; an
+  // empty or path-like name would reach other submodules or the whole
+  // modules directory.
+  const QString trimmedName = submoduleName.trimmed();
+  if (trimmedName.isEmpty() || trimmedName != submoduleName ||
+      QDir::isAbsolutePath(submoduleName) ||
+      QDir::cleanPath(submoduleName).startsWith(QStringLiteral(".."))) {
+    setOwnError(GitError::DeleteSubmoduleInvalidName, GIT_EINVALID);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
-  FILE *src = fopen(gitModulesPath.c_str(), "r");
-  FILE *dst = fopen(gitModulesTmpPath.c_str(), "w");
+  const QByteArray name = submoduleName.toUtf8();
+  const QString workdirPath = QString::fromUtf8(workdir);
+  const QDir workdirDir(workdirPath);
 
-  if (src && dst) {
-    char line[1024];
-    int skip = 0;
-    while (fgets(line, sizeof(line), src)) {
-      if (strstr(line, name.c_str())) {
-        skip = 1;
-        continue;
-      }
-
-      if (skip && line[0] == '[') {
-        skip = 0;
-      }
-
-      if (!skip) {
-        fputs(line, dst);
-      }
+  // A path inside the working copy, relative to it; empty for the working
+  // copy itself and for paths outside it.
+  const auto insideWorkdir = [&](const QString &path) -> QString {
+    if (path.trimmed().isEmpty()) {
+      return {};
     }
+    const QString relative = workdirDir.relativeFilePath(
+        QDir::cleanPath(workdirDir.absoluteFilePath(path)));
+    if (relative.isEmpty() || relative == QStringLiteral(".") ||
+        relative.startsWith(QStringLiteral("..")) ||
+        QDir::isAbsolutePath(relative)) {
+      return {};
+    }
+    return relative;
+  };
 
-    fclose(src);
-    src = nullptr;
-    fclose(dst);
-    dst = nullptr;
+  // The index entry and the checkout are at the submodule's path, which can
+  // differ from its name. Without metadata (e.g. after discarding
+  // .gitmodules), derive it from the given directory.
+  QString relativePath;
+  bool known = false;
+  git_submodule *submodule = nullptr;
+  if (git_submodule_lookup(&submodule, repo, name.constData()) == 0) {
+    relativePath = insideWorkdir(QString::fromUtf8(git_submodule_path(submodule)));
+    known = true;
+    git_submodule_free(submodule);
+  } else {
+    LOG_DEBUG(
+        "Submodule '{}' not found in metadata, proceeding with manual cleanup",
+        submoduleName.toStdString());
+    relativePath = insideWorkdir(submodulePath);
+    if (relativePath.isEmpty()) {
+      relativePath = insideWorkdir(submoduleName);
+    }
+  }
 
-    remove(gitModulesPath.c_str());
-    if (rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str()) != 0) {
-      // If rename failed, try to clean up the temp file
-      remove(gitModulesTmpPath.c_str());
-      git_submodule_free(submodule);
+  const QString gitModulesPath = workdirPath + ".gitmodules";
+  if (QFileInfo::exists(gitModulesPath)) {
+    if (!removeSubmoduleConfigSection(gitModulesPath, name)) {
       LOG_PERF(0, "Exit");
       return false;
     }
 
     if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules");
         !staged) {
-      git_submodule_free(submodule);
       LOG_PERF(0, "Exit");
       return false;
     }
-  } else {
-    if (src) {
-      fclose(src);
-    }
-    if (dst) {
-      fclose(dst);
-    }
-    // Clean up temp file if it was created
-    remove(gitModulesTmpPath.c_str());
   }
 
-  // Remove submodule section from .git/config file
-  const std::string gitDirPath = repositoryPath;
-  const std::string gitConfigFile =
-      gitDirPath +
-      (gitDirPath.back() == '/' || gitDirPath.back() == '\\' ? "" : "/") +
-      "config";
-
-  src = fopen(gitConfigFile.c_str(), "r");
-  dst = fopen((gitConfigFile + ".tmp").c_str(), "w");
-
-  if (src && dst) {
-    char line[1024];
-    int skipSection = 0;
-    while (fgets(line, sizeof(line), src)) {
-      // Check if this is the submodule section header
-      if (strstr(line, "[submodule") && strstr(line, name.c_str())) {
-        skipSection = 1;
-        continue;
-      }
-
-      // Check if we're leaving the submodule section (new section starts)
-      if (skipSection && line[0] == '[') {
-        skipSection = 0;
-      }
-
-      // Only write lines that are not part of the submodule section
-      if (!skipSection) {
-        fputs(line, dst);
-      }
-    }
-
-    fclose(src);
-    src = nullptr;
-    fclose(dst);
-    dst = nullptr;
-
-    remove(gitConfigFile.c_str());
-    if (rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str()) != 0) {
-      // If rename failed, try to clean up the temp file
-      remove((gitConfigFile + ".tmp").c_str());
-    }
-  } else {
-    if (src) {
-      fclose(src);
-    }
-    if (dst) {
-      fclose(dst);
-    }
-    // Clean up temp file if it was created
-    remove((gitConfigFile + ".tmp").c_str());
+  if (!removeSubmoduleConfigSection(
+          QString::fromUtf8(commonDir) + QStringLiteral("config"), name)) {
+    LOG_PERF(0, "Exit");
+    return false;
   }
 
   git_index *index = nullptr;
 
-  error = git_repository_index(&index, repo);
+  int error = git_repository_index(&index, repo);
   if (error) {
     setError(GitError::DeleteSubmoduleFailedToGetRepositoryIndex, error);
-    if (submodule) {
-      git_submodule_free(submodule);
-    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
   // Try to remove from index, but don't fail if it's not there
   // (user may have already discarded it)
-  error = git_index_remove(index, name.c_str(), 0);
+  error = relativePath.isEmpty()
+              ? GIT_ENOTFOUND
+              : git_index_remove(index, relativePath.toUtf8().constData(), 0);
   if (error && error != GIT_ENOTFOUND) {
     setError(GitError::DeleteSubmoduleFailedToRemoveIndexEntry, error);
     git_index_free(index);
-    if (submodule) {
-      git_submodule_free(submodule);
-    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_index_write(index);
+  git_index_free(index);
   if (error) {
     setError(GitError::DeleteSubmoduleFailedToWriteIndex, error);
-    git_index_free(index);
-    if (submodule) {
-      git_submodule_free(submodule);
-    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_index_free(index);
-  if (submodule) {
-    git_submodule_free(submodule);
+  // Only the submodule's own checkout is removed: a directory inside the
+  // working copy that is the submodule's path, or (without metadata) that is
+  // a git checkout. Never the working copy or anything outside it.
+  if (!relativePath.isEmpty()) {
+    const QString checkout = workdirDir.filePath(relativePath);
+    const bool isCheckout =
+        QFileInfo::exists(QDir(checkout).filePath(QStringLiteral(".git")));
+    if (known || isCheckout) {
+      QDir(checkout).removeRecursively();
+    } else if (QFileInfo::exists(checkout)) {
+      LOG_WARN("Not removing '{}', it is not a submodule checkout",
+               checkout.toStdString());
+    }
   }
-
-  QDir(submodulePath).removeRecursively();
-  QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name))
+  QDir(QString("%1modules/%2").arg(QString::fromUtf8(commonDir), submoduleName))
       .removeRecursively();
 
   LOG_PERF(0, "Exit");
@@ -468,6 +568,27 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
     return false;
   }
 
+  // Check out the branch's files before moving the branch and HEAD. The
+  // checkout compares with the current HEAD, so checking out HEAD after
+  // moving it would keep the files of the branch the clone checked out.
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy =
+      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  // Submodule checkouts are routed through libgit2's filter pipeline, which
+  // can hit an internal writer lifecycle assertion on some repositories.
+  // Avoid filters here so submodule operations stay reliable.
+  checkoutOpts.disable_filters = true;
+
+  error = git_checkout_tree(submoduleRepo,
+                            reinterpret_cast<git_object *>(targetCommit),
+                            &checkoutOpts);
+  if (error) {
+    setError(GitError::CheckoutSubmoduleBranchFailedToCheckoutHead, error);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *localRef = nullptr;
   error = git_branch_lookup(&localRef, submoduleRepo,
                             branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
@@ -505,21 +626,6 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
       git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
   if (error) {
     setError(GitError::CheckoutSubmoduleBranchFailedToSetHeadToBranch, error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy =
-      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
-  // Submodule checkouts are routed through libgit2's filter pipeline, which
-  // can hit an internal writer lifecycle assertion on some repositories.
-  // Avoid filters here so submodule operations stay reliable.
-  checkoutOpts.disable_filters = true;
-
-  error = git_checkout_head(submoduleRepo, &checkoutOpts);
-  if (error) {
-    setError(GitError::CheckoutSubmoduleBranchFailedToCheckoutHead, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -666,7 +772,28 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
     return false;
   }
 
-  deleteSubmodule(repo, name, QString("%1/../%2").arg(repoPath).arg(name));
+  const bool gitSchema = isSshOrGitUrl(url);
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  // Checked before anything is written.
+  if (!commercial && gitSchema) {
+    setError(GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
+    LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
+                                 "not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // A submodule of the same name is kept as it is; the add is refused.
+  git_submodule *existing = nullptr;
+  if (git_submodule_lookup(&existing, repo, name.toStdString().c_str()) == 0) {
+    git_submodule_free(existing);
+    setError(GitError::AddSubmoduleAlreadyExists, GIT_EEXISTS);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_submodule *subModule = nullptr;
 
@@ -675,20 +802,6 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
                               name.toStdString().c_str(), 1);
   if (error) {
     setError(GitError::AddSubmoduleFailedToSetupSubmodule, error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
-  const bool commercial = isCommercialPlan();
-  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
-            commercial);
-
-  if (!commercial && gitSchema) {
-    setError(GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
-    LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
-                                 "not available on the free plan.");
-    git_submodule_free(subModule);
     LOG_PERF(0, "Exit");
     return false;
   }

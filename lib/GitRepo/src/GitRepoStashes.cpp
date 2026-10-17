@@ -98,11 +98,23 @@ bool applyStash(git_repository *repo, int index) {
   git_stash_apply_options options;
   git_stash_apply_options_init(&options, GIT_STASH_APPLY_OPTIONS_VERSION);
 
-  // Optional: customize behavior
-  options.flags = GIT_STASH_APPLY_REINSTATE_INDEX; // restores index state
-  options.checkout_options.checkout_strategy |= GIT_CHECKOUT_ALLOW_CONFLICTS;
+  // Restores the index state too. The checkout stays safe without
+  // GIT_CHECKOUT_ALLOW_CONFLICTS: that flag makes libgit2 skip files with
+  // local changes and report success. Conflicts between the stash and HEAD are
+  // still written to the working copy.
+  options.flags = GIT_STASH_APPLY_REINSTATE_INDEX;
 
   int error = 0;
+
+  // The index may have been changed by git outside of this process, libgit2
+  // keeps the copy it read before. Its change check misses a rewrite of the
+  // same size within the file time resolution, so the reload is forced; every
+  // change made here is written to disk already.
+  git_index *repoIndex = nullptr;
+  if (git_repository_index(&repoIndex, repo) == 0) {
+    git_index_read(repoIndex, true);
+    git_index_free(repoIndex);
+  }
 
   error = git_stash_apply(repo, index, &options);
   if (error) {
@@ -146,8 +158,9 @@ bool applyStash(git_repository *repo, int index) {
     QString filePath = QDir(workDir).absoluteFilePath(delta->new_file.path);
     filePath = QDir::toNativeSeparators(filePath);
 
+    // markConflictedFiles takes paths relative to the working directory.
     if (file_has_conflict_markers_for_apply_stash(filePath)) {
-      conflictedFiles += filePath;
+      conflictedFiles += QString::fromUtf8(delta->new_file.path);
     }
   }
 
@@ -692,6 +705,16 @@ QString listConflictsForStashFile(git_repository *repo, int stashIndex,
 
   const QString content = QString::fromUtf8(file.readAll());
   file.close();
+
+  // Like listConflictsForAFile, only a file with conflict markers has
+  // conflicts to show. The conflicts are in the working copy, not in the
+  // stash, so stashIndex is not needed.
+  if (!content.contains(QStringLiteral("<<<<<<<")) ||
+      !content.contains(QStringLiteral("=======")) ||
+      !content.contains(QStringLiteral(">>>>>>>"))) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   LOG_PERF(0, "Exit");
   return content;

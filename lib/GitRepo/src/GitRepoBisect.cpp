@@ -35,6 +35,8 @@ constexpr auto BISECT_REF_GOOD_PREFIX = "refs/bisect/good-";
 constexpr auto BISECT_REF_SKIP_PREFIX = "refs/bisect/skip-";
 constexpr auto BISECT_START_FILE = "BISECT_START";
 constexpr auto BISECT_LOG_FILE_NAME = "BISECT_LOG";
+constexpr auto BISECT_TERMS_FILE = "BISECT_TERMS";
+constexpr auto BISECT_NAMES_FILE = "BISECT_NAMES";
 
 struct BisectMarks {
   bool hasBad = false;
@@ -334,12 +336,15 @@ static bool bisectAdvance(git_repository *repo, BisectStatus &status) {
   return true;
 }
 
-bool bisect(git_repository *repo, BisectAction action, const QString &commit,
-            BisectStatus &status) {
+bool bisect(git_repository *repo, BisectAction action,
+            const QString &commitArgument, BisectStatus &status) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
 
+  // Copied before `status` is reset: the caller may pass
+  // status.currentCommit.
+  const QString commit = commitArgument;
   status = BisectStatus();
 
   if (!repo) {
@@ -402,7 +407,13 @@ bool bisect(git_repository *repo, BisectAction action, const QString &commit,
 
     bisectRemoveRefs(repo);
     QFile::remove(startFilePath);
-    QFile::remove(bisectStatePath(repo, BISECT_LOG_FILE_NAME));
+    // Including the files only git writes, like `git bisect reset`.
+    for (const char *name :
+         {BISECT_LOG_FILE_NAME, BISECT_TERMS_FILE, BISECT_NAMES_FILE,
+          "BISECT_EXPECTED_REV", "BISECT_ANCESTORS_OK", "BISECT_FIRST_PARENT",
+          "BISECT_HEAD", "BISECT_RUN"}) {
+      QFile::remove(bisectStatePath(repo, name));
+    }
 
     LOG_PERF(0, "Exit");
     return true;
@@ -464,10 +475,18 @@ bool bisect(git_repository *repo, BisectAction action, const QString &commit,
     // Make sure there are no leftovers of a previous session.
     bisectRemoveRefs(repo);
 
+    // BISECT_TERMS and BISECT_NAMES (no pathspec) are what `git bisect start`
+    // writes too; `git bisect good` and `bad` need them.
     if (!bisectWriteFile(startFilePath, start + "\n") ||
+        !bisectWriteFile(bisectStatePath(repo, BISECT_TERMS_FILE),
+                         QStringLiteral("bad\ngood\n")) ||
+        !bisectWriteFile(bisectStatePath(repo, BISECT_NAMES_FILE),
+                         QStringLiteral("\n")) ||
         !bisectWriteFile(bisectStatePath(repo, BISECT_LOG_FILE_NAME),
                          QStringLiteral("git bisect start\n"))) {
       QFile::remove(startFilePath);
+      QFile::remove(bisectStatePath(repo, BISECT_TERMS_FILE));
+      QFile::remove(bisectStatePath(repo, BISECT_NAMES_FILE));
       QFile::remove(bisectStatePath(repo, BISECT_LOG_FILE_NAME));
       setError(GitError::BisectFailedToWriteState, -1);
       LOG_PERF(0, "Exit");
