@@ -20,6 +20,7 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(GitRepo STATIC
     include/GitRepo.h
+    include/GitRepoTypes.h
     include/WorkflowUtils.h
     include/GraphiteUtils.h
     include/GitFlowNextWorkflow.h
@@ -27,7 +28,21 @@ add_library(GitRepo STATIC
     include/GitKeyStorage.h
     include/PatchFileUtils.h
     include/GitLfs.h
+    src/GitRepoPrivate.h
     src/GitRepo.cpp
+    src/GitRepoBisect.cpp
+    src/GitRepoBranches.cpp
+    src/GitRepoCredentials.cpp
+    src/GitRepoDiff.cpp
+    src/GitRepoHistory.cpp
+    src/GitRepoMerge.cpp
+    src/GitRepoRemotes.cpp
+    src/GitRepoSigning.cpp
+    src/GitRepoStashes.cpp
+    src/GitRepoSubmodules.cpp
+    src/GitRepoWorkflows.cpp
+    src/GitRepoWorkingCopy.cpp
+    src/GitRepoWorktrees.cpp
     src/GitCredentialStorage.cpp
     src/GitKeyStorage.cpp
     src/GitLfs.cpp
