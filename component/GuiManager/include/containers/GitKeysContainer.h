@@ -7,6 +7,10 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
+namespace GuiManager::Widgets {
+class PinnedCertificatesWidget;
+}
+
 namespace Ui {
 class GitKeysContainer;
 }
@@ -41,6 +45,7 @@ private:
 private:
   Ui::GitKeysContainer *ui;
   QStandardItemModel *_model;
+  Widgets::PinnedCertificatesWidget *_pinnedCertificates = nullptr;
 
   GitRepo::GitKeyStorage &_keyStorage;
 };
