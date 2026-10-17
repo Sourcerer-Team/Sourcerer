@@ -13,9 +13,11 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
 
+#include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -29,6 +31,9 @@
 namespace GitRepo {
 
 using namespace Private;
+
+// How often the user is asked within one operation before it fails.
+constexpr int MAX_CREDENTIAL_ATTEMPTS = 5;
 
 constexpr qint64 DEFAULT_CREDENTIALS_EXPIRATION_TIME =
     30 * 60 * 1000; // 30 minutes
@@ -70,7 +75,8 @@ static QString repositoryRootPath(git_repository *repo);
 
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &repoPath, const QString &url,
-                   const QString &username, const int allowedTypes);
+                   const QString &username, const int allowedTypes,
+                   bool useStored = true);
 
 static QString extractSshHost(const QString &url);
 
@@ -153,17 +159,15 @@ static QString repositoryRootPath(git_repository *repo) {
 }
 
 static QString extractSshHost(const QString &url) {
+  if (url.startsWith("ssh://", Qt::CaseInsensitive)) {
+    return QUrl(url).host();
+  }
+
   const QRegularExpression scpLike(
       QStringLiteral(R"(^(([^@]+)@)?([^:]+):/?(.+)$)"));
   const QRegularExpressionMatch scpMatch = scpLike.match(url);
   if (scpMatch.hasMatch()) {
     return scpMatch.captured(3);
-  }
-
-  const QUrl parsed(url);
-  if (parsed.isValid() &&
-      parsed.scheme().compare("ssh", Qt::CaseInsensitive) == 0) {
-    return parsed.host();
   }
 
   return {};
@@ -226,6 +230,87 @@ static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
   return true;
 }
 
+// Passphrases that opened a private key, by key path. Cleared by
+// clearCachedCredentials.
+static Util::Mutex gSshPassphrasesMutex;
+static QMap<QString, QString> gSshPassphrases;
+
+// Whether the private key needs a passphrase: a PEM key says so in its
+// headers ("Proc-Type: 4,ENCRYPTED", "BEGIN ENCRYPTED PRIVATE KEY"), an
+// OpenSSH key ("openssh-key-v1") names a cipher other than "none".
+static bool isEncryptedPrivateKey(const QByteArray &content) {
+  static const QByteArray begin = "-----BEGIN OPENSSH PRIVATE KEY-----";
+  static const QByteArray end = "-----END OPENSSH PRIVATE KEY-----";
+  const qsizetype from = content.indexOf(begin);
+  const qsizetype to = content.indexOf(end);
+  if (from < 0 || to < from) {
+    return content.contains("ENCRYPTED");
+  }
+
+  QByteArray base64 = content.mid(from + begin.size(), to - from - begin.size());
+  base64.replace('\r', "").replace('\n', "").replace(' ', "");
+  const QByteArray data = QByteArray::fromBase64(base64);
+  static const QByteArray magic("openssh-key-v1\0", 15);
+  if (!data.startsWith(magic) || data.size() < magic.size() + 4) {
+    return false;
+  }
+  const uchar *length =
+      reinterpret_cast<const uchar *>(data.constData() + magic.size());
+  const quint32 cipherLength = (quint32(length[0]) << 24) |
+                               (quint32(length[1]) << 16) |
+                               (quint32(length[2]) << 8) | quint32(length[3]);
+  const QByteArray cipher = data.mid(magic.size() + 4, cipherLength);
+  return !cipher.isEmpty() && cipher != "none";
+}
+
+// Whether the passphrase opens the private key. PEM keys are checked with
+// OpenSSL, OpenSSH keys with ssh-keygen when it is available. Without a way
+// to check, the passphrase is taken as it is.
+static bool passphraseOpensKey(const QString &privateKeyPath,
+                               const QByteArray &content,
+                               const QString &passphrase) {
+  if (content.contains("-----BEGIN OPENSSH PRIVATE KEY-----")) {
+    const QString keygen =
+        QStandardPaths::findExecutable(QStringLiteral("ssh-keygen"));
+    if (keygen.isEmpty()) {
+      return true;
+    }
+    QProcess process;
+    process.start(keygen, {QStringLiteral("-y"), QStringLiteral("-P"),
+                           passphrase, QStringLiteral("-f"),
+                           QDir::toNativeSeparators(privateKeyPath)});
+    if (!process.waitForFinished(30000)) {
+      process.kill();
+      process.waitForFinished();
+      return true;
+    }
+    if (process.exitStatus() == QProcess::NormalExit &&
+        process.exitCode() == 0) {
+      return true;
+    }
+    // Only a rejected passphrase counts as wrong, not other complaints
+    // (such as the permissions of the key file).
+    const QByteArray output =
+        process.readAllStandardError() + process.readAllStandardOutput();
+    return !output.contains("incorrect passphrase");
+  }
+
+  BIO *bio = BIO_new_mem_buf(content.constData(), static_cast<int>(content.size()));
+  if (!bio) {
+    return true;
+  }
+  QByteArray passphraseUtf8 = passphrase.toUtf8();
+  EVP_PKEY *key =
+      PEM_read_bio_PrivateKey(bio, nullptr, nullptr, passphraseUtf8.data());
+  BIO_free(bio);
+  ERR_clear_error();
+  if (!key) {
+    return false;
+  }
+  EVP_PKEY_free(key);
+  return true;
+}
+
 GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
                               const QString &usernameFromUrl) {
   LOG_PERF(0, "Enter");
@@ -243,11 +328,21 @@ GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
   GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
   GitKeyPair keyPair;
   if (!keyStorage.getKeyPairForHost(host, keyPair)) {
-    const QString homePath =
-        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    keyPair.privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
-    keyPair.publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
-    keyPair.keyName = QStringLiteral("id_ed25519");
+    // No key for the host: the first of ssh's default identities that
+    // exists, id_ed25519 first. Without any, id_ed25519 (not valid then).
+    const QString sshDir = GitKeyStorage::getSshDirectoryPath();
+    const auto useKey = [&](const QString &name) {
+      keyPair.keyName = name;
+      keyPair.privateKeyPath = sshDir + '/' + name;
+      keyPair.publicKeyPath = keyPair.privateKeyPath + QStringLiteral(".pub");
+      return QFile::exists(keyPair.privateKeyPath) &&
+             QFile::exists(keyPair.publicKeyPath);
+    };
+    if (!useKey(QStringLiteral("id_ed25519")) &&
+        !useKey(QStringLiteral("id_ecdsa")) &&
+        !useKey(QStringLiteral("id_rsa"))) {
+      useKey(QStringLiteral("id_ed25519"));
+    }
   }
 
   authInfo.privateKeyPath = keyPair.privateKeyPath;
@@ -262,16 +357,43 @@ GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
   }
 
   QFile keyFile(authInfo.privateKeyPath);
-  if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    const QString keyContent = QString::fromUtf8(keyFile.readAll());
+  if (keyFile.open(QIODevice::ReadOnly)) {
+    const QByteArray keyContent = keyFile.readAll();
     keyFile.close();
-    if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
+    if (isEncryptedPrivateKey(keyContent)) {
       authInfo.passphrasePresent = true;
-      if (!promptForSshPassphrase(repoPath, url, authInfo.username,
-                                  authInfo.passphrase)) {
-        authInfo.valid = false;
-        LOG_PERF(0, "Exit");
-        return authInfo;
+
+      // A passphrase that opened the key before is used again.
+      {
+        LOCKGUARD(gSshPassphrasesMutex);
+        const auto it = gSshPassphrases.constFind(authInfo.privateKeyPath);
+        if (it != gSshPassphrases.constEnd()) {
+          authInfo.passphrase = *it;
+          authInfo.valid = true;
+          LOG_PERF(0, "Exit");
+          return authInfo;
+        }
+      }
+
+      // A wrong passphrase is caught here and asked again, before libssh2
+      // fails the connection with it.
+      for (int attempt = 0;; ++attempt) {
+        QString passphrase;
+        if (attempt >= MAX_CREDENTIAL_ATTEMPTS ||
+            !promptForSshPassphrase(repoPath, url, authInfo.username,
+                                    passphrase)) {
+          authInfo.valid = false;
+          LOG_PERF(0, "Exit");
+          return authInfo;
+        }
+        if (passphraseOpensKey(authInfo.privateKeyPath, keyContent,
+                               passphrase)) {
+          authInfo.passphrase = passphrase;
+          LOCKGUARD(gSshPassphrasesMutex);
+          gSshPassphrases.insert(authInfo.privateKeyPath, passphrase);
+          break;
+        }
+        sendInvalidCredentialsSignal(url);
       }
     }
   }
@@ -284,6 +406,11 @@ GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
 void clearCachedCredentials(const QString &repoPath) {
   LOG_PERF(0, "Enter");
   LOG_INFO("Clearing cached credentials for repository: {}", repoPath);
+
+  {
+    LOCKGUARD(gSshPassphrasesMutex);
+    gSshPassphrases.clear();
+  }
 
   LOCKGUARD(gGitCredentialsMutex);
 
@@ -298,12 +425,19 @@ void clearCachedCredentials(const QString &repoPath) {
 namespace Private {
 
 void finishCredentialsAcquiring(const QString &url) {
+  // Only a prompt raised on this thread, and only once: the ones left are
+  // closed by finishPendingCredentialPrompts.
+  const size_t id = qHash(url);
+  if (gPromptedCredentialIds.erase(id) == 0) {
+    return;
+  }
+
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
 
   EventManager::Event credentialsFinishedEvent(
       EventManager::EventType::GitRepoManagerGetCredentialsFinished);
-  credentialsFinishedEvent.addData(qHash(url));
+  credentialsFinishedEvent.addData(id);
 
   eventManager.send(credentialsFinishedEvent);
 }
@@ -332,7 +466,8 @@ void finishPendingCredentialPrompts() {
 
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &repoPath, const QString &url,
-                   const QString &username, const int allowedTypes) {
+                   const QString &username, const int allowedTypes,
+                   const bool useStored) {
   LOG_PERF(0, "Enter");
 
   const QString normalizedRepoPath = QDir::fromNativeSeparators(repoPath);
@@ -344,8 +479,8 @@ acquireCredentials(const QString &repoPath, const QString &url,
   GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
 
   QString storedUsername, storedPassword;
-  if (credStorage.getCredentials(normalizedRepoPath, storedUsername,
-                                 storedPassword)) {
+  if (useStored && credStorage.getCredentials(normalizedRepoPath, storedUsername,
+                                              storedPassword)) {
     LOG_INFO("Found stored credentials for repository: {}", normalizedRepoPath);
 
     // Check if credentials are expired
@@ -578,15 +713,17 @@ int credentialsAcquireCallback(git_credential **out, const char *url,
 
   // Extract repository path from payload
   QString repoPath;
+  GitCredentialPayload *credentialsPayload = nullptr;
   if (payload) {
     std::tuple<CloneProgress, GitCredentialPayload> *callbackPayload =
         static_cast<std::tuple<CloneProgress, GitCredentialPayload> *>(payload);
-    const auto &[_, credentialsPayload] = *callbackPayload;
-    repoPath = credentialsPayload.repoPath;
+    credentialsPayload = &std::get<1>(*callbackPayload);
+    repoPath = credentialsPayload->repoPath;
   }
 
   if (const QString urlString = QString::fromUtf8(url);
-      urlString.startsWith("git@")) {
+      urlString.startsWith("git@") ||
+      urlString.startsWith("ssh://", Qt::CaseInsensitive)) {
     // Extract host from git URL (e.g., "git@github.com:user/repo.git" ->
     // "github.com")
     QString host;
@@ -616,6 +753,40 @@ int credentialsAcquireCallback(git_credential **out, const char *url,
             ? nullptr
             : sshAuth.passphrase.toStdString().c_str());
 
+    LOG_PERF(0, "Exit");
+    return error;
+  }
+
+  // libgit2 asks again within one operation only when the server rejected
+  // the credentials it was given. Forget them and ask the user, instead of
+  // handing the same ones back until libgit2 gives up.
+  const int attempt =
+      credentialsPayload ? credentialsPayload->credentialAttempts++ : 0;
+  if (attempt > 0) {
+    invalidateCredentials(url);
+    sendInvalidCredentialsSignal(url);
+    if (attempt >= MAX_CREDENTIAL_ATTEMPTS) {
+      LOG_ERROR(Log::ErrorId::Git, "Credentials for '{}' were rejected {} times",
+                QString::fromUtf8(url), attempt);
+      LOG_PERF(0, "Exit");
+      return GIT_EUSER;
+    }
+
+    const auto &[success, credentials] = acquireCredentials(
+        repoPath, url, username_from_url ? username_from_url : "",
+        allowed_types, /*useStored=*/false);
+    if (!success) {
+      LOG_PERF(0, "Exit");
+      return GIT_EUSER;
+    }
+
+    gGitCredentialsMutex.lock();
+    gGitCredentials[url] = credentials;
+    gGitCredentialsMutex.unlock();
+
+    const int error = git_credential_userpass_plaintext_new(
+        out, credentials.username.toStdString().c_str(),
+        credentials.password.toStdString().c_str());
     LOG_PERF(0, "Exit");
     return error;
   }

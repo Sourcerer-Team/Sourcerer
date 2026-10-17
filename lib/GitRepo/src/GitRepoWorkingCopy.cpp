@@ -403,6 +403,20 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       continue;
     }
 
+    // Only a directory can be a submodule. Probing a file for <file>/.git
+    // fails for paths near MAX_PATH.
+    if (!QFileInfo(fullPath).isDir()) {
+      error = git_index_add_bypath(index, relativePath.toStdString().c_str());
+      if (error) {
+        setError(GitError::StageFilesFailedToAddPathToIndex, error);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      continue;
+    }
+
     git_submodule *submodule = nullptr;
     error = git_submodule_lookup(&submodule, repo,
                                  relativePath.toStdString().c_str());
@@ -418,8 +432,13 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
         return false;
       }
     } else if (error == GIT_ENOTFOUND) {
+      // A plain directory, stage its content recursively.
       giterr_clear();
-      error = git_index_add_bypath(index, relativePath.toStdString().c_str());
+      git_strarray pathspec =
+          qstringlist_to_git_strarray(QStringList() << relativePath);
+      error = git_index_add_all(index, &pathspec, GIT_INDEX_ADD_DEFAULT,
+                                nullptr, nullptr);
+      git_strarray_destroy(pathspec);
       if (error) {
         setError(GitError::StageFilesFailedToAddPathToIndex, error);
         git_index_free(index);
@@ -458,6 +477,12 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
     LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
+  }
+
+  // Nothing to unstage, git_reset_default() rejects an empty path list.
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return true;
   }
 
   git_object *headCommit = nullptr;
@@ -771,7 +796,9 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     return false;
   }
 
-  for (const auto &file : files) {
+  for (const auto &nativeFile : files) {
+    const QString file = QDir::fromNativeSeparators(nativeFile);
+
     git_object *headTree = nullptr;
     int error = git_revparse_single(&headTree, repo, "HEAD^{tree}");
     if (error) {
@@ -779,6 +806,39 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       LOG_PERF(0, "Exit");
       return false;
     }
+
+    // A file that is not in HEAD is only unstaged. Checking out HEAD over it
+    // would delete it from disk.
+    git_tree_entry *headEntry = nullptr;
+    error = git_tree_entry_bypath(&headEntry,
+                                  reinterpret_cast<git_tree *>(headTree),
+                                  file.toStdString().c_str());
+    if (error == GIT_ENOTFOUND) {
+      giterr_clear();
+      git_object_free(headTree);
+
+      git_index *index = nullptr;
+      error = git_repository_index(&index, repo);
+      if (error) {
+        setError(GitError::DiscardFilesFailedToGetRepositoryIndex, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error = git_index_remove_bypath(index, file.toStdString().c_str());
+      if (!error) {
+        error = git_index_write(index);
+      }
+      git_index_free(index);
+      if (error) {
+        setError(GitError::DiscardFilesFailedToRemoveDeletedIndexEntry, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      continue;
+    }
+    git_tree_entry_free(headEntry);
 
     git_strarray arr = qstringlist_to_git_strarray(QStringList() << file);
 
@@ -862,11 +922,15 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       QDir fileDir;
       fileDir.mkpath(directoryPath);
 
-      QFile file(fullPath);
-      if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        LOG_ERROR(Log::ErrorId::Git, "Can't open file \"{}\" for writing",
-                  file.fileName());
-        git_blob_free(blob);
+      // The content as a checkout writes it, through the filters (LFS,
+      // line endings), not the raw blob.
+      git_buf filtered = GIT_BUF_INIT;
+      git_blob_filter_options filterOpts = GIT_BLOB_FILTER_OPTIONS_INIT;
+      filterOpts.flags &= ~GIT_BLOB_FILTER_CHECK_FOR_BINARY;
+      error = git_blob_filter(&filtered, blob, path.c_str(), &filterOpts);
+      git_blob_free(blob);
+      if (error) {
+        setError(GitError::DiscardFilesFailedToCheckoutTree, error);
         git_tree_entry_free(entry);
         git_tree_free(tree);
         git_object_free(headTree2);
@@ -875,11 +939,23 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
         return false;
       }
 
-      file.write(static_cast<const char *>(git_blob_rawcontent(blob)),
-                 git_blob_rawsize(blob));
+      QFile file(fullPath);
+      if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        LOG_ERROR(Log::ErrorId::Git, "Can't open file \"{}\" for writing",
+                  file.fileName());
+        git_buf_dispose(&filtered);
+        git_tree_entry_free(entry);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      file.write(filtered.ptr, static_cast<qint64>(filtered.size));
       file.close();
 
-      git_blob_free(blob);
+      git_buf_dispose(&filtered);
 
       // Capture entry data before freeing
       git_index_entry newEntry = {};
@@ -987,6 +1063,7 @@ bool resetToCommit(git_repository *repo, const QString &commit,
   default: {
     LOG_ERROR(Log::ErrorId::Git, "Internal error! Unsupported reset type: {}",
               static_cast<int>(type));
+    error = GIT_EINVALIDSPEC;
     break;
   }
   }
@@ -1034,7 +1111,12 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
   }
 
   const QString workdirPath = QString::fromUtf8(git_repository_workdir(repo));
-  const QStringList targetFiles = patchTargetFiles(patchContent);
+  // git_apply creates the files the patch adds itself and refuses to write
+  // over existing ones, so only stub the files the patch modifies.
+  QStringList targetFiles = patchTargetFiles(patchContent);
+  for (const QString &newFile : patchNewFiles(patchContent)) {
+    targetFiles.removeAll(newFile);
+  }
   QStringList createdFiles;
   QString errorMessage;
 
@@ -1043,31 +1125,6 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
     LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage.toStdString());
     LOG_PERF(0, "Exit");
     return false;
-  }
-
-  for (const QString &filePath : targetFiles) {
-    const QString fullPath = QDir(workdirPath).filePath(filePath);
-    QFileInfo fileInfo(fullPath);
-    if (fileInfo.exists() && fileInfo.size() > 0) {
-      continue;
-    }
-
-    const QString content = reconstructNewFileContent(patchContent, filePath);
-    QFile file(fullPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
-                   QIODevice::Text)) {
-      LOG_ERROR(Log::ErrorId::FileSystem,
-                "Can't write reconstructed file \"{}\" from patch.",
-                fullPath.toStdString());
-      removeFiles(createdFiles);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    QTextStream out(&file);
-    out.setEncoding(QStringConverter::Utf8);
-    out << content;
-    file.close();
   }
 
   git_diff *diff = nullptr;
@@ -1254,7 +1311,10 @@ bool abortMerge(git_repository *repo) {
     return false;
   }
 
-  if (git_repository_state(repo) != GIT_REPOSITORY_STATE_MERGE) {
+  // A cherry-pick or revert that stopped with conflicts is aborted the same
+  // way, see getIsMergeInProgress.
+  if (!getIsMergeInProgress(repo)) {
+    setOwnError(GitError::AbortMergeNothingToAbort, GIT_ENOTFOUND);
     LOG_PERF(0, "Exit");
     return false;
   }

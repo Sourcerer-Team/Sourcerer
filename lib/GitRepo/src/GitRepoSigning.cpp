@@ -432,18 +432,6 @@ int commitRebaseSigningCallback(git_oid *out, const git_signature *author,
   QString errorMessage;
   QString signature;
 
-  if (!createCommitSignature(QString::fromUtf8(message), signingPayload->config,
-                             &signature, &errorMessage)) {
-    if (signingPayload->errorMessage) {
-      *signingPayload->errorMessage = errorMessage;
-    }
-    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit signature: {}",
-              errorMessage.toStdString());
-    return -1;
-  }
-
-  const QByteArray signatureUtf8 = signature.toUtf8();
-
   git_buf commit_content = {0};
   int error = 0;
 
@@ -459,8 +447,22 @@ int commitRebaseSigningCallback(git_oid *out, const git_signature *author,
     return -1;
   }
 
+  // The signature is over the whole commit object, not just the message.
+  if (!createCommitSignature(
+          QString::fromUtf8(commit_content.ptr,
+                            static_cast<qsizetype>(commit_content.size)),
+          signingPayload->config, &signature, &errorMessage)) {
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    git_buf_dispose(&commit_content);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit signature: {}",
+              errorMessage.toStdString());
+    return -1;
+  }
+
   error = git_commit_create_with_signature(
-      out, repo, commit_content.ptr, signature.toStdString().c_str(), "gpgsig");
+      out, repo, commit_content.ptr, signature.toUtf8().constData(), "gpgsig");
   if (error) {
     errorMessage = QStringLiteral("Failed to create commit with signature.");
     if (signingPayload->errorMessage) {

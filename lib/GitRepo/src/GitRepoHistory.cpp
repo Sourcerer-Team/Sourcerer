@@ -623,7 +623,7 @@ QStringList getCommitTags(git_repository *repo, const QString &commitOid,
     if (git_object_peel(&commitObject, object, GIT_OBJECT_COMMIT) == 0) {
       const git_oid *commitOidValue = git_object_id(commitObject);
       if (commitOidValue &&
-          git_oid_streq(commitOidValue, commitOidUtf8.constData())) {
+          git_oid_streq(commitOidValue, commitOidUtf8.constData()) == 0) {
         tags.append(tagName);
       }
       git_object_free(commitObject);

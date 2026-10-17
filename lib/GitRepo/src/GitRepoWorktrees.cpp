@@ -321,6 +321,16 @@ bool addWorktree(git_repository *repo, const QString &name, const QString &path,
   return true;
 }
 
+// Only linked worktrees have an administrative directory, so the main one
+// can't be looked up by name. Its name is that of its directory.
+static bool isMainWorktreeName(git_repository *repo, const QString &name) {
+  const QVector<WorktreeInfo> worktrees = listWorktrees(repo);
+  return std::any_of(worktrees.cbegin(), worktrees.cend(),
+                     [&name](const WorktreeInfo &info) {
+                       return info.isMain && info.name == name;
+                     });
+}
+
 bool removeWorktree(git_repository *repo, const QString &name,
                     const bool force) {
   LOG_PERF(0, "Enter");
@@ -337,16 +347,41 @@ bool removeWorktree(git_repository *repo, const QString &name,
   const int lookupError =
       git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
   if (lookupError) {
-    // Only linked worktrees have an administrative directory, so a missing one
-    // means the name does not refer to a removable worktree (e.g. the main
-    // one).
-    if (lookupError == GIT_ENOTFOUND) {
+    // The main worktree can't be found by name, see isMainWorktreeName.
+    if (lookupError == GIT_ENOTFOUND && isMainWorktreeName(repo, name)) {
       setError(GitError::RemoveWorktreeMainNotAllowed, lookupError);
     } else {
       setError(GitError::RemoveWorktreeFailedToLookupWorktree, lookupError);
     }
     LOG_PERF(0, "Exit");
     return false;
+  }
+
+  // Like `git worktree remove`, changes that would be lost need force.
+  if (!force && git_worktree_validate(worktree) == 0) {
+    git_repository *worktreeRepo = nullptr;
+    if (git_repository_open_from_worktree(&worktreeRepo, worktree) == 0) {
+      git_status_options statusOptions = GIT_STATUS_OPTIONS_INIT;
+      statusOptions.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+      statusOptions.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED |
+                            GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS;
+      git_status_list *statusList = nullptr;
+      const int statusError =
+          git_status_list_new(&statusList, worktreeRepo, &statusOptions);
+      const bool dirty =
+          statusError == 0 && git_status_list_entrycount(statusList) > 0;
+      git_status_list_free(statusList);
+      git_repository_free(worktreeRepo);
+
+      if (statusError || dirty) {
+        setError(statusError ? GitError::RemoveWorktreeFailedToPrune
+                             : GitError::RemoveWorktreeHasChanges,
+                 statusError ? statusError : GIT_EUNCOMMITTED);
+        git_worktree_free(worktree);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
   }
 
   git_worktree_prune_options options = GIT_WORKTREE_PRUNE_OPTIONS_INIT;
@@ -386,7 +421,7 @@ bool lockWorktree(git_repository *repo, const QString &name,
       git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
   if (lookupError) {
     // Only linked worktrees have an administrative directory.
-    if (lookupError == GIT_ENOTFOUND) {
+    if (lookupError == GIT_ENOTFOUND && isMainWorktreeName(repo, name)) {
       setError(GitError::LockWorktreeMainNotAllowed, lookupError);
     } else {
       setError(GitError::LockWorktreeFailedToLookupWorktree, lookupError);
@@ -428,7 +463,7 @@ bool unlockWorktree(git_repository *repo, const QString &name) {
   const int lookupError =
       git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
   if (lookupError) {
-    if (lookupError == GIT_ENOTFOUND) {
+    if (lookupError == GIT_ENOTFOUND && isMainWorktreeName(repo, name)) {
       setError(GitError::UnlockWorktreeMainNotAllowed, lookupError);
     } else {
       setError(GitError::UnlockWorktreeFailedToLookupWorktree, lookupError);

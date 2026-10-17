@@ -78,13 +78,50 @@ static BlameReport createBlameReport(git_repository *repo,
       continue;
     }
 
+    // Blame the working copy content, so that uncommitted lines get a zero
+    // commit id. Filters (e.g. autocrlf) are applied as they would be on
+    // commit, so that line endings alone don't count as changes.
     const QString filePath = QDir(repoWorkdir).filePath(normalizedFile);
-    QFile fileObj(filePath);
-    QString fileContent;
-    if (fileObj.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      fileContent = QString::fromUtf8(fileObj.readAll());
-      fileObj.close();
+    QByteArray workdirContent;
+    bool workdirRead = false;
+    git_filter_list *filters = nullptr;
+    if (git_filter_list_load(&filters, repo, nullptr, utf8Path.constData(),
+                             GIT_FILTER_TO_ODB, GIT_FILTER_DEFAULT) == 0 &&
+        filters) {
+      git_buf filtered = GIT_BUF_INIT;
+      if (git_filter_list_apply_to_file(&filtered, filters, repo,
+                                        utf8Path.constData()) == 0) {
+        workdirContent = QByteArray(filtered.ptr, filtered.size);
+        workdirRead = true;
+      }
+      git_buf_dispose(&filtered);
     }
+    git_filter_list_free(filters);
+    giterr_clear();
+
+    if (!workdirRead) {
+      QFile fileObj(filePath);
+      if (fileObj.open(QIODevice::ReadOnly)) {
+        workdirContent = fileObj.readAll();
+        workdirRead = true;
+        fileObj.close();
+      }
+    }
+
+    if (workdirRead && !workdirContent.isEmpty()) {
+      git_blame *bufferBlame = nullptr;
+      if (git_blame_buffer(&bufferBlame, blame, workdirContent.constData(),
+                           static_cast<size_t>(workdirContent.size())) == 0) {
+        git_blame_free(blame);
+        blame = bufferBlame;
+      } else {
+        giterr_clear();
+      }
+    }
+
+    const QString fileContent =
+        QString::fromUtf8(workdirContent)
+            .replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
 
     QStringList fileLines;
     if (!fileContent.isEmpty()) {
@@ -95,7 +132,11 @@ static BlameReport createBlameReport(git_repository *repo,
       }
     }
 
-    const size_t lineCount = git_blame_linecount(blame);
+    // libgit2 1.9 git_blame_linecount() counts an end sentinel, and it is not
+    // updated by git_blame_buffer(), so count the lines of the content.
+    const size_t lineCount = workdirRead
+                                 ? static_cast<size_t>(fileLines.size())
+                                 : git_blame_linecount(blame);
     for (size_t lineNumber = 1; lineNumber <= lineCount; ++lineNumber) {
       const git_blame_hunk *hunk = git_blame_hunk_byline(blame, lineNumber);
       BlameLineInfo lineInfo;
@@ -491,6 +532,8 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  // Files in HEAD, an empty committed file is not a new file.
+  QSet<QString> committedFiles;
 
   for (const auto &file : files) {
     const QString repoPath = git_repository_workdir(repo);
@@ -514,6 +557,8 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
       repoContent.insert(file, QString());
       continue;
     }
+
+    committedFiles.insert(file);
 
     const git_oid *fullOid = git_tree_entry_id(entry);
     if (!fullOid) {
@@ -556,7 +601,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   git_reference_free(headRef);
 
   for (const auto &file : files) {
-    const bool newFile = repoContent.value(file).isEmpty();
+    const bool newFile = !committedFiles.contains(file);
     if (!newFile) {
       continue;
     }

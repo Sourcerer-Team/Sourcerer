@@ -7,6 +7,8 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <git2/sys/errors.h>
+
 #include <QRegularExpression>
 #include <QVector>
 
@@ -18,6 +20,27 @@
 namespace GitRepo {
 
 using namespace Private;
+
+// The local branch name for a remote branch such as "origin/feature/x": the
+// name without its remote, "feature/x".
+static QString localNameOfRemoteBranch(git_repository *repo,
+                                       const QString &remoteBranchName) {
+  const QByteArray refName =
+      QStringLiteral("refs/remotes/%1").arg(remoteBranchName).toUtf8();
+  git_buf remoteName = GIT_BUF_INIT;
+  if (git_branch_remote_name(&remoteName, repo, refName.constData()) == 0) {
+    const QString remote = QString::fromUtf8(remoteName.ptr);
+    git_buf_dispose(&remoteName);
+    if (remoteBranchName.startsWith(remote + '/')) {
+      return remoteBranchName.mid(remote.length() + 1);
+    }
+  }
+  git_buf_dispose(&remoteName);
+
+  // No configured remote matches, take the first component as its name.
+  const int slash = remoteBranchName.indexOf('/');
+  return slash >= 0 ? remoteBranchName.mid(slash + 1) : remoteBranchName;
+}
 
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     const BranchType type) {
@@ -105,12 +128,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     git_reference *remoteRef = nullptr;
     git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
 
-    QString localName;
-    if (const auto strList = branchOrTagName.split('/'); strList.length() > 0) {
-      localName = strList.last();
-    } else {
-      localName = branchOrTagName;
-    }
+    const QString localName = localNameOfRemoteBranch(repo, branchOrTagName);
 
     const QString fullBranchName =
         QString("refs/remotes/%1").arg(branchOrTagName);
@@ -136,6 +154,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     }
 
     // 3. Create local branch that tracks the remote branch
+    bool trackRemote = true;
     error = git_branch_create(&localRef, repo, localName.toStdString().c_str(),
                               targetCommit, 0);
     if (error) {
@@ -151,6 +170,30 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
           LOG_PERF(0, "Exit");
           return false;
         }
+
+        // 3.2 Like `git checkout <branch>`, the existing branch is checked out
+        // where it is, it is not moved to the remote commit.
+        git_commit *localCommit = nullptr;
+        error = git_reference_peel(reinterpret_cast<git_object **>(&localCommit),
+                                   localRef, GIT_OBJECT_COMMIT);
+        if (error) {
+          setError(GitError::CheckoutBranchFailedToPeelLocalBranchToCommit,
+                   error);
+          git_reference_free(localRef);
+          git_commit_free(targetCommit);
+          git_reference_free(remoteRef);
+          LOG_PERF(0, "Exit");
+          return false;
+        }
+        git_commit_free(targetCommit);
+        targetCommit = localCommit;
+
+        // 3.3 An upstream the branch already has is kept.
+        git_reference *upstreamRef = nullptr;
+        if (git_branch_upstream(&upstreamRef, localRef) == 0) {
+          trackRemote = false;
+          git_reference_free(upstreamRef);
+        }
       } else {
         setError(GitError::CheckoutBranchFailedToCreateLocalBranchFromRemote,
                  error);
@@ -162,8 +205,9 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     }
 
     // 4. Set up tracking
-    error = git_branch_set_upstream(localRef,
-                                    branchOrTagName.toStdString().c_str());
+    error = trackRemote ? git_branch_set_upstream(
+                              localRef, branchOrTagName.toStdString().c_str())
+                        : 0;
     if (error) {
       setError(GitError::CheckoutBranchFailedToSetBranchUpstream, error);
       git_reference_free(localRef);
@@ -388,7 +432,9 @@ static QStringList listCheckoutBranches(git_repository *repo,
       return {};
     }
 
-    if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
+    // git_repository_head resolves HEAD, so its type can't tell whether HEAD is
+    // detached.
+    if (git_repository_head_detached(repo) == 1) {
       // Detached HEAD — could be tag or raw commit
       if (tagRequested) {
         git_strarray tags = {nullptr};
@@ -404,7 +450,13 @@ static QStringList listCheckoutBranches(git_repository *repo,
         for (size_t i = 0; i < tags.count; ++i) {
           git_object *tagObj = nullptr;
 
-          error = git_revparse_single(&tagObj, repo, tags.strings[i]);
+          // Peeled to the commit, an annotated tag resolves to a tag object.
+          error = git_revparse_single(
+              &tagObj, repo,
+              (QStringLiteral("refs/tags/") + QString::fromUtf8(tags.strings[i]) +
+               QStringLiteral("^{commit}"))
+                  .toUtf8()
+                  .constData());
           if (error) {
             setError(GitError::ListCheckoutBranchesFailedToResolveRevision,
                      error);
@@ -506,6 +558,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
   }
 
   git_reference *ref = nullptr;
+  QStringList branches;
 
   while (!quitFlag) {
     error = git_branch_next(&ref, &branchType, it);
@@ -544,12 +597,20 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
       continue;
     }
 
-    activeBranches += branchName;
+    // Symbolic references such as origin/HEAD only point to a branch, like
+    // `git branch -r` shows them they are not branches of their own.
+    if (git_reference_type(ref) != GIT_REFERENCE_SYMBOLIC) {
+      branches += branchName;
+    }
 
     git_reference_free(ref);
   };
 
   git_branch_iterator_free(it);
+
+  // libgit2 lists loose references before packed ones.
+  branches.sort();
+  activeBranches += branches;
 
   LOG_PERF(0, "Exit");
 
@@ -584,6 +645,28 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
   if (quitFlag) {
     LOG_PERF(0, "Exit");
     return {};
+  }
+
+  // Upstream reference name -> the local branch tracking it.
+  QHash<QString, QString> trackingBranches;
+  git_branch_iterator *localIterator = nullptr;
+  if (git_branch_iterator_new(&localIterator, repo, GIT_BRANCH_LOCAL) == 0) {
+    git_reference *localBranch = nullptr;
+    git_branch_t localType = GIT_BRANCH_LOCAL;
+    while (git_branch_next(&localBranch, &localType, localIterator) == 0) {
+      git_buf upstreamName = GIT_BUF_INIT;
+      if (git_branch_upstream_name(&upstreamName, repo,
+                                   git_reference_name(localBranch)) == 0) {
+        const char *shortName = nullptr;
+        if (git_branch_name(&shortName, localBranch) == 0 && shortName) {
+          trackingBranches.insert(QString::fromUtf8(upstreamName.ptr),
+                                  QString::fromUtf8(shortName));
+        }
+      }
+      git_buf_dispose(&upstreamName);
+      git_reference_free(localBranch);
+    }
+    git_branch_iterator_free(localIterator);
   }
 
   // For each remote branch, calculate its status
@@ -622,15 +705,10 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
     git_oid_cpy(&remoteOid, remoteRefTargetOid);
     git_reference_free(remoteRef);
 
-    // Extract the local branch name from the remote branch name
-    // Remote branches have format: "origin/branchname"
-    const auto parts = remoteBranchName.split('/');
-    QString localBranchName;
-    if (parts.length() > 1) {
-      localBranchName = parts.last();
-    } else {
-      localBranchName = remoteBranchName;
-    }
+    // The local branch tracking this remote branch, or else the local branch
+    // of the same name ("origin/feature/x" -> "feature/x").
+    const QString localBranchName = trackingBranches.value(
+        fullRemoteRefName, localNameOfRemoteBranch(repo, remoteBranchName));
 
     // Try to get the local branch that tracks this remote branch
     git_reference *localRef = nullptr;
@@ -714,9 +792,12 @@ QStringList listTags(git_repository *repo) {
   QStringList tags;
 
   for (int i = 0; i < tagNames.count; ++i)
-    tags += tagNames.strings[i];
+    tags += QString::fromUtf8(tagNames.strings[i]);
 
   git_strarray_dispose(&tagNames);
+
+  // libgit2 lists loose tags before packed ones.
+  tags.sort();
 
   LOG_PERF(0, "Exit");
 
@@ -785,12 +866,55 @@ QString getActiveBranch(git_repository *repo, const BranchType type,
                         const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
+  // Remote branches are never checked out. The active one is the upstream of
+  // the current branch.
+  if (type == BranchType::Remote) {
+    QString upstreamName;
+    git_reference *head = nullptr;
+    if (repo && git_repository_head(&head, repo) == 0) {
+      git_reference *upstream = nullptr;
+      if (git_reference_is_branch(head) &&
+          git_branch_upstream(&upstream, head) == 0) {
+        const char *name = nullptr;
+        if (git_branch_name(&name, upstream) == 0 && name) {
+          upstreamName = QString::fromUtf8(name);
+        }
+        git_reference_free(upstream);
+      }
+      git_reference_free(head);
+    }
+    LOG_PERF(0, "Exit");
+    return upstreamName;
+  }
+
   const QStringList checkoutBranches =
       listCheckoutBranches(repo, type, quitFlag);
 
   LOG_PERF(0, "Exit");
 
   return !checkoutBranches.empty() ? checkoutBranches.first() : QString();
+}
+
+// Refuses to move a tag that exists on the remote with another target, like
+// `git push` without --force.
+static int refuseMovingRemoteTags(const git_push_update **updates,
+                                  const size_t len, void *) {
+  for (size_t i = 0; i < len; ++i) {
+    const git_push_update *update = updates[i];
+    if (QByteArray(update->dst_refname).startsWith("refs/tags/") &&
+        // src is the tag's target on the remote, dst the one pushed.
+        !git_oid_is_zero(&update->src) &&
+        !git_oid_equal(&update->src, &update->dst)) {
+      git_error_set_str(GIT_ERROR_REFERENCE,
+                        QString("tag '%1' already exists on the remote")
+                            .arg(QString::fromUtf8(update->dst_refname).mid(10))
+                            .toUtf8()
+                            .constData());
+      return GIT_EEXISTS;
+    }
+  }
+
+  return 0;
 }
 
 bool pushTag(git_repository *repo, const QString &tagName) {
@@ -845,7 +969,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   const QString url = git_remote_url(remote);
   LOG_DEBUG("Remote URL: '{}'", url);
 
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool gitSchema = isSshOrGitUrl(url);
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
             commercial);
@@ -887,6 +1011,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   opts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
+  opts.callbacks.push_negotiation = &refuseMovingRemoteTags;
   opts.callbacks.payload = &callbackPayload;
 
   // Push tag with refspec: refs/tags/tagName:refs/tags/tagName
@@ -918,6 +1043,11 @@ bool pushTag(git_repository *repo, const QString &tagName) {
 
   do {
     error = git_remote_push(remote, &refspecs, &opts);
+    if (error == GIT_EEXISTS) {
+      setError(GitError::PushTagExistsOnRemote, error);
+      break;
+    }
+
     if (error) {
       setError(GitError::PushTagFailedToPushRemote, error);
 
@@ -992,7 +1122,7 @@ bool pushAllTags(git_repository *repo) {
   const QString url = git_remote_url(remote);
   LOG_DEBUG("Remote URL: '{}'", url);
 
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool gitSchema = isSshOrGitUrl(url);
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
             commercial);
@@ -1113,7 +1243,21 @@ bool renameBranch(git_repository *repo, const QString &oldName,
     return false;
   }
 
-  error = git_branch_move(&ref, ref, newName.toStdString().c_str(), 0);
+  // git_branch_move only checks the reference name, not the rules for branch
+  // names that git_branch_create applies (not HEAD, no leading dash).
+  int valid = 0;
+  error = git_branch_name_is_valid(&valid, newName.toStdString().c_str());
+  if (error || !valid) {
+    setError(GitError::RenameBranchInvalidName, error ? error : GIT_EINVALIDSPEC);
+    git_reference_free(ref);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *renamed = nullptr;
+  error = git_branch_move(&renamed, ref, newName.toStdString().c_str(), 0);
+  git_reference_free(ref);
+  ref = renamed;
   if (error) {
     setError(GitError::RenameBranchFailedToRenameBranch, error);
     git_reference_free(ref);
@@ -1128,7 +1272,44 @@ bool renameBranch(git_repository *repo, const QString &oldName,
   return true;
 }
 
-bool deleteBranch(git_repository *repo, const QString &branchName) {
+// True if the tip of `branch` is contained in its upstream or in HEAD, so
+// deleting the branch loses no commits.
+static bool branchIsMerged(git_repository *repo, git_reference *branch) {
+  const git_oid *tip = git_reference_target(branch);
+  if (!tip) {
+    return true;
+  }
+
+  const auto contains = [repo, tip](git_reference *ref) {
+    git_object *commit = nullptr;
+    if (git_reference_peel(&commit, ref, GIT_OBJECT_COMMIT) != 0) {
+      return false;
+    }
+    const git_oid *id = git_object_id(commit);
+    const bool result = git_oid_equal(id, tip) ||
+                        git_graph_descendant_of(repo, id, tip) == 1;
+    git_object_free(commit);
+    return result;
+  };
+
+  bool merged = false;
+  git_reference *upstream = nullptr;
+  if (git_branch_upstream(&upstream, branch) == 0) {
+    merged = contains(upstream);
+    git_reference_free(upstream);
+  }
+
+  git_reference *head = nullptr;
+  if (!merged && git_repository_head(&head, repo) == 0) {
+    merged = contains(head);
+    git_reference_free(head);
+  }
+
+  return merged;
+}
+
+bool deleteBranch(git_repository *repo, const QString &branchName,
+                  const bool force) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -1145,6 +1326,13 @@ bool deleteBranch(git_repository *repo, const QString &branchName) {
                                 GIT_BRANCH_LOCAL);
   if (error) {
     setError(GitError::DeleteBranchFailedToLookupBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!force && !branchIsMerged(repo, ref)) {
+    setError(GitError::DeleteBranchNotFullyMerged, GIT_EUNMERGED);
+    git_reference_free(ref);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1188,9 +1376,52 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
 
   git_remote *remote = nullptr;
 
-  auto [ok, remoteName, _] = getUpstream(repo, branchName);
-  if (!ok || remoteName.isEmpty()) {
-    remoteName = "origin";
+  // The branch is named as in the remote branches list, `<remote>/<branch>`,
+  // or as a local branch, whose upstream is deleted.
+  QString remoteName;
+  QString remoteBranchName;
+  git_reference *trackingRef = nullptr;
+  if (git_branch_lookup(&trackingRef, repo, branchName.toUtf8().constData(),
+                        GIT_BRANCH_REMOTE) == 0) {
+    git_buf remoteBuf = GIT_BUF_INIT;
+    if (git_branch_remote_name(&remoteBuf, repo,
+                               git_reference_name(trackingRef)) == 0) {
+      remoteName = QString::fromUtf8(remoteBuf.ptr);
+      remoteBranchName = branchName.mid(remoteName.size() + 1);
+    }
+    git_buf_dispose(&remoteBuf);
+    git_reference_free(trackingRef);
+  }
+
+  if (remoteName.isEmpty()) {
+    if (const auto [ok, upstreamRemote, upstreamBranch] =
+            getUpstream(repo, branchName);
+        ok && !upstreamRemote.isEmpty()) {
+      remoteName = upstreamRemote;
+      remoteBranchName =
+          upstreamBranch.isEmpty() ? branchName : upstreamBranch;
+    }
+  }
+
+  if (remoteName.isEmpty()) {
+    // `<remote>/<branch>` without a remote-tracking branch.
+    git_strarray remotes = {};
+    if (git_remote_list(&remotes, repo) == 0) {
+      for (size_t i = 0; i < remotes.count; ++i) {
+        const QString name = QString::fromUtf8(remotes.strings[i]);
+        if (branchName.startsWith(name + '/') &&
+            name.size() > remoteName.size()) {
+          remoteName = name;
+          remoteBranchName = branchName.mid(name.size() + 1);
+        }
+      }
+      git_strarray_dispose(&remotes);
+    }
+  }
+
+  if (remoteName.isEmpty()) {
+    remoteName = getDefaultRemote(repo);
+    remoteBranchName = branchName;
   }
 
   int error =
@@ -1207,7 +1438,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   const QString url = git_remote_url(remote);
   LOG_DEBUG("Remote URL: '{}'", url);
 
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool gitSchema = isSshOrGitUrl(url);
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
             commercial);
@@ -1243,14 +1474,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   opts.callbacks.payload = &callbackPayload;
 
   // Delete branch with refspec: :refs/heads/branchName (empty source = delete)
-  // Strip remote prefix (e.g., "origin/branch" -> "branch")
-  QString cleanBranchName = branchName;
-  if (branchName.startsWith("origin/")) {
-    cleanBranchName =
-        branchName.mid(7); // Remove "origin/" prefix (7 characters)
-  }
-
-  const QString refspec = QString(":refs/heads/%1").arg(cleanBranchName);
+  const QString refspec = QString(":refs/heads/%1").arg(remoteBranchName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
 
   LOG_DEBUG("Using refspec for delete: '{}' (original branch name: '{}')",
@@ -1544,7 +1768,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   const QString url = git_remote_url(remote);
   LOG_DEBUG("Remote URL: '{}'", url);
 
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool gitSchema = isSshOrGitUrl(url);
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
             commercial);
@@ -1578,12 +1802,11 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &callbackPayload;
 
-  // Delete tag with refspec: :refs/tags/tagName (empty source = delete)
-  // Note: For tags, we typically don't have a remote prefix, but clean it just
-  // in case
+  // Delete tag with refspec: :refs/tags/tagName (empty source = delete).
+  // Tag names can contain slashes; only a full reference name is shortened.
   QString cleanTagName = tagName;
-  if (const auto parts = tagName.split('/'); parts.length() > 1) {
-    cleanTagName = parts.last();
+  if (cleanTagName.startsWith(QLatin1String("refs/tags/"))) {
+    cleanTagName = cleanTagName.mid(10);
   }
 
   const QString refspec = QString(":refs/tags/%1").arg(cleanTagName);

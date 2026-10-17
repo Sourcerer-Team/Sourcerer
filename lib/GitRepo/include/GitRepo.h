@@ -54,6 +54,24 @@ GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
 // are used
 void clearCachedCredentials(const QString &repoPath);
 
+// Forgets the self-signed TLS certificate and the SSH host key trusted for
+// host on first use, so the next connection trusts the ones the server
+// presents then. Use it when the server's certificate or key was replaced.
+void forgetPinnedCertificates(const QString &host);
+
+// The self-signed TLS certificates and SSH host keys trusted on first use,
+// sorted by host.
+QVector<PinnedCertificate> getPinnedCertificates();
+
+// Forgets one pinned certificate or host key. Returns false if there was
+// none.
+bool forgetPinnedCertificate(PinnedCertificateType type, const QString &host);
+
+// Trusts the certificate or host key that was refused for host instead of
+// the pinned one (PinnedCertificate::rejectedFingerprint). Returns false if
+// none was refused.
+bool trustRejectedCertificate(PinnedCertificateType type, const QString &host);
+
 // Working copy: status, staging, commits, discarding and resetting.
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
@@ -147,7 +165,10 @@ bool pushAllTags(git_repository *repo);
 bool renameBranch(git_repository *repo, const QString &oldName,
                   const QString &newName);
 
-bool deleteBranch(git_repository *repo, const QString &branchName);
+// Like `git branch -d`: a branch that is not merged into its upstream (or into
+// HEAD without an upstream) is only deleted with `force`.
+bool deleteBranch(git_repository *repo, const QString &branchName,
+                  bool force = false);
 
 bool deleteRemoteBranch(git_repository *repo, const QString &branchName);
 
@@ -164,9 +185,11 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName);
 
 // Merging, rebasing, cherry-picking and reverting.
 
+// Like `git merge`, branches without a common commit are only merged with
+// `allowUnrelatedHistories`.
 bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
-           const QString &email);
+           const QString &email, bool allowUnrelatedHistories = false);
 
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
@@ -180,10 +203,6 @@ bool commitRebase(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email, bool cleanup, bool signoff,
                   bool signCommit);
-
-bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
-                    const QString &destinationBranch, const QString &author,
-                    const QString &email);
 
 bool revertCommit(git_repository *repo, const QString &commit,
                   const QString &author, const QString &email,
@@ -207,8 +226,6 @@ bool fetchRemote(git_repository *repo, const QString &remoteName);
 
 bool push(git_repository *repo, const QString &activeBranchName = QString(),
           bool force = false);
-
-bool push(git_repository *rep);
 
 bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &remoteBranchName,
@@ -409,5 +426,35 @@ bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
                                      int *revision);
 
 bool setWorkflowType(git_repository *repo, WorkflowType type);
+
+#ifdef SOURCERER_GITREPO_TESTING
+// Test builds only (SOURCERER_BUILD_GITREPO_TESTS).
+namespace Testing {
+
+// Forces the commercial plan check: 0 or 1 overrides it, -1 restores the real
+// check.
+void setCommercialPlanOverride(int value);
+
+// Makes GitCredentialStorage use this master key (32 bytes) instead of the
+// one in the OS keychain, so tests leave the keychain alone. Call it before
+// the storage is used for the first time.
+void setCredentialsMasterKey(const QByteArray &key);
+
+// The certificate check libgit2 calls for every TLS and SSH connection.
+int checkCertificate(git_cert *cert, int valid, const char *host);
+
+// Forgets every pinned certificate and host key, and removes their file.
+// The file is read again on the next use.
+void resetPinnedCertificates();
+
+// The number of system root certificates given to libgit2.
+int systemRootCertificateCount();
+
+// Makes GitKeyStorage (and the default SSH keys) use path/.ssh instead of
+// the user's home. An empty path restores the home.
+void setHomeDirectory(const QString &path);
+
+} // namespace Testing
+#endif
 
 } // namespace GitRepo

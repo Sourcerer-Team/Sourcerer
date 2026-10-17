@@ -455,6 +455,36 @@ enum class GitError : int {
   GitFlowNextInvalidWorkflow,
   SetWorkflowTypeFailedToGetRepositoryConfig,
   SetWorkflowTypeFailedToWriteConfig,
+  MergeFailedWithConflicts,
+  RemoveWorktreeHasChanges,
+  RenameBranchInvalidName,
+  AddTargetRemoteNotFound,
+  CherryPickCommitFailedWithConflicts,
+  CherryPickCommitIsEmpty,
+  RevertCommitFailedWithConflicts,
+  RevertCommitIsEmpty,
+  MergeUnrelatedHistories,
+  DeleteBranchNotFullyMerged,
+  AddTargetAlreadyExists,
+  EditTargetNotFound,
+  DeleteTargetNotFound,
+  SetUpstreamRemoteNotFound,
+  DeleteSubmoduleFailedToUpdateConfig,
+  AddSubmoduleAlreadyExists,
+  PushTagExistsOnRemote,
+  PullBranchNotCheckedOutCannotFastForward,
+  PullRebaseFailedWithConflicts,
+  PushNoUpstreamConfigured,
+  CloneRepositoryFailedToCreateDirectory,
+  GitFlowUnknownBranchType,
+  GitFlowTagExists,
+  DeleteSubmoduleInvalidName,
+  AbortMergeNothingToAbort,
+  AbortRebaseNothingToAbort,
+  GetUpstreamNotConfigured,
+  UpdateRemoteNotFound,
+  UpdateRemoteInvalidArguments,
+  EditTargetInvalidArguments,
   Last
 };
 
@@ -504,6 +534,23 @@ struct GitCredentialsResponse {
 
 struct GitCredentialsErrorResponse {
   size_t id = -1;
+};
+
+// A server certificate or SSH host key trusted on first use, see
+// getPinnedCertificates().
+enum class PinnedCertificateType { Tls, Ssh };
+
+struct PinnedCertificate {
+  PinnedCertificateType type = PinnedCertificateType::Tls;
+  QString host;
+  // SHA-256, "AB:CD:..." for TLS, "SHA256:<base64>" for SSH like OpenSSH.
+  QString fingerprint;
+  // Milliseconds since the epoch, 0 if unknown.
+  qint64 trustedSince = 0;
+  // A different certificate the server presented since, which was refused.
+  // Empty if there was none.
+  QString rejectedFingerprint;
+  qint64 rejectedAt = 0;
 };
 
 struct GitSshAuthInfo {
