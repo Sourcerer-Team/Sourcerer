@@ -195,6 +195,9 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetLfsStorageStatus,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSubmoduleUpdate, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
@@ -383,6 +386,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetLfsStorageStatus,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSubmoduleUpdate, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -1047,6 +1053,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent stashEvent(EventType::Stash);
     stashEvent.addParam(QVariant::fromValue(stashCommand));
     _fsm.send(stashEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetLfsStorageStatus: {
+    const auto lfsCommand = event.data<GitRepoGetLfsStorageStatusCommand>();
+    GitRepoManagerEvent lfsEvent(EventType::GetLfsStorageStatus);
+    lfsEvent.addParam(QVariant::fromValue(lfsCommand));
+    _fsm.send(lfsEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerStatus: {

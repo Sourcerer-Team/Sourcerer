@@ -1,5 +1,6 @@
 #include "containers/GitCredentialsContainer.h"
 #include "ui_GitCredentialsContainer.h"
+#include "widgets/PinnedCertificatesWidget.h"
 
 #include <GitRepo.h>
 #include <Log.h>
@@ -71,6 +72,11 @@ GitCredentialsContainer::GitCredentialsContainer(QWidget *parent)
           &GitCredentialsContainer::onSelectionChanged);
 
   loadCredentials();
+
+  // Self-signed HTTPS certificates trusted on first use.
+  _pinnedCertificates = new PinnedCertificatesWidget(
+      GitRepo::PinnedCertificateType::Tls, this);
+  ui->mainLayout->addWidget(_pinnedCertificates);
 
   LOG_PERF(0, "Exit");
 }
@@ -315,6 +321,7 @@ void GitCredentialsContainer::onSelectionChanged() {
 void GitCredentialsContainer::selected() {
   LOG_PERF(0, "Enter");
   loadCredentials();
+  _pinnedCertificates->reload();
   LOG_PERF(0, "Exit");
 }
 
