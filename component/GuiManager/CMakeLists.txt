@@ -123,6 +123,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ExtendedTabBar.h
         include/widgets/ExtendedTabWidget.h
         include/widgets/GitCredentialsOverlayWidget.h
+        include/widgets/PinnedCertificatesWidget.h
         include/widgets/SshPassphraseOverlayWidget.h
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitProgressToast.h
@@ -232,6 +233,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
         src/widgets/GitCredentialsOverlayWidget.cpp
+        src/widgets/PinnedCertificatesWidget.cpp
         src/widgets/SshPassphraseOverlayWidget.cpp
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp

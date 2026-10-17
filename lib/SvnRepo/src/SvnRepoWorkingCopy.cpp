@@ -249,6 +249,11 @@ bool stageFiles(const QString &path, const QStringList &files) {
             }
           } else if (node.status == svn_wc_status_ignored) {
             continue;
+          } else if (node.status == svn_wc_status_none &&
+                     !QFileInfo(absolutePath).exists()) {
+            // Missing on disk and unknown to Subversion, e.g. below a deleted
+            // folder. Nothing can be scheduled or added to a changelist.
+            continue;
           }
           targets.append(absolutePath);
         }
