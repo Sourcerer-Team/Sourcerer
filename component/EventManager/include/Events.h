@@ -6,6 +6,111 @@
 
 namespace EventManager {
 
+// Every HgRepoManager command. Each one has a request, a result and an error
+// event: HgRepoManager<Name>, HgRepoManager<Name>Result and
+// HgRepoManager<Name>Error, and HgRepoManager has an HgRepo<Name>Command
+// struct and a worker for it. Y is called as Y(X, Name).
+#define HG_REPO_MANAGER_COMMAND_LIST(Y, X)                                     \
+  Y(X, AbortMerge)                                                             \
+  Y(X, AbortRebase)                                                            \
+  Y(X, AddFilesToLfs)                                                          \
+  Y(X, AddRemote)                                                              \
+  Y(X, AddSubmodule)                                                           \
+  Y(X, AddTarget)                                                              \
+  Y(X, AddWorktree)                                                            \
+  Y(X, Amend)                                                                  \
+  Y(X, ApplyPatch)                                                             \
+  Y(X, ApplyStash)                                                             \
+  Y(X, Bisect)                                                                 \
+  Y(X, Blame)                                                                  \
+  Y(X, CheckoutBranch)                                                         \
+  Y(X, CheckoutCommit)                                                         \
+  Y(X, CherryPick)                                                             \
+  Y(X, CloneRepo)                                                              \
+  Y(X, CloseNamedBranch)                                                       \
+  Y(X, CloseRepo)                                                              \
+  Y(X, CommitRebase)                                                           \
+  Y(X, CommitStaged)                                                           \
+  Y(X, CreateBranchFromCommit)                                                 \
+  Y(X, CreatePatchFromCommit)                                                  \
+  Y(X, CreateTagFromCommit)                                                    \
+  Y(X, DeleteAllStashes)                                                       \
+  Y(X, DeleteBranch)                                                           \
+  Y(X, DeleteRemoteBranch)                                                     \
+  Y(X, DeleteRemoteTag)                                                        \
+  Y(X, DeleteStash)                                                            \
+  Y(X, DeleteSubmodule)                                                        \
+  Y(X, DeleteTag)                                                              \
+  Y(X, DeleteTarget)                                                           \
+  Y(X, DiffFiles)                                                              \
+  Y(X, DiffFilesFromCommit)                                                    \
+  Y(X, DiscardFiles)                                                           \
+  Y(X, EditTarget)                                                             \
+  Y(X, EnableLfs)                                                              \
+  Y(X, FetchAll)                                                               \
+  Y(X, FetchRemote)                                                            \
+  Y(X, GetActiveBranch)                                                        \
+  Y(X, GetBranchHistory)                                                       \
+  Y(X, GetCommitBranches)                                                      \
+  Y(X, GetCommitHeads)                                                         \
+  Y(X, GetCommitIsHead)                                                        \
+  Y(X, GetCommitStatus)                                                        \
+  Y(X, GetCommitTags)                                                          \
+  Y(X, GetFileSizeFromCommit)                                                  \
+  Y(X, GetIsMergeInProgress)                                                   \
+  Y(X, GetIsRebaseInProgress)                                                  \
+  Y(X, GetLfsStorageStatus)                                                    \
+  Y(X, GetStashStatus)                                                         \
+  Y(X, GetSubmodulePath)                                                       \
+  Y(X, GetUpstream)                                                            \
+  Y(X, GitFlow)                                                                \
+  Y(X, InitRepo)                                                               \
+  Y(X, ListConflicts)                                                          \
+  Y(X, ListLfsFiles)                                                           \
+  Y(X, ListLocalBranches)                                                      \
+  Y(X, ListRemoteBranches)                                                     \
+  Y(X, ListRemoteBranchesWithStatus)                                           \
+  Y(X, ListRemotes)                                                            \
+  Y(X, ListStashes)                                                            \
+  Y(X, ListSubmodules)                                                         \
+  Y(X, ListSubmodulesWithStatus)                                               \
+  Y(X, ListTags)                                                               \
+  Y(X, ListWorktrees)                                                          \
+  Y(X, LockWorktree)                                                           \
+  Y(X, MarkResolved)                                                           \
+  Y(X, Merge)                                                                  \
+  Y(X, OpenRepo)                                                               \
+  Y(X, Pull)                                                                   \
+  Y(X, Push)                                                                   \
+  Y(X, PushAllTags)                                                            \
+  Y(X, PushTag)                                                                \
+  Y(X, Rebase)                                                                 \
+  Y(X, RemoveFilesFromLfs)                                                     \
+  Y(X, RemoveRemote)                                                           \
+  Y(X, RemoveWorktree)                                                         \
+  Y(X, RenameBranch)                                                           \
+  Y(X, RenameTag)                                                              \
+  Y(X, Reset)                                                                  \
+  Y(X, Revert)                                                                 \
+  Y(X, SetDefaultRemote)                                                       \
+  Y(X, SetDefaultTarget)                                                       \
+  Y(X, SetUpstream)                                                            \
+  Y(X, Squash)                                                                 \
+  Y(X, StageFiles)                                                             \
+  Y(X, Stash)                                                                  \
+  Y(X, Status)                                                                 \
+  Y(X, Strip)                                                                  \
+  Y(X, SubmoduleUpdate)                                                        \
+  Y(X, UnlockWorktree)                                                         \
+  Y(X, UnstageFiles)                                                           \
+  Y(X, UpdateRemote)                                                           \
+  Y(X, Workflow)
+
+#define HG_REPO_MANAGER_COMMAND_EVENTS(X, name)                                \
+  X(HgRepoManager##name)                                                       \
+  X(HgRepoManager##name##Result)                                               \
+  X(HgRepoManager##name##Error)
+
 // Every event type with its name. The EventType enum and the names used in
 // logs are both generated from this list, so adding an event here is enough.
 #define EVENT_TYPE_LIST(X)                                                     \
@@ -533,6 +638,9 @@ namespace EventManager {
   X(SvnRepoManagerQuit)                                                        \
   X(SvnRepoManagerQuitResult)                                                  \
   X(SvnRepoManagerQuitError)                                                   \
+  /* HgRepoManager */                                                          \
+  HG_REPO_MANAGER_COMMAND_LIST(HG_REPO_MANAGER_COMMAND_EVENTS, X)              \
+  X(HgRepoManagerCloneRepoProgress)                                            \
   X(last)
 
 enum EventType {

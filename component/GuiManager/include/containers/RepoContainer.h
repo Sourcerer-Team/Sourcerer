@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RepositoryType.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/ElidedLabel.h"
 #include "widgets/ShortcutsToolbarWidget.h"
@@ -70,12 +71,15 @@ namespace GuiManager::Containers {
 
 class RepoManagerBridge;
 class GitRepoManagerBridgeImpl;
+// Defined in RepoManagerBridge.h.
+enum class BranchKind;
 
 class RepoContainer final : public Widgets::ContainerWidget,
                             public QEnableSharedFromThis<RepoContainer> {
   Q_OBJECT
 
   friend class GitRepoManagerBridgeImpl;
+  friend class HgRepoManagerBridgeImpl;
   friend class SvnRepoManagerBridgeImpl;
   friend class Models::GitHistoryModel;
 
@@ -111,6 +115,10 @@ public:
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void openRepoRequested(const QString &path);
+  // Opens a Mercurial subrepo, share or worktree, or a Git or Subversion
+  // subrepo of a Mercurial repository, in a container of that type.
+  void openRepoWithTypeRequested(const QString &path,
+                                 ::GuiManager::RepositoryType type);
   void openPullRequestRequested(const QString &repositoryName, const QUrl &url,
                                 const QString &title);
 
@@ -233,6 +241,8 @@ private slots:
   void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
+  // Asks how to strip commit and its descendants, Mercurial only.
+  void onStripCommit(const QString &commit);
   void onCherryPickCommit();
   void onBisect(GitRepo::BisectAction action, const QString &commit);
   void onSetUpstream(const QString &branchName);
@@ -335,10 +345,10 @@ private:
   QStringList getAllFiles(const QString &path,
                           const QStringList &excluded) const;
   void hideAllWidgets() const;
+  // .hgignore in Mercurial repositories, .gitignore otherwise.
+  QString ignoreFileName() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
-  void addFilesToLfs(const WeakPtr &guard, const QStringList &files);
-  void removeFilesFromLfs(const WeakPtr &guard, const QStringList &files);
   void popStash(const WeakPtr &guard, int stashIndex);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
@@ -355,11 +365,13 @@ private:
   // False for columns the repository type does not provide, e.g. the email
   // column of Subversion history.
   bool historyColumnAvailable(int column) const;
-  // Layout settings are stored per repository type, the Subversion keys are
-  // used for Subversion containers and the Git keys for everything else.
+  // Layout settings are stored per repository type: the Subversion keys are
+  // used for Subversion containers, the Mercurial keys for Mercurial ones and
+  // the Git keys for everything else.
   ConfigManager::ConfigKey
   layoutConfigKey(ConfigManager::ConfigKey gitKey,
-                  ConfigManager::ConfigKey svnKey) const;
+                  ConfigManager::ConfigKey svnKey,
+                  ConfigManager::ConfigKey hgKey) const;
   void applyHistoryColumnVisibility();
   void updateAllBranchesActions();
   void persistHistoryColumnVisibility();
@@ -434,6 +446,10 @@ private:
   bool showWarningForUncommittedChanges(const QString &title,
                                         const QString &message) const;
   bool showWarningForBranchCheckout() const;
+  // With RepoFeatures::BranchKinds, asks at the cursor whether to create a
+  // bookmark or a named branch; otherwise sets BranchKind::Default without
+  // asking. Returns false when the question was dismissed.
+  bool requestBranchKind(BranchKind *kind);
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);

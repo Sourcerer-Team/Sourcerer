@@ -3,6 +3,7 @@
 
 #include <Log.h>
 
+#include <QFont>
 #include <QIODevice>
 #include <QMimeData>
 #include <QStandardItem>
@@ -59,7 +60,7 @@ QMimeData *BranchesModel::mimeData(const QModelIndexList &indexes) const {
   QDataStream stream(&encoded, QIODevice::WriteOnly);
   for (const QModelIndex &index : indexes) {
     if (index.isValid()) {
-      QString text = index.data().toString();
+      QString text = rowText(index.row());
       const QStringList splitted = text.split(' ');
       if (splitted.length() > 1) {
         text = splitted[0];
@@ -111,7 +112,7 @@ bool BranchesModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
   if (isHeaderRow(destination.row())) {
     return true;
   }
-  destBranch = destination.data().toString();
+  destBranch = rowText(destination.row());
 
   const QStringList splitted = destBranch.split(' ');
   if (splitted.length() > 1) {
@@ -133,7 +134,7 @@ int BranchesModel::indexForBranch(const QString &branch) const {
     if (isHeaderRow(i)) {
       continue;
     }
-    QString modelBranchName = index(i, 0).data().toString();
+    QString modelBranchName = rowText(i);
     // Handle the case where the branch name might have status indicators
     const QStringList splitted = modelBranchName.split(' ');
     if (splitted.length() > 1) {
@@ -160,7 +161,7 @@ QString BranchesModel::branchForIndex(int index) const {
 
   LOG_PERF(0, "Exit");
 
-  return BranchesModel::index(index, 0).data().toString();
+  return rowText(index);
 }
 
 void BranchesModel::setActiveIndex(const int index) {
@@ -173,9 +174,8 @@ void BranchesModel::setActiveIndex(const int index) {
 
   if (index == -1) {
     QStandardItem *prevItem = new QStandardItem(
-        QIcon(iconPath()), BranchesModel::index(_prevIndex, 0)
-                               .data()
-                               .toString()); // Recreate item with normal icon
+        QIcon(iconPath()),
+        rowText(_prevIndex)); // Recreate item with normal icon
     prevItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
                        Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
     setItem(_prevIndex, prevItem);
@@ -186,9 +186,8 @@ void BranchesModel::setActiveIndex(const int index) {
 
   if (_prevIndex != -1 && _prevIndex < rowCount()) {
     QStandardItem *prevItem = new QStandardItem(
-        QIcon(iconPath()), BranchesModel::index(_prevIndex, 0)
-                               .data()
-                               .toString()); // Recreate item with normal icon
+        QIcon(iconPath()),
+        rowText(_prevIndex)); // Recreate item with normal icon
     prevItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
                        Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
     setItem(_prevIndex, prevItem);
@@ -198,8 +197,7 @@ void BranchesModel::setActiveIndex(const int index) {
   const int changeIndex = index < 0 ? _prevIndex : index;
 
   QStandardItem *activeItem =
-      new QStandardItem(QIcon(activeIconPath),
-                        BranchesModel::index(changeIndex, 0).data().toString());
+      new QStandardItem(QIcon(activeIconPath), rowText(changeIndex));
   activeItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
                        Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
 
@@ -215,6 +213,7 @@ void BranchesModel::updateModel(const QStringList &branches,
   LOG_PERF(0, "Enter");
 
   clear();
+  clearSections();
 
   int i = branches.length() - 1;
   int index = activeIndex;
@@ -241,12 +240,50 @@ void BranchesModel::updateModel(const QStringList &branches,
   LOG_PERF(0, "Exit");
 }
 
+void BranchesModel::updateModelWithSections(
+    const QStringList &leadingBranches,
+    const QVector<BranchSection> &sections) {
+  LOG_PERF(0, "Enter");
+
+  // Item text is the branch name, which every lookup uses; titles and labels
+  // are only shown by data().
+  QStringList rows = leadingBranches;
+  QHash<int, QString> headers;
+  QHash<QString, QString> labels;
+  for (const BranchSection &section : sections) {
+    if (!section.title.isEmpty()) {
+      headers.insert(int(rows.size()), section.title);
+      rows += QString();
+    }
+    for (int i = 0; i < section.branches.size(); ++i) {
+      rows += section.branches[i];
+      if (i < section.labels.size() && !section.labels[i].isEmpty()) {
+        labels.insert(section.branches[i], section.labels[i]);
+      }
+    }
+  }
+
+  updateModel(rows);
+  _sectionHeaders = headers;
+  _labels = labels;
+
+  for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
+    if (QStandardItem *headerItem = item(it.key())) {
+      headerItem->setIcon(QIcon());
+      headerItem->setToolTip(QString());
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void BranchesModel::updateModelWithStatus(
     const QVector<GitRepo::BranchInfo> &branchesWithStatus,
     const int activeIndex) {
   LOG_PERF(0, "Enter");
 
   clear();
+  clearSections();
 
   // Add branches in reverse order to maintain the order
   auto rit = branchesWithStatus.rbegin();
@@ -324,6 +361,32 @@ QVariant BranchesModel::data(const QModelIndex &index, int role) const {
     return index.row() == _prevIndex;
   }
 
+  if (const auto section = _sectionHeaders.constFind(index.row());
+      section != _sectionHeaders.constEnd()) {
+    switch (role) {
+    case Qt::DisplayRole:
+      return *section;
+    case Qt::FontRole: {
+      QFont font;
+      font.setBold(true);
+      font.setCapitalization(QFont::SmallCaps);
+      return font;
+    }
+    case Qt::DecorationRole:
+    case Qt::ToolTipRole:
+      return {};
+    default:
+      return QStandardItemModel::data(index, role);
+    }
+  }
+
+  if (role == Qt::DisplayRole && !_labels.isEmpty()) {
+    const auto label = _labels.constFind(rowText(index.row()));
+    if (label != _labels.constEnd()) {
+      return *label;
+    }
+  }
+
   if (isHeaderRow(index.row())) {
     switch (role) {
     case Qt::DisplayRole:
@@ -388,7 +451,17 @@ void BranchesModel::clearGraphite() {
 }
 
 bool BranchesModel::isHeaderRow(const int row) const {
-  return _graphiteHeaderRow >= 0 && row == _graphiteHeaderRow;
+  return (_graphiteHeaderRow >= 0 && row == _graphiteHeaderRow) ||
+         _sectionHeaders.contains(row);
+}
+
+QString BranchesModel::rowText(const int row) const {
+  return QStandardItemModel::data(index(row, 0), Qt::DisplayRole).toString();
+}
+
+void BranchesModel::clearSections() {
+  _sectionHeaders.clear();
+  _labels.clear();
 }
 
 QString BranchesModel::graphiteToolTip(const QString &branch) const {

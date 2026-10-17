@@ -78,6 +78,12 @@ qt_add_executable(SourcererLauncher
         ${LAUNCHER_SOURCES}
 )
 
+# SSH_ASKPASS program that asks for SSH key passphrases for Mercurial's ssh.
+# A console program: ssh reads the passphrase from its standard output.
+qt_add_executable(SourcererAskPass askpass.cpp)
+target_link_libraries(SourcererAskPass PRIVATE Qt6::Core Qt6::Network)
+add_dependencies(Sourcerer SourcererAskPass)
+
 include("../cmake/helpers.cmake")
 
 includeComponent(Sourcerer ComponentManager)
@@ -85,6 +91,7 @@ includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GitRepoManager)
 includeComponent(Sourcerer SvnRepoManager)
+includeComponent(Sourcerer HgRepoManager)
 includeComponent(Sourcerer NewsTracker)
 includeComponent(Sourcerer UpdateManager)
 includeComponent(Sourcerer GuiManager)
@@ -98,6 +105,7 @@ includeLib(Sourcerer Fsm)
 includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer SvnRepo)
+includeLib(Sourcerer HgRepo)
 includeLib(Sourcerer OpenSSLHelper)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer Util)
@@ -120,6 +128,12 @@ option(SOURCERER_BUILD_SVNREPO_TESTS "Build the SvnRepo tests" OFF)
 if (SOURCERER_BUILD_SVNREPO_TESTS)
   enable_testing()
   add_subdirectory(../tests/svnrepo ${CMAKE_BINARY_DIR}/tests/svnrepo)
+endif ()
+
+option(SOURCERER_BUILD_HGREPO_TESTS "Build the HgRepo tests" OFF)
+if (SOURCERER_BUILD_HGREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/hgrepo ${CMAKE_BINARY_DIR}/tests/hgrepo)
 endif ()
 
 target_link_libraries(Sourcerer PRIVATE
@@ -236,7 +250,7 @@ endif ()
 qt_finalize_target(Sourcerer)
 qt_finalize_target(SourcererLauncher)
 
-install(TARGETS Sourcerer SourcererLauncher
+install(TARGETS Sourcerer SourcererLauncher SourcererAskPass
         BUNDLE DESTINATION .
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

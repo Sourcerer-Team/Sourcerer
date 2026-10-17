@@ -86,6 +86,21 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   LOG_PERF(0, "Enter");
 
   _localBranches = localBranches;
+  _sections.clear();
+  rebuild();
+
+  LOG_PERF(0, "Exit");
+}
+
+void LocalGitBranchesPage::updateModel(
+    const QVector<Models::BranchSection> &sections) {
+  LOG_PERF(0, "Enter");
+
+  _sections = sections;
+  _localBranches.clear();
+  for (const Models::BranchSection &section : sections) {
+    _localBranches += section.branches;
+  }
   rebuild();
 
   LOG_PERF(0, "Exit");
@@ -159,6 +174,10 @@ void LocalGitBranchesPage::rebuild() {
     _model->updateModel(branches);
     _model->setGraphite(rows, _graphiteStacks, headerRow);
     ui->listView->setItemDelegate(_graphiteDelegate);
+  } else if (!_sections.isEmpty()) {
+    _model->clearGraphite();
+    _model->updateModelWithSections(branches, _sections);
+    ui->listView->setItemDelegate(_defaultDelegate);
   } else {
     _model->clearGraphite();
     branches += _localBranches;

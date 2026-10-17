@@ -587,6 +587,16 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return bisectMarkForSourceRow(sourceRow);
   }
 
+  if (role == PhaseRole) {
+    if (commitIndex < 0) {
+      return static_cast<int>(GitRepo::CommitPhase::None);
+    }
+
+    const QString &commit = _historyWithStatus.history.commits.at(commitIndex);
+    return static_cast<int>(
+        _historyWithStatus.history.commitInfos.value(commit).phase);
+  }
+
   if (role == Qt::BackgroundRole) {
     const int mark = bisectMarkForSourceRow(sourceRow);
     if (mark == static_cast<int>(GitRepo::BisectMark::None)) {

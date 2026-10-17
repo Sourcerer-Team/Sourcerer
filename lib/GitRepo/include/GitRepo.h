@@ -519,6 +519,9 @@ struct GitSshAuthInfo {
   bool valid = false;
 };
 
+// Mercurial phase of a commit. Git commits have none.
+enum class CommitPhase : int { None = 0, Public, Draft, Secret };
+
 struct GitCommitInfo {
   git_oid oid;
   QString message;
@@ -532,6 +535,7 @@ struct GitCommitInfo {
   QVector<QString> branches;
   QVector<QString> parents;
   QVector<QString> children;
+  CommitPhase phase = CommitPhase::None;
 
   bool operator==(const GitCommitInfo &other) const {
     return git_oid_equal(&oid, &other.oid) == 1 && message == other.message &&
@@ -540,7 +544,8 @@ struct GitCommitInfo {
            signedCommit == other.signedCommit &&
            signatureType == other.signatureType &&
            signature == other.signature && branches == other.branches &&
-           parents == other.parents && children == other.children;
+           parents == other.parents && children == other.children &&
+           phase == other.phase;
   }
 };
 
@@ -646,6 +651,7 @@ struct GitCommitStatus {
   QStringList typeChangedFiles;
   QStringList renamedFiles;
   QStringList untrackedFiles;
+  CommitPhase phase = CommitPhase::None;
 };
 
 enum class BranchType {

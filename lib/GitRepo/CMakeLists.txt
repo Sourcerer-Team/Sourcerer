@@ -25,11 +25,13 @@ add_library(GitRepo STATIC
     include/GitFlowNextWorkflow.h
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
+    include/SshKnownHosts.h
     include/PatchFileUtils.h
     include/GitLfs.h
     src/GitRepo.cpp
     src/GitCredentialStorage.cpp
     src/GitKeyStorage.cpp
+    src/SshKnownHosts.cpp
     src/GitLfs.cpp
     src/PatchFileUtils.cpp
 )

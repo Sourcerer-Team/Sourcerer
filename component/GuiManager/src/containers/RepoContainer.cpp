@@ -5,6 +5,7 @@
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/GitRepoManagerBridgeImpl.h"
+#include "containers/HgRepoManagerBridgeImpl.h"
 #include "containers/SvnRepoManagerBridgeImpl.h"
 #include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
@@ -57,6 +58,8 @@
 #include <QCursor>
 #include <QDate>
 #include <QDateEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDirIterator>
 #include <QEvent>
@@ -102,6 +105,7 @@
 #include <QThreadPool>
 #include <QToolTip>
 #include <QUrl>
+#include <QVBoxLayout>
 #include <Qsci/qsciscintilla.h>
 
 #include <qstylefactory.h>
@@ -114,9 +118,10 @@
 #define MAX_COMMIT_SHA_LENGTH 7
 
 #define GIT_IGNORE_FILENAME ".gitignore"
-#define GIT_ATTRIBUTES_FILENAME ".gitattributes"
+#define HG_IGNORE_FILENAME ".hgignore"
 #define GIT_SUBDIR ".git"
 #define SVN_SUBDIR ".svn"
+#define HG_SUBDIR ".hg"
 
 namespace {
 
@@ -264,26 +269,6 @@ QWidget *createStashContentInfoPanel(
 
 bool isRightMouseButtonDown() {
   return QGuiApplication::mouseButtons().testFlag(Qt::RightButton);
-}
-
-QString lfsAttributesPatternForFile(const QString &filePath) {
-  const QFileInfo fileInfo(filePath);
-  const QString suffix = fileInfo.completeSuffix();
-  return suffix.isEmpty() ? fileInfo.fileName() : QStringLiteral("*.") + suffix;
-}
-
-QString lfsAttributesEntryForPattern(const QString &pattern) {
-  return pattern + QStringLiteral(" filter=lfs diff=lfs merge=lfs -text");
-}
-
-QString lfsAttributesEntryForFile(const QString &filePath) {
-  return lfsAttributesEntryForPattern(lfsAttributesPatternForFile(filePath));
-}
-
-bool lfsAttributesLineMatchesPattern(const QString &line,
-                                     const QString &pattern) {
-  return line == lfsAttributesEntryForPattern(pattern) ||
-         line.startsWith(pattern + QStringLiteral(" "));
 }
 
 QString filePathFromTreeIndex(const QModelIndex &index) {
@@ -488,17 +473,46 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
   return files;
 }
 
-static const char *repoAdminSubdir(const QString &path) {
-  return repositoryTypeOf(path) == RepositoryType::Subversion ? SVN_SUBDIR
-                                                              : GIT_SUBDIR;
+static RepositoryType repositoryTypeOfContainer(const ContainerType type) {
+  switch (type) {
+  case ContainerType::SvnRepo:
+    return RepositoryType::Subversion;
+  case ContainerType::HgRepo:
+    return RepositoryType::Mercurial;
+  default:
+    break;
+  }
+  return RepositoryType::Git;
+}
+
+static const char *repoAdminSubdir(const ContainerType type) {
+  switch (repositoryTypeOfContainer(type)) {
+  case RepositoryType::Subversion:
+    return SVN_SUBDIR;
+  case RepositoryType::Mercurial:
+    return HG_SUBDIR;
+  case RepositoryType::Git:
+    break;
+  }
+  return GIT_SUBDIR;
 }
 
 static std::unique_ptr<RepoManagerBridge>
-createRepoBridge(RepoContainer &container, RepositoryType type) {
-  if (type == RepositoryType::Subversion) {
+createRepoBridge(RepoContainer &container, const ContainerType type) {
+  switch (repositoryTypeOfContainer(type)) {
+  case RepositoryType::Subversion:
     return std::make_unique<SvnRepoManagerBridgeImpl>(container);
+  case RepositoryType::Mercurial:
+    return std::make_unique<HgRepoManagerBridgeImpl>(container);
+  case RepositoryType::Git:
+    break;
   }
   return std::make_unique<GitRepoManagerBridgeImpl>(container);
+}
+
+QString RepoContainer::ignoreFileName() const {
+  return type() == ContainerType::HgRepo ? QStringLiteral(HG_IGNORE_FILENAME)
+                                         : QStringLiteral(GIT_IGNORE_FILENAME);
 }
 
 RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
@@ -509,7 +523,7 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _bridge(createRepoBridge(*this, repositoryTypeOf(_path))),
+      _bridge(createRepoBridge(*this, type)),
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
@@ -568,6 +582,12 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->labelPageDisplayEmailLabel->setVisible(hasCommitEmail);
   _authorEmailValueLabel->setVisible(hasCommitEmail);
 
+  // Only Mercurial commits have a phase.
+  const bool hasPhases =
+      hasFeature(_bridge->features(), RepoFeatures::HistoryPhaseBadges);
+  ui->labelPageDisplayPhaseLabel->setVisible(hasPhases);
+  ui->labelPageDisplayPhaseValue->setVisible(hasPhases);
+
   // Subversion history columns show revisions instead of SHAs, both in the
   // column header and in the header context menu, which reads the same title.
   const RepoFeatures historyFeatures = _bridge->features();
@@ -608,9 +628,19 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->remotesPage->setContentsMargins(0, 0, 0, 0);
   ui->worktreesPage->setContentsMargins(0, 0, 0, 0);
 
-  const bool gitType = type == ContainerType::GitRepo;
+  // Git containers keep the Git pull and push menus and the all branches
+  // item, also for a Subversion external opened from a Git repository; other
+  // containers get them from their bridge.
+  const RepoFeatures bridgeFeatures = _bridge->features();
+  const bool gitContainer = type == ContainerType::GitRepo;
+  const bool hasPullMenu =
+      gitContainer || hasFeature(bridgeFeatures, RepoFeatures::PullMenu);
+  const bool hasPushMenu =
+      gitContainer || hasFeature(bridgeFeatures, RepoFeatures::PushMenu);
 
-  ui->localPage->setShowAllBranchesItem(gitType);
+  ui->localPage->setShowAllBranchesItem(
+      gitContainer ||
+      hasFeature(bridgeFeatures, RepoFeatures::AllBranchesItem));
 
   ToolBoxFixer::apply(ui->toolBox);
 
@@ -1193,11 +1223,11 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   pullFetchDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
   pullFetchDropdown->setIconSize(QSize(18, 18));
   pullFetchDropdown->setAttribute(Qt::WA_StyledBackground, true);
-  pullFetchDropdown->setToolTip(gitType ? tr("Pull") : tr("Update"));
+  pullFetchDropdown->setToolTip(hasPullMenu ? tr("Pull") : tr("Update"));
   pullFetchDropdown->setMinimumSize(42, 42);
   pullFetchDropdown->setMaximumSize(42, 42);
-  pullFetchDropdown->setPopupMode(gitType ? QToolButton::MenuButtonPopup
-                                          : QToolButton::InstantPopup);
+  pullFetchDropdown->setPopupMode(hasPullMenu ? QToolButton::MenuButtonPopup
+                                              : QToolButton::InstantPopup);
 
   auto *pullFetchMenu = new QMenu();
   auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
@@ -1217,7 +1247,7 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor)));
 
-  if (gitType) {
+  if (hasPullMenu) {
     pullFetchDropdown->setMenu(pullFetchMenu);
   }
 
@@ -1230,11 +1260,11 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   pushButtonPush->setToolButtonStyle(Qt::ToolButtonIconOnly);
   pushButtonPush->setIconSize(QSize(18, 18));
   pushButtonPush->setAttribute(Qt::WA_StyledBackground, true);
-  pushButtonPush->setToolTip(gitType ? tr("Push") : tr("Commit"));
+  pushButtonPush->setToolTip(hasPushMenu ? tr("Push") : tr("Commit"));
   pushButtonPush->setMinimumSize(42, 42);
   pushButtonPush->setMaximumSize(42, 42);
-  pushButtonPush->setPopupMode(gitType ? QToolButton::MenuButtonPopup
-                                       : QToolButton::InstantPopup);
+  pushButtonPush->setPopupMode(hasPushMenu ? QToolButton::MenuButtonPopup
+                                           : QToolButton::InstantPopup);
 
   auto *pushMenu = new QMenu();
   auto *actionPushMenu = pushMenu->addAction(tr("Push"));
@@ -1246,7 +1276,7 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   actionForcePushMenu->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/push"), shortcutIconColor));
-  if (gitType) {
+  if (hasPushMenu) {
     pushButtonPush->setMenu(pushMenu);
   }
 
@@ -1295,6 +1325,39 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   workflowGroup->addAction(_graphiteWorkflowAction);
   _workflowMenu = workflowMenu;
   _workflowGroup = workflowGroup;
+
+  // Mercurial workflows start named branches or bookmarks, stored per
+  // repository.
+  if (hasFeature(_bridge->features(), RepoFeatures::BranchKinds)) {
+    auto *branchKindMenu = gitFlowMenu->addMenu(tr("Workflow branches"));
+    auto *branchKindGroup = new QActionGroup(branchKindMenu);
+    branchKindGroup->setExclusive(true);
+    auto *namedBranchesAction = branchKindMenu->addAction(tr("Named branches"));
+    namedBranchesAction->setCheckable(true);
+    branchKindGroup->addAction(namedBranchesAction);
+    auto *bookmarksAction = branchKindMenu->addAction(tr("Bookmarks"));
+    bookmarksAction->setCheckable(true);
+    branchKindGroup->addAction(bookmarksAction);
+
+    connect(branchKindMenu, &QMenu::aboutToShow, this,
+            [this, namedBranchesAction, bookmarksAction]() {
+              const bool bookmarks =
+                  _bridge->flowBranchKind() == BranchKind::Bookmark;
+              bookmarksAction->setChecked(bookmarks);
+              namedBranchesAction->setChecked(!bookmarks);
+            });
+    const auto selectKind = [this](const BranchKind kind) {
+      if (_bridge->flowBranchKind() == kind) {
+        return;
+      }
+      const WeakPtr guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { _bridge->setFlowBranchKind(guard, kind); });
+    };
+    connect(namedBranchesAction, &QAction::triggered, this,
+            [=]() { selectKind(BranchKind::NamedBranch); });
+    connect(bookmarksAction, &QAction::triggered, this,
+            [=]() { selectKind(BranchKind::Bookmark); });
+  }
   gitFlowMenu->addSeparator();
 
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
@@ -1738,15 +1801,17 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       QByteArray::fromHex(_configManager
                               .getString(layoutConfigKey(
                                   ConfigManager::ConfigKey::GitRepoSplitterPos,
-                                  ConfigManager::ConfigKey::SvnRepoSplitterPos))
+                                  ConfigManager::ConfigKey::SvnRepoSplitterPos,
+                                  ConfigManager::ConfigKey::HgRepoSplitterPos))
                               .toUtf8());
   ui->splitter->restoreState(splitterState);
 
   const QByteArray stashSplitterState = QByteArray::fromHex(
       _configManager
-          .getString(layoutConfigKey(
-              ConfigManager::ConfigKey::GitRepoStashSplitterPos,
-              ConfigManager::ConfigKey::SvnRepoStashSplitterPos))
+          .getString(
+              layoutConfigKey(ConfigManager::ConfigKey::GitRepoStashSplitterPos,
+                              ConfigManager::ConfigKey::SvnRepoStashSplitterPos,
+                              ConfigManager::ConfigKey::HgRepoStashSplitterPos))
           .toUtf8());
   ui->splitterStashContent->restoreState(stashSplitterState);
 
@@ -2411,43 +2476,51 @@ void RepoContainer::onAddWorktree() {
     delete overlayWidget;
   });
 
-  connect(
-      overlayWidget, &AddWorktreeOverlayWidget::submitted, this,
-      [=](const QString &path, const QString &branch, const bool createBranch,
-          const QString &baseBranch) {
-        if (path.isEmpty() || branch.isEmpty()) {
-          showErrorToast(tr("Worktree folder and branch are required."),
-                         tr("Error"));
-          return;
-        }
+  connect(overlayWidget, &AddWorktreeOverlayWidget::submitted, this,
+          [=](const QString &path, const QString &branch,
+              const bool createBranch, const QString &baseBranch) {
+            if (path.isEmpty() || branch.isEmpty()) {
+              showErrorToast(tr("Worktree folder and branch are required."),
+                             tr("Error"));
+              return;
+            }
 
-        if (!createBranch) {
-          // Git refuses to check out one branch in two worktrees.
-          const QString usedBy =
-              branch == _activeBranch ? _path : _worktreeBranches.value(branch);
-          if (!usedBy.isEmpty()) {
-            showErrorToast(
-                tr("Branch '%1' is already checked out in '%2'. Choose "
-                   "another branch or create a new one.")
-                    .arg(branch, usedBy),
-                tr("Error"));
-            return;
-          }
-        }
+            if (!createBranch) {
+              // Git refuses to check out one branch in two worktrees.
+              const QString usedBy = branch == _activeBranch
+                                         ? _path
+                                         : _worktreeBranches.value(branch);
+              if (!usedBy.isEmpty()) {
+                showErrorToast(
+                    tr("Branch '%1' is already checked out in '%2'. Choose "
+                       "another branch or create a new one.")
+                        .arg(branch, usedBy),
+                    tr("Error"));
+                return;
+              }
+            }
 
-        LOG_DEBUG("Adding worktree - Path: '{}', Branch: '{}', Create "
-                  "branch: {}, Base branch: '{}'",
-                  path.toStdString(), branch.toStdString(), createBranch,
-                  baseBranch.toStdString());
-        overlayWidget->hide();
-        delete overlayWidget;
+            // The dialog stays open when the kind of the new branch is not
+            // chosen.
+            BranchKind kind = BranchKind::Default;
+            if (createBranch && !requestBranchKind(&kind)) {
+              return;
+            }
 
-        startOverlayTimer();
+            LOG_DEBUG("Adding worktree - Path: '{}', Branch: '{}', Create "
+                      "branch: {}, Base branch: '{}'",
+                      path.toStdString(), branch.toStdString(), createBranch,
+                      baseBranch.toStdString());
+            overlayWidget->hide();
+            delete overlayWidget;
 
-        _dispatcher.dispatch([=]() {
-          _bridge->addWorktree(guard, path, branch, createBranch, baseBranch);
-        });
-      });
+            startOverlayTimer();
+
+            _dispatcher.dispatch([=]() {
+              _bridge->addWorktreeOfKind(guard, path, branch, createBranch,
+                                         baseBranch, kind);
+            });
+          });
 
   overlayWidget->show();
   overlayWidget->raise();
@@ -2993,7 +3066,8 @@ void RepoContainer::onSplitterMoved(const int pos, const int index) {
   const QString splitterState = ui->splitter->saveState().toHex();
   _configManager.setString(
       layoutConfigKey(ConfigManager::ConfigKey::GitRepoSplitterPos,
-                      ConfigManager::ConfigKey::SvnRepoSplitterPos),
+                      ConfigManager::ConfigKey::SvnRepoSplitterPos,
+                      ConfigManager::ConfigKey::HgRepoSplitterPos),
       splitterState);
   _configManager.save();
 
@@ -3009,7 +3083,8 @@ void RepoContainer::onStashSplitterMoved(const int pos, const int index) {
   const QString splitterState = ui->splitterStashContent->saveState().toHex();
   _configManager.setString(
       layoutConfigKey(ConfigManager::ConfigKey::GitRepoStashSplitterPos,
-                      ConfigManager::ConfigKey::SvnRepoStashSplitterPos),
+                      ConfigManager::ConfigKey::SvnRepoStashSplitterPos,
+                      ConfigManager::ConfigKey::HgRepoStashSplitterPos),
       splitterState);
   _configManager.save();
 
@@ -3038,7 +3113,8 @@ void RepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
 
   _configManager.setString(
       layoutConfigKey(ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
-                      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths),
+                      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths,
+                      ConfigManager::ConfigKey::HgRepoHistoryViewColumnWidths),
       widths.join(','));
   _configManager.save();
 
@@ -3270,8 +3346,25 @@ void RepoContainer::onCreateBranchFromCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
+  BranchKind kind = BranchKind::Default;
+  if (!requestBranchKind(&kind)) {
+    LOG_DEBUG("Create branch cancelled when choosing its kind");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const auto overlayWidget = new TextInputOverlayWidget(this);
-  overlayWidget->setPlaceholderText(tr("Branch name here"));
+  switch (kind) {
+  case BranchKind::Bookmark:
+    overlayWidget->setPlaceholderText(tr("Bookmark name here"));
+    break;
+  case BranchKind::NamedBranch:
+    overlayWidget->setPlaceholderText(tr("Named branch name here"));
+    break;
+  default:
+    overlayWidget->setPlaceholderText(tr("Branch name here"));
+    break;
+  }
 
   connect(overlayWidget, &TextInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Create branch dialog cancelled");
@@ -3294,8 +3387,8 @@ void RepoContainer::onCreateBranchFromCommit(const QString &commit) {
             startOverlayTimer();
 
             _dispatcher.dispatch([=]() {
-              _bridge->createBranchFromCommit(
-                  guard, commit, branchName,
+              _bridge->createBranchFromCommitOfKind(
+                  guard, commit, branchName, kind,
                   [=](const WeakPtr &guard, const QString &branchName) {
                     _bridge->checkoutBranch(
                         guard, branchName,
@@ -3396,9 +3489,16 @@ void RepoContainer::onDeleteBranch(const QString &branchName) {
     return;
   }
 
+  // A Mercurial named branch is closed, it stays in history.
+  const bool closesBranch =
+      hasFeature(_bridge->features(), RepoFeatures::BranchKinds) &&
+      !branchName.startsWith(QLatin1Char('@'));
   const QString question =
-      QString("Are you sure that you want to delete branch '%1'?")
-          .arg(branchName);
+      closesBranch
+          ? tr("Are you sure that you want to close branch '%1'?")
+                .arg(branchName)
+          : QString("Are you sure that you want to delete branch '%1'?")
+                .arg(branchName);
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
                                            QMessageBox::Yes, QMessageBox::No);
@@ -3899,6 +3999,7 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionMixedResetToCommit(tr("Mixed reset"), this);
   QAction actionHardResetToCommit(tr("Hard reset"), this);
   QAction actionRevertCommit(tr("Revert"), this);
+  QAction actionStripCommit(tr("Strip..."), this);
   QAction actionCherryPickCommit(tr("Cherry-pick"), this);
   QAction actionBisectGood(tr("Mark as good"), this);
   QAction actionBisectBad(tr("Mark as bad"), this);
@@ -3934,6 +4035,8 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
           [=]() { onRevertCommit(commit); });
   connect(&actionCherryPickCommit, &QAction::triggered, this,
           [=]() { onCherryPickCommit(); });
+  connect(&actionStripCommit, &QAction::triggered, this,
+          [=]() { onStripCommit(commit); });
   connect(&actionBisectGood, &QAction::triggered, this,
           [=]() { onBisect(GitRepo::BisectAction::Good, commit); });
   connect(&actionBisectBad, &QAction::triggered, this,
@@ -4003,6 +4106,10 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     if (hasFeature(historyMenuFeatures,
                    RepoFeatures::HistoryContextMenuReset)) {
       menu.addMenu(&resetMenu);
+    }
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryContextMenuStrip)) {
+      menu.addAction(&actionStripCommit);
     }
     menu.addAction(&actionRevertCommit);
     menu.addAction(&actionCherryPickCommit);
@@ -4520,6 +4627,10 @@ void RepoContainer::onLocalBranchRightClicked(const QString &branchName,
   QAction actionRanameBranch(tr("Rename branch"), this);
   QAction actionSetUpstream(tr("Set Upstream"), this);
   QAction actionDeleteBranch(tr("Delete branch"), this);
+  if (hasFeature(_bridge->features(), RepoFeatures::BranchKinds) &&
+      !branchName.startsWith(QLatin1Char('@'))) {
+    actionDeleteBranch.setText(tr("Close branch"));
+  }
 
   // Git refuses to checkout or delete a branch that is checked out in another
   // worktree.
@@ -7470,6 +7581,82 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
   return {};
 }
 
+void RepoContainer::onStripCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Strip commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
+
+  const QString summary =
+      commitSummaryFromHistoryModel(_historyModel.data(), commit);
+  const GitRepo::CommitPhase phase = _historyModel->historyWithStatus()
+                                         .history.commitInfos.value(commit)
+                                         .phase;
+
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Strip"));
+
+  auto *layout = new QVBoxLayout(&dialog);
+
+  auto *question = new QLabel(
+      tr("Strip commit '%1' and all of its descendants from the repository?")
+          .arg(summary.isEmpty() ? commit.left(MAX_COMMIT_SHA_LENGTH)
+                                 : summary),
+      &dialog);
+  question->setWordWrap(true);
+  layout->addWidget(question);
+
+  // Public commits were pushed or pulled, other repositories still have
+  // them and bring them back with the next pull.
+  if (phase == GitRepo::CommitPhase::Public) {
+    auto *warning = new QLabel(
+        tr("This commit is public. Other repositories may already have it, "
+           "and it comes back with the next pull from them."),
+        &dialog);
+    warning->setWordWrap(true);
+    QFont font = warning->font();
+    font.setBold(true);
+    warning->setFont(font);
+    layout->addWidget(warning);
+  }
+
+  auto *keepWorkingCopy =
+      new QCheckBox(tr("Keep the changes in the working directory"), &dialog);
+  layout->addWidget(keepWorkingCopy);
+
+  auto *backup = new QCheckBox(
+      tr("Save a backup bundle in %1")
+          .arg(QDir::toNativeSeparators(QStringLiteral(".hg/strip-backup"))),
+      &dialog);
+  backup->setChecked(true);
+  layout->addWidget(backup);
+
+  auto *buttons = new QDialogButtonBox(
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  buttons->button(QDialogButtonBox::Ok)->setText(tr("Strip"));
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+
+  if (dialog.exec() != QDialog::Accepted) {
+    LOG_DEBUG("Strip commit cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const bool keep = keepWorkingCopy->isChecked();
+  const bool saveBackup = backup->isChecked();
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { _bridge->strip(guard, commit, keep, saveBackup); });
+
+  LOG_DEBUG("Strip commit operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
 void RepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Revert commit requested: '{}' in repository '{}'",
@@ -7809,7 +7996,11 @@ void RepoContainer::onWorktreeSelected(const GitRepo::WorktreeInfo &worktree) {
     return;
   }
 
-  emit openRepoRequested(worktree.path);
+  if (type() == ContainerType::HgRepo) {
+    emit openRepoWithTypeRequested(worktree.path, RepositoryType::Mercurial);
+  } else {
+    emit openRepoRequested(worktree.path);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -7920,8 +8111,16 @@ bool RepoContainer::historyColumnAvailable(const int column) const {
 
 ConfigManager::ConfigKey
 RepoContainer::layoutConfigKey(const ConfigManager::ConfigKey gitKey,
-                               const ConfigManager::ConfigKey svnKey) const {
-  return type() == Widgets::ContainerType::SvnRepo ? svnKey : gitKey;
+                               const ConfigManager::ConfigKey svnKey,
+                               const ConfigManager::ConfigKey hgKey) const {
+  switch (type()) {
+  case Widgets::ContainerType::SvnRepo:
+    return svnKey;
+  case Widgets::ContainerType::HgRepo:
+    return hgKey;
+  default:
+    return gitKey;
+  }
 }
 
 void RepoContainer::persistHistoryColumnVisibility() {
@@ -7939,9 +8138,9 @@ void RepoContainer::persistHistoryColumnVisibility() {
   }
 
   _configManager.setString(
-      layoutConfigKey(
-          ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
-          ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns),
+      layoutConfigKey(ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+                      ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns,
+                      ConfigManager::ConfigKey::HgRepoHistoryViewHiddenColumns),
       hiddenColumns.join(','));
   _configManager.save();
 
@@ -7969,7 +8168,8 @@ void RepoContainer::applyHistoryColumnVisibility() {
 
   const QString savedHiddenColumns = _configManager.getString(layoutConfigKey(
       ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
-      ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns));
+      ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns,
+      ConfigManager::ConfigKey::HgRepoHistoryViewHiddenColumns));
 
   QSet<int> hiddenColumns;
   for (const QString &value :
@@ -8119,7 +8319,7 @@ void RepoContainer::saveRepoInRecentList() const {
   }
 
   recentReposList += Models::RecentlyOpenedReposModel::makeRecentEntry(
-      _path, repositoryTypeOf(_path));
+      _path, repositoryTypeOfContainer(type()));
   recentRepos = recentReposList.join(";");
 
   _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,
@@ -8310,7 +8510,7 @@ void RepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -8318,7 +8518,8 @@ void RepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
     contextMenu.addSeparator();
   }
@@ -8621,7 +8822,7 @@ void RepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -8629,7 +8830,8 @@ void RepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
     contextMenu.addSeparator();
   }
@@ -8908,7 +9110,7 @@ void RepoContainer::onIndexFlatListViewContextMenuRequested(const QPoint &pos) {
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -8916,7 +9118,8 @@ void RepoContainer::onIndexFlatListViewContextMenuRequested(const QPoint &pos) {
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
     contextMenu.addSeparator();
   }
@@ -9199,7 +9402,7 @@ void RepoContainer::onIndexTreeTreeViewContextMenuRequested(const QPoint &pos) {
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -9207,7 +9410,8 @@ void RepoContainer::onIndexTreeTreeViewContextMenuRequested(const QPoint &pos) {
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
     contextMenu.addSeparator();
   }
@@ -9504,7 +9708,7 @@ void RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -9512,7 +9716,8 @@ void RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
     contextMenu.addSeparator();
   }
@@ -9597,7 +9802,7 @@ void RepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+      _dispatcher.dispatch([=]() { _bridge->addFilesToLfs(guard, files); });
     });
 
     QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
@@ -9605,7 +9810,8 @@ void RepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
       closeDiffViewerIfOpen();
       startOverlayTimer();
       const WeakPtr &guard = getSelf().toWeakRef();
-      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+      _dispatcher.dispatch(
+          [=]() { _bridge->removeFilesFromLfs(guard, files); });
     });
   }
 
@@ -9839,7 +10045,10 @@ void RepoContainer::refreshSigningControls() {
 
   const bool signingEnabled = _configManager.getBoolean(
       ConfigManager::ConfigKey::GitRepoSigningEnabled);
-  _actionCommitSign->setVisible(signingEnabled);
+  // Commit signing uses Git's signing setup, Mercurial commits aren't
+  // signed.
+  _actionCommitSign->setVisible(signingEnabled &&
+                                type() != ContainerType::HgRepo);
 
   LOG_PERF(0, "Exit");
 }
@@ -10371,14 +10580,14 @@ void RepoContainer::ignoreFiles(const WeakPtr &guard,
   }
 
   const QString ignoreFilePath =
-      QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
+      QDir::toNativeSeparators(_path + QDir::separator() + ignoreFileName());
 
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(QString(tr("Failed to open %1 for writing."))
-                         .arg(GIT_IGNORE_FILENAME),
-                     tr("Error"));
+      showErrorToast(
+          QString(tr("Failed to open %1 for writing.")).arg(ignoreFileName()),
+          tr("Error"));
     });
     LOG_PERF(0, "Exit");
     return;
@@ -10386,12 +10595,22 @@ void RepoContainer::ignoreFiles(const WeakPtr &guard,
 
   QTextStream out(&file);
 
+  const bool hg = type() == ContainerType::HgRepo;
+
   out << Qt::endl;
 
   for (const QString &file : files) {
     QString ignoreFile = file;
     const QString fullPath =
         QDir::toNativeSeparators(_path + QDir::separator() + ignoreFile);
+    // Mercurial patterns are not rooted, path: matches exactly this file or
+    // directory.
+    if (hg) {
+      out << QStringLiteral("path:") << QDir::fromNativeSeparators(file)
+          << Qt::endl;
+      continue;
+    }
+
     if (QFileInfo(fullPath).isDir()) {
       ignoreFile += "/";
     }
@@ -10421,20 +10640,22 @@ void RepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
   }
 
   const QString ignoreFilePath =
-      QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
+      QDir::toNativeSeparators(_path + QDir::separator() + ignoreFileName());
 
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(QString(tr("Failed to open %1 for writing."))
-                         .arg(GIT_IGNORE_FILENAME),
-                     tr("Error"));
+      showErrorToast(
+          QString(tr("Failed to open %1 for writing.")).arg(ignoreFileName()),
+          tr("Error"));
     });
     LOG_PERF(0, "Exit");
     return;
   };
 
   QTextStream out(&file);
+
+  const bool hg = type() == ContainerType::HgRepo;
 
   out << Qt::endl;
 
@@ -10454,186 +10675,15 @@ void RepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
 
   // Add ignore patterns for each parent folder
   for (const QString &folder : parentFolders) {
-    QString ignorePattern = QDir::fromNativeSeparators(folder) + "/**";
+    // path: also matches everything below the folder in Mercurial.
+    QString ignorePattern =
+        hg ? QStringLiteral("path:") + QDir::fromNativeSeparators(folder)
+           : QDir::fromNativeSeparators(folder) + "/**";
     out << ignorePattern << Qt::endl;
   }
 
   out.flush();
 
-  file.close();
-
-  _bridge->refreshStatus(guard);
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { simulateClickOnFirstHistoryRow(); });
-
-  LOG_PERF(0, "Exit")
-}
-
-void RepoContainer::addFilesToLfs(const WeakPtr &guard,
-                                  const QStringList &files) {
-  LOG_PERF(0, "Enter");
-
-  QStringList entriesToAdd;
-  QSet<QString> seenEntries;
-  for (const QString &filePath : files) {
-    const QString fullPath = QDir(_path).filePath(filePath);
-    if (!QFileInfo(fullPath).isFile()) {
-      continue;
-    }
-
-    const QString entry = lfsAttributesEntryForFile(filePath);
-    if (seenEntries.contains(entry)) {
-      continue;
-    }
-
-    seenEntries.insert(entry);
-    entriesToAdd += entry;
-  }
-
-  if (entriesToAdd.isEmpty()) {
-    _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [&]() { simulateClickOnFirstHistoryRow(); });
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const QString attributesFilePath = QDir::toNativeSeparators(
-      _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
-
-  QSet<QString> existingEntries;
-  QFile readFile(attributesFilePath);
-  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    QTextStream in(&readFile);
-    in.setEncoding(QStringConverter::Utf8);
-    while (!in.atEnd()) {
-      const QString line = in.readLine().trimmed();
-      if (!line.isEmpty() && !line.startsWith('#')) {
-        existingEntries.insert(line);
-      }
-    }
-    readFile.close();
-  }
-
-  QFile file(attributesFilePath);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(QString(tr("Failed to open %1 for writing."))
-                         .arg(GIT_ATTRIBUTES_FILENAME),
-                     tr("Error"));
-    });
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QTextStream out(&file);
-  out.setEncoding(QStringConverter::Utf8);
-
-  bool wroteEntry = false;
-  for (const QString &entry : entriesToAdd) {
-    if (existingEntries.contains(entry)) {
-      continue;
-    }
-
-    if (!wroteEntry && file.size() > 0) {
-      out << Qt::endl;
-    }
-
-    out << entry << Qt::endl;
-    wroteEntry = true;
-  }
-
-  out.flush();
-  file.close();
-
-  _bridge->refreshStatus(guard);
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { simulateClickOnFirstHistoryRow(); });
-
-  LOG_PERF(0, "Exit")
-}
-
-void RepoContainer::removeFilesFromLfs(const WeakPtr &guard,
-                                       const QStringList &files) {
-  LOG_PERF(0, "Enter");
-
-  QSet<QString> patternsToRemove;
-  for (const QString &filePath : files) {
-    const QString fullPath = QDir(_path).filePath(filePath);
-    if (!QFileInfo(fullPath).isFile()) {
-      continue;
-    }
-
-    patternsToRemove.insert(lfsAttributesPatternForFile(filePath));
-  }
-
-  if (patternsToRemove.isEmpty()) {
-    _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [&]() { simulateClickOnFirstHistoryRow(); });
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const QString attributesFilePath = QDir::toNativeSeparators(
-      _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
-
-  QStringList keptLines;
-  QFile readFile(attributesFilePath);
-  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    QTextStream in(&readFile);
-    in.setEncoding(QStringConverter::Utf8);
-    while (!in.atEnd()) {
-      keptLines += in.readLine();
-    }
-    readFile.close();
-  } else if (QFile::exists(attributesFilePath)) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(QString(tr("Failed to open %1 for reading."))
-                         .arg(GIT_ATTRIBUTES_FILENAME),
-                     tr("Error"));
-    });
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QStringList filteredLines;
-  filteredLines.reserve(keptLines.size());
-  for (const QString &line : keptLines) {
-    const QString trimmedLine = line.trimmed();
-    bool removeLine = false;
-    for (const QString &pattern : patternsToRemove) {
-      if (lfsAttributesLineMatchesPattern(trimmedLine, pattern)) {
-        removeLine = true;
-        break;
-      }
-    }
-
-    if (!removeLine) {
-      filteredLines += line;
-    }
-  }
-
-  QFile file(attributesFilePath);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
-                 QIODevice::Text)) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(QString(tr("Failed to open %1 for writing."))
-                         .arg(GIT_ATTRIBUTES_FILENAME),
-                     tr("Error"));
-    });
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QTextStream out(&file);
-  out.setEncoding(QStringConverter::Utf8);
-  for (const QString &line : filteredLines) {
-    out << line << Qt::endl;
-  }
-  out.flush();
   file.close();
 
   _bridge->refreshStatus(guard);
@@ -10664,13 +10714,13 @@ void RepoContainer::prepareWatcher(const WeakPtr &guard) {
     // Watch all subdirectories except the repository admin directory to
     // detect file additions/deletions
     const QStringList directories =
-        getSubdirectories(_path, QStringList() << repoAdminSubdir(_path));
+        getSubdirectories(_path, QStringList() << repoAdminSubdir(type()));
     _repoDirWatcher->addPaths(directories);
 
     // Watch all files recursively (excluding the repository admin directory)
     // to detect modifications
     const QStringList files =
-        getAllFiles(_path, QStringList() << repoAdminSubdir(_path));
+        getAllFiles(_path, QStringList() << repoAdminSubdir(type()));
     _repoDirWatcher->addPaths(files);
 #endif
   });
@@ -10825,9 +10875,10 @@ void RepoContainer::stretchBranchHistoryTableColumns() {
     return;
   }
 
-  const QString savedWidths = _configManager.getString(layoutConfigKey(
-      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
-      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths));
+  const QString savedWidths = _configManager.getString(
+      layoutConfigKey(ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+                      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths,
+                      ConfigManager::ConfigKey::HgRepoHistoryViewColumnWidths));
   const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
 
   if (widthValues.size() == columnCount) {
@@ -10940,6 +10991,20 @@ void RepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                   (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL
                        ? QStringLiteral(", ...")
                        : QString()));
+    switch (commitInfo.phase) {
+    case GitRepo::CommitPhase::Public:
+      ui->labelPageDisplayPhaseValue->setText(tr("public"));
+      break;
+    case GitRepo::CommitPhase::Draft:
+      ui->labelPageDisplayPhaseValue->setText(tr("draft"));
+      break;
+    case GitRepo::CommitPhase::Secret:
+      ui->labelPageDisplayPhaseValue->setText(tr("secret"));
+      break;
+    case GitRepo::CommitPhase::None:
+      ui->labelPageDisplayPhaseValue->clear();
+      break;
+    }
     const QString signedText = commitInfo.signedCommit ? tr("Yes") : tr("No");
     setIconLabel(ui->labelPageDisplaySignedValue,
                  themedIcon(commitInfo.signedCommit ? ":/icons/ok.png"
@@ -10990,7 +11055,7 @@ void RepoContainer::refreshDisplayFilesModels() {
 
   _dispatcher.dispatch([=]() {
     const QStringList allFiles =
-        getAllFiles(_path, QStringList() << GIT_SUBDIR);
+        getAllFiles(_path, QStringList() << repoAdminSubdir(type()));
     QStringList relativeFiles;
     relativeFiles.reserve(allFiles.size());
     for (const auto &file : allFiles) {
@@ -11257,6 +11322,33 @@ bool RepoContainer::showWarningForBranchCheckout() const {
       tr("You have uncommitted changes on the current branch.\n\n"
          "Do you really want to switch to the new branch?\n\n"
          "To keep your changes, stash them before switching."));
+}
+
+bool RepoContainer::requestBranchKind(BranchKind *kind) {
+  *kind = BranchKind::Default;
+  if (!hasFeature(_bridge->features(), RepoFeatures::BranchKinds)) {
+    return true;
+  }
+
+  QMenu menu(this);
+  QAction *bookmarkAction = menu.addAction(tr("Bookmark"));
+  bookmarkAction->setToolTip(
+      tr("A movable pointer to a commit, like a Git branch"));
+  QAction *namedBranchAction = menu.addAction(tr("Named branch"));
+  namedBranchAction->setToolTip(
+      tr("A branch name recorded in every commit made on it"));
+  menu.setToolTipsVisible(true);
+
+  const QAction *chosen = menu.exec(QCursor::pos());
+  if (chosen == bookmarkAction) {
+    *kind = BranchKind::Bookmark;
+    return true;
+  }
+  if (chosen == namedBranchAction) {
+    *kind = BranchKind::NamedBranch;
+    return true;
+  }
+  return false;
 }
 
 void RepoContainer::simulateClickOnHistoryRow(int row) const {

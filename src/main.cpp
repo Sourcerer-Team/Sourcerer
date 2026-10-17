@@ -1,6 +1,7 @@
 #include <ComponentManager.h>
 #include <GitRepoManager.h>
 #include <GuiManager.h>
+#include <HgRepoManager.h>
 #include <NewsTracker.h>
 #include <SingleInstanceGuard.h>
 #include <SvnRepoManager.h>
@@ -183,6 +184,7 @@ int main(int argc, char *argv[]) {
   componentManager.addThread<GitRepoManager::GitRepoManager>();
   componentManager.addThread<NewsTracker::NewsTracker>();
   componentManager.addThread<SvnRepoManager::SvnRepoManager>();
+  componentManager.addThread<HgRepoManager::HgRepoManager>();
   componentManager.addThread<UpdateManager::UpdateManager>();
   componentManager.startProcess<GuiManager::GuiManager>();
   componentManager.stopAll();

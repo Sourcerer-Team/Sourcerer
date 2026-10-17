@@ -5,6 +5,7 @@
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
+#include <HgRepoManagerStructs.h>
 #include <Log.h>
 #include <SvnRepoManagerStructs.h>
 #include <UserProfileManager.h>
@@ -18,6 +19,7 @@
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
+using namespace HgRepoManager::Structs;
 using namespace SvnRepoManager::Structs;
 
 namespace GuiManager {
@@ -34,11 +36,23 @@ InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
   LOG_PERF(0, "Enter");
   ui->setupUi(this);
 
+  switch (_initType) {
+  case InitType::Git:
+    setWindowTitle(tr("Init Git repository"));
+    ui->labelWorkingDir->setText(tr("Working directory"));
+    break;
+  case InitType::Subversion:
+    setWindowTitle(tr("Init Subversion repository"));
+    ui->labelWorkingDir->setText(tr("Parent directory"));
+    break;
+  case InitType::Mercurial:
+    setWindowTitle(tr("Init Mercurial repository"));
+    ui->labelWorkingDir->setText(tr("Parent directory"));
+    break;
+  }
+
+  // Mercurial's first branch is always default.
   const bool gitInit = _initType == InitType::Git;
-  setWindowTitle(gitInit ? tr("Init Git repository")
-                         : tr("Init Subversion repository"));
-  ui->labelWorkingDir->setText(gitInit ? tr("Working directory")
-                                       : tr("Parent directory"));
   ui->labelDefaultBrnach->setVisible(gitInit);
   ui->lineEditDefaultBranch->setVisible(gitInit);
 
@@ -61,6 +75,10 @@ InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
       EventManager::EventType::SvnRepoManagerInitRepoError, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerInitRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerInitRepoResult, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -79,6 +97,10 @@ InitRepoContainer::~InitRepoContainer() {
       EventManager::EventType::SvnRepoManagerInitRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerInitRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerInitRepoResult, callbackFunc));
 
   delete ui;
 
@@ -96,7 +118,10 @@ void InitRepoContainer::onBrowseClicked() {
   }
 
   const QString path = QFileDialog::getExistingDirectory(
-      this, tr("Open Git repository"), documentsPaths[0]);
+      this,
+      _initType == InitType::Git ? tr("Open Git repository")
+                                 : tr("Select parent directory"),
+      documentsPaths[0]);
   if (!path.isEmpty())
     ui->lineEditWorkingDir->setText(QDir::toNativeSeparators(path));
 
@@ -132,6 +157,26 @@ void InitRepoContainer::onInitClicked() {
 
     EventManager::Event initEvent(
         EventManager::EventType::SvnRepoManagerInitRepo);
+    initEvent.addData(command);
+
+    _eventManager.send(initEvent);
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_initType == InitType::Mercurial) {
+    // The repository is created in <parent directory>/<name>, see
+    // HgRepo::initRepository.
+    HgRepoInitRepoCommand command;
+    command.uuid = _uuid;
+    command.repoName = ui->lineEditName->text();
+    command.workingDir = ui->lineEditWorkingDir->text();
+    command.author = profile.author;
+    command.email = profile.email;
+
+    EventManager::Event initEvent(
+        EventManager::EventType::HgRepoManagerInitRepo);
     initEvent.addData(command);
 
     _eventManager.send(initEvent);
@@ -196,6 +241,28 @@ void InitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::SvnRepoManagerInitRepoResult: {
     if (const auto commandResult = event.data<SvnRepoResult>();
+        commandResult.uuid != _uuid) {
+      break;
+    }
+
+    emit initialized();
+    break;
+  }
+  case EventManager::EventType::HgRepoManagerInitRepoError: {
+    const HgRepoError hgError = event.data<HgRepoError>();
+    if (hgError.uuid != _uuid) {
+      break;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showErrorToast(tr("Unable to initialize Mercurial repository\n%1")
+                         .arg(hgError.message),
+                     tr("Error"));
+    });
+    break;
+  }
+  case EventManager::EventType::HgRepoManagerInitRepoResult: {
+    if (const auto commandResult = event.data<HgRepoResult>();
         commandResult.uuid != _uuid) {
       break;
     }

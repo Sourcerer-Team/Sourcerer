@@ -43,6 +43,12 @@ enum class ConfigKey {
   SvnRepoHistoryViewColumnWidths,
   SvnRepoHistoryViewHiddenColumns,
 
+  // HgRepo container, kept apart from GitRepo and SvnRepo
+  HgRepoSplitterPos,
+  HgRepoStashSplitterPos,
+  HgRepoHistoryViewColumnWidths,
+  HgRepoHistoryViewHiddenColumns,
+
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,
   GitRepoServerConnectTimeout,
@@ -113,5 +119,4 @@ enum class ConfigKey {
 
   last
 };
-
 }
