@@ -7580,7 +7580,8 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
       return {};
     }
 
-    git_commit *branchCommit = nullptr;
+    // A copy: the tip object of a symbolic branch is freed below.
+    git_oid branchTipOid;
     const git_oid *branchOid = nullptr;
 
     if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) {
@@ -7606,7 +7607,8 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
         return {};
       }
 
-      branchOid = git_object_id(branchTip);
+      git_oid_cpy(&branchTipOid, git_object_id(branchTip));
+      branchOid = &branchTipOid;
 
       git_object_free(branchTip);
       git_reference_free(symbolicRef);
@@ -7631,10 +7633,13 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
       return {};
     }
 
-    // Check if branch contains the commit
-    if (const int contains = git_graph_descendant_of(repo, branchOid, &oid);
-        contains == 1)
+    // The branch contains the commit when it is the branch's tip or one of
+    // its ancestors; git_graph_descendant_of doesn't count a commit as its own
+    // descendant.
+    if (git_oid_equal(branchOid, &oid) != 0 ||
+        git_graph_descendant_of(repo, branchOid, &oid) == 1) {
       branches += branchName;
+    }
 
     git_reference_free(ref);
   }
@@ -7757,16 +7762,14 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
       return {};
     }
 
-    git_object_free(branchTip);
-
-    // Check if this commit is the HEAD of the branch
-    const git_oid *branchHeadOid = git_reference_target(ref);
-    if (branchHeadOid) {
-      const bool head = git_oid_equal(branchHeadOid, &oid) == 0;
-      if (head)
-        branches += branchName;
+    // The commit is the head of the branch when it is the branch's tip. The
+    // peeled tip also covers symbolic branches such as origin/HEAD, which
+    // have no direct target. git_oid_equal is non-zero for equal ids.
+    if (git_oid_equal(git_object_id(branchTip), &oid) != 0) {
+      branches += branchName;
     }
 
+    git_object_free(branchTip);
     git_reference_free(ref);
   }
 
@@ -7834,18 +7837,15 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
       return false;
     }
 
+    // The commit is a head when it is the tip of a branch, see
+    // getCommitHeads. git_oid_equal is non-zero for equal ids.
+    const bool head = git_oid_equal(git_object_id(branchTip), &oid) != 0;
     git_object_free(branchTip);
-
-    // Check if this commit is the HEAD of the branch
-    const git_oid *branchHeadOid = git_reference_target(ref);
-    if (branchHeadOid) {
-      const bool head = git_oid_equal(branchHeadOid, &oid) == 0;
-      if (head) {
-        git_reference_free(ref);
-        git_branch_iterator_free(iter);
-        LOG_PERF(0, "Exit");
-        return true;
-      }
+    if (head) {
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return true;
     }
 
     git_reference_free(ref);
@@ -15085,7 +15085,31 @@ QString getDefaultRemote(git_repository *repo) {
     return "";
   }
 
-  git_branch_t branch_type = GIT_BRANCH_LOCAL;
+  // The remote chosen with setDefaultRemote, while it still exists.
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo) == 0) {
+    git_buf configured = GIT_BUF_INIT;
+    if (git_config_get_string_buf(&configured, config,
+                                  "sourcerer.defaultremote") == 0 &&
+        configured.ptr && configured.size > 0) {
+      const QString remoteName = QString::fromUtf8(configured.ptr);
+      git_remote *remote = nullptr;
+      if (git_remote_lookup(&remote, repo, configured.ptr) == 0) {
+        git_remote_free(remote);
+        git_buf_dispose(&configured);
+        git_config_free(config);
+        LOG_DEBUG("Found configured default remote: '{}'",
+                  remoteName.toStdString());
+        LOG_PERF(0, "Exit");
+        return remoteName;
+      }
+      LOG_DEBUG("Configured default remote '{}' no longer exists",
+                remoteName.toStdString());
+    }
+    git_buf_dispose(&configured);
+    git_config_free(config);
+  }
+
   git_reference *ref = nullptr;
 
   // Try to get the upstream branch of the current branch
@@ -16130,9 +16154,10 @@ bool commitRebase(git_repository *repo, const QString &summary,
 
   git_oid oid;
 
+  // GIT_EAPPLIED: the resolved step changes nothing, so it is skipped.
   error = git_rebase_commit(&oid, rebase, sig, sig, nullptr,
                             fullMessage.toStdString().c_str());
-  if (error) {
+  if (error && error != GIT_EAPPLIED) {
     setError(GitError::CommitStagedFailedToCreateCommit, error);
     git_rebase_free(rebase);
     git_signature_free(sig);
@@ -16141,13 +16166,35 @@ bool commitRebase(git_repository *repo, const QString &summary,
     return false;
   }
 
+  // The remaining steps. One with conflicts stops the rebase, which stays in
+  // progress so the user resolves it and commits again.
   git_rebase_operation *operation;
+  bool stepFailed = false;
   while ((error = git_rebase_next(&operation, rebase)) == 0) {
-    git_rebase_commit(&oid, rebase, sig, sig, nullptr, nullptr);
+    error = git_rebase_commit(&oid, rebase, sig, sig, nullptr, nullptr);
+    if (error == GIT_EAPPLIED) {
+      continue;
+    }
+    if (error) {
+      setError(
+          error == GIT_EUNMERGED
+              ? GitError::RebaseBranchesFailedToCommitRebaseStepWithConflicts
+              : GitError::CommitStagedFailedToCreateCommit,
+          error);
+      stepFailed = true;
+      break;
+    }
   }
 
   if (error == GIT_ITEROVER) {
-    git_rebase_finish(rebase, sig);
+    // Every step is committed.
+    error = git_rebase_finish(rebase, sig);
+    if (error) {
+      setError(GitError::RebaseBranchesFailedToFinishRebase, error);
+    }
+  } else if (!stepFailed) {
+    // git_rebase_next failed to apply the next step.
+    setError(GitError::CommitStagedFailedToCreateCommit, error);
   }
 
   git_rebase_free(rebase);

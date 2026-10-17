@@ -122,6 +122,12 @@ if (SOURCERER_BUILD_SVNREPO_TESTS)
   add_subdirectory(../tests/svnrepo ${CMAKE_BINARY_DIR}/tests/svnrepo)
 endif ()
 
+option(SOURCERER_BUILD_GITREPO_TESTS "Build the GitRepo tests" OFF)
+if (SOURCERER_BUILD_GITREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/gitrepo ${CMAKE_BINARY_DIR}/tests/gitrepo)
+endif ()
+
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         libssh2
