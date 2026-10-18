@@ -84,7 +84,6 @@ set_target_properties(cyrus-sasl PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${CYRUS_SASL_INSTALL_DIR}/include;${CYRUS_SASL_SOURCE_DIR}/include"
 )
 add_dependencies(cyrus-sasl cyrus-sasl-build)
-add_dependencies(SvnRepo cyrus-sasl-build)
 
 # Host-specific toolchain paths; only needed when not running inside a VS developer
 # environment (VsDevCmd/vcvars set INCLUDE/LIB for the active toolset).
@@ -284,7 +283,7 @@ set(SVN_ENABLE_SWIG_PERL OFF CACHE BOOL "Disable Perl bindings" FORCE)
 set(SVN_ENABLE_SWIG_PYTHON OFF CACHE BOOL "Disable Python bindings" FORCE)
 set(SVN_ENABLE_SWIG_RUBY OFF CACHE BOOL "Disable Ruby bindings" FORCE)
 set(SVN_ENABLE_JAVAHL OFF CACHE BOOL "Disable JavaHL" FORCE)
-set(SVN_ENABLE_SASL ON CACHE BOOL "Enable SASL" FORCE)
+set(SVN_ENABLE_SASL OFF CACHE BOOL "Disable SASL (libsasl.dll crashes at exit on Windows)" FORCE)
 set(SVN_ENABLE_LIBMAGIC OFF CACHE BOOL "Disable LIBMAGIC" FORCE)
 set(SVN_ENABLE_RA_SERF ON CACHE BOOL "Enable serf RA" FORCE)
 set(SVN_ENABLE_RA_SVN ON CACHE BOOL "Enable svn RA" FORCE)
@@ -303,7 +302,6 @@ target_link_libraries(SvnRepo PUBLIC
     qca-qt6
     qca-ossl
     Threads::Threads
-    cyrus-sasl
     serf
     OpenSSL::SSL
     OpenSSL::Crypto
@@ -333,3 +331,49 @@ target_include_directories(SvnRepo PRIVATE
    ${CMAKE_CURRENT_BINARY_DIR}/..
    ${CMAKE_CURRENT_SOURCE_DIR}/../libgit2/include
 )
+
+# Standalone Subversion command-line client bundled with installers.
+# Subversion's CMake only stubs out programs, so the svn target is defined here.
+option(SOURCERER_BUILD_SVN_CLI "Build the standalone svn command-line client" OFF)
+if(SOURCERER_BUILD_SVN_CLI)
+    file(GLOB SVN_CLI_SOURCES CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/svn/*.c
+    )
+    add_executable(svn ${SVN_CLI_SOURCES})
+    target_include_directories(svn PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/include/private
+        ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/svn
+        ${CMAKE_CURRENT_BINARY_DIR}/subversion
+        ${CMAKE_CURRENT_BINARY_DIR}/apr
+        ${CMAKE_CURRENT_BINARY_DIR}/apr-util
+        ${CMAKE_CURRENT_SOURCE_DIR}/../apr-util/include
+    )
+    target_link_libraries(svn PRIVATE
+        libsvn_client
+        libsvn_ra
+        libsvn_ra_local
+        libsvn_ra_svn
+        libsvn_ra_serf
+        libsvn_repos
+        libsvn_fs
+        libsvn_fs_util
+        libsvn_fs_fs
+        libsvn_fs_x
+        libsvn_wc
+        libsvn_delta
+        libsvn_diff
+        libsvn_subr
+        serf
+        apr-1
+        aprutil-1
+        sqlite3
+        expat::expat
+        utf8proc
+        ZLIB::ZLIB
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        Threads::Threads
+        $<$<PLATFORM_ID:Windows>:Version>
+    )
+endif()

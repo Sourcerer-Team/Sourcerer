@@ -60,6 +60,7 @@ namespace {
 constexpr char POINTER_VERSION[] = "version https://git-lfs.github.com/spec/v1";
 constexpr char POINTER_OID_PREFIX[] = "oid sha256:";
 constexpr char POINTER_SIZE_PREFIX[] = "size ";
+constexpr qsizetype POINTER_MAX_SIZE = 1024;
 constexpr char FILTER_NAME[] = "lfs";
 
 QMutex gMutex;
@@ -172,7 +173,9 @@ QString deriveLfsUrlFromRemote(const QString &remoteUrl) {
     return {};
   }
 
-  return base + "/info/lfs";
+  // Like git-lfs: <url>.git/info/lfs for a URL without .git.
+  return base.endsWith(QLatin1String(".git")) ? base + "/info/lfs"
+                                               : base + ".git/info/lfs";
 }
 
 struct RemoteInfo {
@@ -832,7 +835,8 @@ QString getConfigString(git_repository *repo, const char *key) {
     return value;
   }
 
-  if (git_repository_config(&config, repo) != 0) {
+  // git_config_get_string only works on a snapshot.
+  if (git_repository_config_snapshot(&config, repo) != 0) {
     return value;
   }
 
@@ -892,9 +896,21 @@ QString findGitRemoteUrl(git_repository *repo, const QString &remoteName) {
   return {};
 }
 
-QString findConfiguredLfsUrl(git_repository *repo, const QString &remoteName) {
+// The endpoint configured for `operation` ("upload" or "download"), in the
+// order git-lfs uses: lfs.pushurl (upload), lfs.url,
+// remote.<name>.lfspushurl (upload), remote.<name>.lfsurl.
+QString findConfiguredLfsUrl(git_repository *repo, const QString &remoteName,
+                             const QString &operation) {
   if (!repo) {
     return {};
+  }
+
+  const bool upload = operation == QLatin1String("upload");
+  if (upload) {
+    const QString pushUrl = getConfigString(repo, "lfs.pushurl");
+    if (!pushUrl.isEmpty()) {
+      return pushUrl;
+    }
   }
 
   const QString explicitUrl = getConfigString(repo, "lfs.url");
@@ -908,24 +924,19 @@ QString findConfiguredLfsUrl(git_repository *repo, const QString &remoteName) {
     return {};
   }
 
+  if (upload) {
+    const QString remotePushUrlKey =
+        QStringLiteral("remote.%1.lfspushurl").arg(preferredRemoteName);
+    const QString remotePushUrl =
+        getConfigString(repo, remotePushUrlKey.toUtf8().constData());
+    if (!remotePushUrl.isEmpty()) {
+      return remotePushUrl;
+    }
+  }
+
   const QString remoteUrlKey =
       QStringLiteral("remote.%1.lfsurl").arg(preferredRemoteName);
-  const QString remotePushUrlKey =
-      QStringLiteral("remote.%1.lfspushurl").arg(preferredRemoteName);
-
-  const QString remoteSpecific =
-      getConfigString(repo, remotePushUrlKey.toUtf8().constData());
-  if (!remoteSpecific.isEmpty()) {
-    return remoteSpecific;
-  }
-
-  const QString remoteDownloadUrl =
-      getConfigString(repo, remoteUrlKey.toUtf8().constData());
-  if (!remoteDownloadUrl.isEmpty()) {
-    return remoteDownloadUrl;
-  }
-
-  return {};
+  return getConfigString(repo, remoteUrlKey.toUtf8().constData());
 }
 
 QString findRemoteUrl(git_repository *repo, const QString &remoteName) {
@@ -933,7 +944,8 @@ QString findRemoteUrl(git_repository *repo, const QString &remoteName) {
     return {};
   }
 
-  const QString configuredUrl = findConfiguredLfsUrl(repo, remoteName);
+  const QString configuredUrl =
+      findConfiguredLfsUrl(repo, remoteName, QStringLiteral("download"));
   if (!configuredUrl.isEmpty()) {
     return configuredUrl;
   }
@@ -1038,6 +1050,14 @@ QNetworkRequest makeRequest(const QString &url, const QJsonObject &headers) {
 
 Pointer parsePointerBytes(const QByteArray &data) {
   Pointer pointer;
+
+  // Like git-lfs, a pointer is a small file with nothing but pointer lines,
+  // the version first.
+  if (data.size() > POINTER_MAX_SIZE) {
+    pointer.errorMessage = QStringLiteral("Too large for an LFS pointer");
+    return pointer;
+  }
+
   const QList<QByteArray> lines = data.split('\n');
   QString version;
   QString oid;
@@ -1049,12 +1069,20 @@ Pointer parsePointerBytes(const QByteArray &data) {
       continue;
     }
 
-    if (line.startsWith(POINTER_VERSION)) {
+    if (version.isEmpty() && !line.startsWith("version ")) {
+      pointer.errorMessage = QStringLiteral("Invalid LFS pointer version");
+      return pointer;
+    }
+
+    if (line.startsWith("version ")) {
       version = QString::fromLatin1(line);
-    } else if (line.startsWith(POINTER_OID_PREFIX)) {
+    } else if (line.startsWith("oid ")) {
       oid = QString::fromLatin1(line);
     } else if (line.startsWith(POINTER_SIZE_PREFIX)) {
       size = QString::fromLatin1(line.mid(sizeof(POINTER_SIZE_PREFIX) - 1));
+    } else if (!line.startsWith("ext-") || !line.contains(' ')) {
+      pointer.errorMessage = QStringLiteral("Invalid LFS pointer line");
+      return pointer;
     }
   }
 
@@ -1473,54 +1501,98 @@ bool storeObject(git_repository *repo, const QByteArray &data, QString &oid) {
   return true;
 }
 
+// Sends the request without credentials first, like git-lfs, and asks for
+// them only when the server answers 401. `usedAuth` receives the
+// Authorization header of the retry.
+static NetworkResult
+doRequestWithCredentials(QNetworkAccessManager &manager,
+                         QNetworkRequest request, const QByteArray &body,
+                         const QString &method, const QString &repoPath,
+                         const QString &credentialUrl,
+                         const bool allowCredentials,
+                         QString *usedAuth = nullptr) {
+  const NetworkResult result = doRequest(manager, request, body, method);
+  if (result.statusCode != 401 || !allowCredentials ||
+      request.hasRawHeader("Authorization")) {
+    return result;
+  }
+
+  const QString auth = getCredentialHeader(repoPath, credentialUrl);
+  if (auth.isEmpty()) {
+    return result;
+  }
+
+  request.setRawHeader("Authorization", auth.toUtf8());
+  if (usedAuth) {
+    *usedAuth = auth;
+  }
+  return doRequest(manager, request, body, method);
+}
+
+// The path of a remote on this machine (a path or a file:// URL), else empty.
+static QString localRemotePath(const QString &remoteUrl) {
+  if (remoteUrl.startsWith("file://", Qt::CaseInsensitive)) {
+    return QUrl(remoteUrl).toLocalFile();
+  }
+
+  if (remoteUrl.isEmpty() || remoteUrl.contains("://")) {
+    return {};
+  }
+
+  return QFileInfo::exists(remoteUrl) ? remoteUrl : QString();
+}
+
+// For a remote on this machine without a configured LFS endpoint, the
+// remote's lfs/objects directory, which git-lfs reads and writes directly.
+static QString localRemoteObjectsPath(git_repository *repo,
+                                      const QString &remoteName,
+                                      const QString &operation,
+                                      const QString &remoteUrlHint) {
+  if (!findConfiguredLfsUrl(repo, remoteName, operation).isEmpty()) {
+    return {};
+  }
+
+  const QString path = localRemotePath(
+      remoteUrlHint.isEmpty() ? findGitRemoteUrl(repo, remoteName)
+                              : remoteUrlHint);
+  if (path.isEmpty()) {
+    return {};
+  }
+
+  git_repository *remoteRepo = nullptr;
+  if (git_repository_open_ext(&remoteRepo, path.toUtf8().constData(),
+                              GIT_REPOSITORY_OPEN_NO_SEARCH, nullptr) != 0) {
+    return {};
+  }
+
+  const QString objects =
+      QDir(QString::fromUtf8(git_repository_commondir(remoteRepo)))
+          .filePath(QStringLiteral("lfs/objects"));
+  git_repository_free(remoteRepo);
+  return objects;
+}
+
+static QString localObjectPath(const QString &objectsRoot, const QString &oid) {
+  return QDir(objectsRoot).filePath(oid.left(2) + "/" + oid.mid(2, 2) + "/" +
+                                    oid);
+}
+
 static bool resolveTransferEndpoint(git_repository *repo,
-                                    const QString &repoPath,
                                     const QString &remoteName,
                                     const QString &operation,
                                     TransferEndpoint &endpoint,
                                     const QString &remoteUrlHint = QString()) {
-  if (!remoteUrlHint.isEmpty()) {
-    if (isHttpUrl(remoteUrlHint)) {
-      const QString auth = getCredentialHeader(repoPath, remoteUrlHint);
-      if (!auth.isEmpty()) {
-        endpoint.headers.insert(QStringLiteral("Authorization"), auth);
-      }
-      endpoint.url = deriveLfsUrlFromRemote(remoteUrlHint);
-      if (endpoint.url.isEmpty()) {
-        git_error_set_str(GIT_ERROR_FILTER,
-                          "unable to determine lfs endpoint for repository");
-        return false;
-      }
-      return true;
-    }
-
-    if (isSshUrl(remoteUrlHint)) {
-      RemoteInfo info;
-      if (!parseSshRemoteUrl(remoteUrlHint, info)) {
-        git_error_set_str(GIT_ERROR_FILTER,
-                          "unable to parse ssh remote for lfs endpoint");
-        return false;
-      }
-
-      endpoint.allowCredentialFallback = false;
-      return runSshGitLfsAuthenticate(info, operation, endpoint.url,
-                                      endpoint.headers);
-    }
-  }
-
-  const QString configuredUrl = findConfiguredLfsUrl(repo, remoteName);
+  // Like git-lfs, a configured endpoint wins over the remote's URL.
+  const QString configuredUrl =
+      findConfiguredLfsUrl(repo, remoteName, operation);
   if (!configuredUrl.isEmpty()) {
     endpoint.url = configuredUrl;
-    if (isHttpUrl(configuredUrl)) {
-      const QString auth = getCredentialHeader(repoPath, configuredUrl);
-      if (!auth.isEmpty()) {
-        endpoint.headers.insert(QStringLiteral("Authorization"), auth);
-      }
-    }
     return true;
   }
 
-  const QString remoteUrl = findGitRemoteUrl(repo, remoteName);
+  const QString remoteUrl = remoteUrlHint.isEmpty()
+                                ? findGitRemoteUrl(repo, remoteName)
+                                : remoteUrlHint;
   if (remoteUrl.isEmpty()) {
     git_error_set_str(GIT_ERROR_FILTER,
                       "unable to determine lfs endpoint for repository");
@@ -1533,11 +1605,6 @@ static bool resolveTransferEndpoint(git_repository *repo,
       git_error_set_str(GIT_ERROR_FILTER,
                         "unable to determine lfs endpoint for repository");
       return false;
-    }
-
-    const QString auth = getCredentialHeader(repoPath, endpoint.url);
-    if (!auth.isEmpty()) {
-      endpoint.headers.insert(QStringLiteral("Authorization"), auth);
     }
     return true;
   }
@@ -1568,12 +1635,9 @@ static bool requestBasicTransfer(git_repository *repo, const QString &repoPath,
                                  const QString &remoteUrlHint = QString(),
                                  TransferEndpoint *resolvedEndpoint = nullptr) {
   TransferEndpoint endpoint;
-  if (!resolveTransferEndpoint(repo, repoPath, remoteName, operation, endpoint,
+  if (!resolveTransferEndpoint(repo, remoteName, operation, endpoint,
                                remoteUrlHint)) {
     return false;
-  }
-  if (resolvedEndpoint) {
-    *resolvedEndpoint = endpoint;
   }
 
   QNetworkAccessManager manager;
@@ -1591,7 +1655,16 @@ static bool requestBasicTransfer(git_repository *repo, const QString &repoPath,
   LOG_DEBUG("LFS batch request: url='{}', operation='{}', objectCount={}",
             batchUrl.toString().toStdString(), operation.toStdString(),
             objects.size());
-  const NetworkResult result = doRequest(manager, request, requestBody, "POST");
+  QString usedAuth;
+  const NetworkResult result = doRequestWithCredentials(
+      manager, request, requestBody, "POST", repoPath, endpoint.url,
+      endpoint.allowCredentialFallback, &usedAuth);
+  if (!usedAuth.isEmpty()) {
+    endpoint.headers.insert(QStringLiteral("Authorization"), usedAuth);
+  }
+  if (resolvedEndpoint) {
+    *resolvedEndpoint = endpoint;
+  }
   LOG_DEBUG("LFS batch response: url='{}', status={}, error='{}', bodySize={}",
             batchUrl.toString().toStdString(), result.statusCode,
             result.errorString.toStdString(), result.body.size());
@@ -1615,6 +1688,25 @@ static bool requestBasicTransfer(git_repository *repo, const QString &repoPath,
 
 bool downloadObject(git_repository *repo, const QString &oid, qint64 size,
                     QByteArray &data) {
+  if (const QString localObjects = localRemoteObjectsPath(
+          repo, QString(), QStringLiteral("download"), QString());
+      !localObjects.isEmpty()) {
+    QFile file(localObjectPath(localObjects, oid));
+    if (!file.open(QIODevice::ReadOnly)) {
+      git_error_set_str(GIT_ERROR_FILTER,
+                        "lfs object not found in the local remote");
+      return false;
+    }
+    data = file.readAll();
+    QString storedOid;
+    if (data.size() != size || !storeObject(repo, data, storedOid) ||
+        storedOid != oid) {
+      git_error_set_str(GIT_ERROR_FILTER, "lfs object failed checksum");
+      return false;
+    }
+    return true;
+  }
+
   QJsonArray objects;
   objects.append(QJsonObject{{"oid", oid}, {"size", size}});
   TransferEndpoint endpoint;
@@ -1642,21 +1734,16 @@ bool downloadObject(git_repository *repo, const QString &oid, qint64 size,
     return false;
   }
 
-  QString auth;
-  if (endpoint.allowCredentialFallback) {
-    auth = getCredentialHeader(repoPath, href);
-  }
   QNetworkAccessManager manager;
   QNetworkRequest request{QUrl(href)};
   const QJsonObject headers = download.value("header").toObject();
   for (auto it = headers.begin(); it != headers.end(); ++it) {
     request.setRawHeader(it.key().toUtf8(), it.value().toString().toUtf8());
   }
-  if (!headers.contains(QStringLiteral("Authorization")) && !auth.isEmpty()) {
-    request.setRawHeader("Authorization", auth.toUtf8());
-  }
 
-  const NetworkResult result = doRequest(manager, request, QByteArray(), "GET");
+  const NetworkResult result = doRequestWithCredentials(
+      manager, request, QByteArray(), "GET", repoPath, href,
+      endpoint.allowCredentialFallback);
   if (result.statusCode < 200 || result.statusCode >= 300) {
     const QByteArray errorBytes = result.errorString.isEmpty()
                                       ? QByteArray("lfs object download failed")
@@ -1733,6 +1820,30 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
               candidate.source.toStdString(), candidate.size);
   }
 
+  // A remote on this machine gets the objects copied into its lfs/objects.
+  if (const QString localObjects = localRemoteObjectsPath(
+          repo, remoteName, QStringLiteral("upload"), remoteUrlHint);
+      !localObjects.isEmpty()) {
+    for (const LfsUploadCandidate &candidate : candidates) {
+      const QString target = localObjectPath(localObjects, candidate.oid);
+      if (QFileInfo::exists(target)) {
+        continue;
+      }
+
+      const QString temp =
+          QFileInfo(target).absolutePath() + "/.tmp-" + candidate.oid;
+      QFile::remove(temp);
+      if (!QDir().mkpath(QFileInfo(target).absolutePath()) ||
+          !QFile::copy(candidate.path, temp) || !QFile::rename(temp, target)) {
+        QFile::remove(temp);
+        git_error_set_str(GIT_ERROR_OS,
+                          "unable to copy lfs object to the local remote");
+        return false;
+      }
+    }
+    return true;
+  }
+
   QJsonArray objects;
   for (const LfsUploadCandidate &candidate : candidates) {
     objects.append(
@@ -1783,17 +1894,12 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
       request.setRawHeader(itHeader.key().toUtf8(),
                            itHeader.value().toString().toUtf8());
     }
-    if (endpoint.allowCredentialFallback &&
-        !headers.contains(QStringLiteral("Authorization"))) {
-      const QString auth = getCredentialHeader(repoPath, href);
-      if (!auth.isEmpty()) {
-        request.setRawHeader("Authorization", auth.toUtf8());
-      }
-    }
 
     LOG_DEBUG("LFS upload PUT: oid='{}', url='{}', bytes={}",
               candidate.oid.toStdString(), href.toStdString(), bytesLen);
-    const NetworkResult result = doRequest(manager, request, bytes, "PUT");
+    const NetworkResult result =
+        doRequestWithCredentials(manager, request, bytes, "PUT", repoPath,
+                                 href, endpoint.allowCredentialFallback);
     LOG_DEBUG("LFS upload PUT response: oid='{}', url='{}', status={}, "
               "error='{}', bodySize={}",
               candidate.oid.toStdString(), href.toStdString(),
@@ -1816,21 +1922,15 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
         verifyRequest.setRawHeader(itHeader.key().toUtf8(),
                                    itHeader.value().toString().toUtf8());
       }
-      if (endpoint.allowCredentialFallback &&
-          !verifyHeaders.contains(QStringLiteral("Authorization"))) {
-        const QString auth = getCredentialHeader(repoPath, verifyHref);
-        if (!auth.isEmpty()) {
-          verifyRequest.setRawHeader("Authorization", auth.toUtf8());
-        }
-      }
 
       const QJsonObject verifyBody{{"oid", candidate.oid},
                                    {"size", candidate.size}};
       LOG_DEBUG("LFS verify POST: oid='{}', url='{}'",
                 candidate.oid.toStdString(), verifyHref.toStdString());
-      const NetworkResult verifyResult = doRequest(
+      const NetworkResult verifyResult = doRequestWithCredentials(
           manager, verifyRequest,
-          QJsonDocument(verifyBody).toJson(QJsonDocument::Compact), "POST");
+          QJsonDocument(verifyBody).toJson(QJsonDocument::Compact), "POST",
+          repoPath, verifyHref, endpoint.allowCredentialFallback);
       LOG_DEBUG("LFS verify POST response: oid='{}', url='{}', status={}, "
                 "error='{}', bodySize={}",
                 candidate.oid.toStdString(), verifyHref.toStdString(),

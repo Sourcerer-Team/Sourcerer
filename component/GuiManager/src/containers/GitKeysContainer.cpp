@@ -1,5 +1,6 @@
 #include "containers/GitKeysContainer.h"
 #include "ui_GitKeysContainer.h"
+#include "widgets/PinnedCertificatesWidget.h"
 
 #include <Log.h>
 #include <SshKnownHosts.h>
@@ -84,6 +85,11 @@ GitKeysContainer::GitKeysContainer(QWidget *parent)
           &GitKeysContainer::onSelectionChanged);
 
   loadKeyPairs();
+
+  // Self-signed SSH host keys trusted on first use.
+  _pinnedCertificates = new PinnedCertificatesWidget(
+      GitRepo::PinnedCertificateType::Ssh, this);
+  ui->mainLayout->addWidget(_pinnedCertificates);
 
   LOG_PERF(0, "Exit");
 }
@@ -607,6 +613,7 @@ void GitKeysContainer::onSelectionChanged() {
 void GitKeysContainer::selected() {
   LOG_PERF(0, "Enter");
   loadKeyPairs();
+  _pinnedCertificates->reload();
   LOG_PERF(0, "Exit");
 }
 

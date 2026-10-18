@@ -39,6 +39,9 @@
             <ComponentRef Id="QtWebEngineSupportFiles" />
             <ComponentRef Id="QtWebEngineResourceFiles" />
 
+            <ComponentGroupRef Id="GitFiles" />
+        <ComponentGroupRef Id="SvnFiles" />
+
             <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
             <ComponentRef Id="StartMenuShortcut" />

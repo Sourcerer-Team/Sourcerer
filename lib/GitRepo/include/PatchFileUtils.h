@@ -7,6 +7,7 @@ namespace GitRepo {
 struct FilesDiffDelta;
 
 QStringList patchTargetFiles(const QString &patchContent);
+QStringList patchNewFiles(const QString &patchContent);
 QString reconstructContentFromDelta(const FilesDiffDelta &delta);
 QString reconstructNewFileContent(const QString &patchContent,
                                   const QString &filePath);

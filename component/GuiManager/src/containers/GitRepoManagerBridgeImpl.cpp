@@ -3297,6 +3297,16 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
     const QWeakPointer<RepoContainer> &guard, const int branchType) {
   LOG_PERF(0, "Enter");
 
+  if (branchType == static_cast<int>(GitRepo::BranchType::Remote)) {
+    // Git reports the upstream of the checked out branch for the remote type.
+    // The checked out branch is selected in the local list, so reporting the
+    // upstream would move the selection to the remote list.
+    _container.releaseHistoryRefreshSemaphore();
+
+    LOG_PERF(0, "Exit")
+    return true;
+  }
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _container._eventManager.startWait();

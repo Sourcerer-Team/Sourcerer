@@ -109,6 +109,33 @@ struct WebEngineLoggingInitializer {
 
 const WebEngineLoggingInitializer webEngineLoggingInitializer;
 
+// Bundled tools live under <application directory>/3rdparty/<tool> in every
+// package, so the app never depends on system-installed git or svn.
+void prependBundledToolToPath(const QString &toolSubdir) {
+  const QString toolBin = QDir::toNativeSeparators(
+      QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(toolSubdir));
+  if (!QFileInfo::exists(toolBin)) {
+    return;
+  }
+
+  // Prepended so the bundled tool wins; the existing PATH stays as fallback.
+  const QString current = QString::fromLocal8Bit(qgetenv("PATH"));
+  const QString updated =
+      current.isEmpty() ? toolBin
+                        : toolBin + QString(QDir::listSeparator()) + current;
+  qputenv("PATH", updated.toLocal8Bit());
+}
+
+void prependBundledToolsToPath() {
+  // MinGit keeps git.exe in cmd/ and its DLLs in mingw64/bin, so cmd/ is used there.
+#ifdef Q_OS_WIN
+  prependBundledToolToPath(QStringLiteral("3rdparty/git/cmd"));
+#else
+  prependBundledToolToPath(QStringLiteral("3rdparty/git/bin"));
+#endif
+  prependBundledToolToPath(QStringLiteral("3rdparty/svn/bin"));
+}
+
 #ifdef Q_OS_MACOS
 // Applications started from Finder/Dock inherit launchd's minimal PATH
 // (/usr/bin:/bin:/usr/sbin:/sbin), which lacks the locations where Homebrew
@@ -149,6 +176,7 @@ int main(int argc, char *argv[]) {
   {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Sourcerer"));
+    prependBundledToolsToPath();
 
     // Only one process may use the data directory and its WebEngine profiles.
     // Before the update check, so a second launch never applies an update
