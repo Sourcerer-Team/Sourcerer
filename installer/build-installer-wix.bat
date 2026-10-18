@@ -251,9 +251,32 @@ if errorlevel 1 (
     echo Error: Failed to copy bundled git into the build directory
     exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-git-wxs.ps1" -SourceDir "%BUILD_DIR%\3rdparty\git" -OutFile "%INSTALLER_DIR%GitComponents.wxs"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName git -SourceDir "%BUILD_DIR%\3rdparty\git" -OutFile "%INSTALLER_DIR%GitComponents.wxs" -OwnsThirdPartyDir
 if errorlevel 1 (
     echo Error: Failed to generate GitComponents.wxs
+    exit /b 1
+)
+
+REM Stage the Subversion CLI built by the Docker container (svn.exe plus its OpenSSL runtime DLLs)
+echo.
+echo Preparing bundled svn...
+if not exist "%BUILD_DIR%\SvnRepo\svn.exe" (
+    echo Error: svn.exe was not built. Configure with -DSOURCERER_BUILD_SVN_CLI=ON
+    exit /b 1
+)
+if exist "%BUILD_DIR%\3rdparty\svn" rmdir /s /q "%BUILD_DIR%\3rdparty\svn"
+mkdir "%BUILD_DIR%\3rdparty\svn\bin"
+copy /Y "%BUILD_DIR%\SvnRepo\svn.exe" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
+for %%D in (libssl-3-x64.dll libcrypto-3-x64.dll z.dll) do (
+    copy /Y "%BUILD_DIR%\%%D" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
+    if errorlevel 1 (
+        echo Error: Failed to copy %%D for svn
+        exit /b 1
+    )
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName svn -SourceDir "%BUILD_DIR%\3rdparty\svn" -OutFile "%INSTALLER_DIR%SvnComponents.wxs"
+if errorlevel 1 (
+    echo Error: Failed to generate SvnComponents.wxs
     exit /b 1
 )
 
@@ -263,7 +286,7 @@ echo Compiling WiX source files...
 set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
 echo [DEBUG] Running wix: !WIX_PATH! build !WXS_FILE! -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
-!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
+!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" "%INSTALLER_DIR%SvnComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
 if errorlevel 1 (
     echo Error: WiX candle compilation failed

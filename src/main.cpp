@@ -108,27 +108,31 @@ struct WebEngineLoggingInitializer {
 
 const WebEngineLoggingInitializer webEngineLoggingInitializer;
 
-// Bundled git lives in <application directory>/3rdparty/git/bin in every
-// package, so the app never depends on a system git installation.
-void prependBundledGitToPath() {
-  // MinGit keeps git.exe in cmd/ and its DLLs in mingw64/bin, so cmd/ is used there.
-#ifdef Q_OS_WIN
-  const QString gitSubdir = QStringLiteral("3rdparty/git/cmd");
-#else
-  const QString gitSubdir = QStringLiteral("3rdparty/git/bin");
-#endif
-  const QString gitBin = QDir::toNativeSeparators(
-      QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(gitSubdir));
-  if (!QFileInfo::exists(gitBin)) {
+// Bundled tools live under <application directory>/3rdparty/<tool> in every
+// package, so the app never depends on system-installed git or svn.
+void prependBundledToolToPath(const QString &toolSubdir) {
+  const QString toolBin = QDir::toNativeSeparators(
+      QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(toolSubdir));
+  if (!QFileInfo::exists(toolBin)) {
     return;
   }
 
-  // Prepended so the bundled git wins; the existing PATH stays as fallback.
+  // Prepended so the bundled tool wins; the existing PATH stays as fallback.
   const QString current = QString::fromLocal8Bit(qgetenv("PATH"));
   const QString updated =
-      current.isEmpty() ? gitBin
-                        : gitBin + QString(QDir::listSeparator()) + current;
+      current.isEmpty() ? toolBin
+                        : toolBin + QString(QDir::listSeparator()) + current;
   qputenv("PATH", updated.toLocal8Bit());
+}
+
+void prependBundledToolsToPath() {
+  // MinGit keeps git.exe in cmd/ and its DLLs in mingw64/bin, so cmd/ is used there.
+#ifdef Q_OS_WIN
+  prependBundledToolToPath(QStringLiteral("3rdparty/git/cmd"));
+#else
+  prependBundledToolToPath(QStringLiteral("3rdparty/git/bin"));
+#endif
+  prependBundledToolToPath(QStringLiteral("3rdparty/svn/bin"));
 }
 
 #ifdef Q_OS_MACOS
@@ -171,7 +175,7 @@ int main(int argc, char *argv[]) {
   {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Sourcerer"));
-    prependBundledGitToPath();
+    prependBundledToolsToPath();
 
     // Only one process may use the data directory and its WebEngine profiles.
     // Before the update check, so a second launch never applies an update

@@ -52,6 +52,7 @@ CMAKE_ARGS=(
     -DCMAKE_BUILD_TYPE=Release
     -DCMAKE_PREFIX_PATH="$QT_PREFIX"
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET"
+    -DSOURCERER_BUILD_SVN_CLI=ON
     -Wno-dev
 )
 
@@ -99,6 +100,13 @@ fi
 mkdir -p "$APP/Contents/MacOS/3rdparty"
 ditto "$GIT_SRC" "$APP/Contents/MacOS/3rdparty/git"
 
+# Standalone svn client, built by the same universal CMake build and bundled the same way.
+SVN_SRC="$REPO_ROOT/installer/3rdparty/svn"
+REQUIRE_UNIVERSAL="$UNIVERSAL" OUTPUT_DIR="$SVN_SRC" \
+    "$REPO_ROOT/installer/3rdparty/build-svn-macos.sh" "$BUILD_DIR/SvnRepo/svn"
+mkdir -p "$APP/Contents/MacOS/3rdparty"
+ditto "$SVN_SRC" "$APP/Contents/MacOS/3rdparty/svn"
+
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
 if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
@@ -111,7 +119,7 @@ while IFS= read -r -d '' bin; do
     if file -b "$bin" | grep -q "Mach-O"; then
         sign ${ENTITLEMENTS_ARGS[@]+"${ENTITLEMENTS_ARGS[@]}"} "$bin"
     fi
-done < <(find "$APP/Contents/MacOS/3rdparty/git" -type f -print0)
+done < <(find "$APP/Contents/MacOS/3rdparty/git" "$APP/Contents/MacOS/3rdparty/svn" -type f -print0)
 
 # Inside-out: loose libraries, then nested bundles (deepest first), then the
 # executables and finally the application bundle itself. --deep is avoided on
@@ -153,6 +161,9 @@ if [[ "$UNIVERSAL" == "1" ]]; then
     git_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/git/bin/git")"
     echo "bundled git: $git_archs"
     [[ "$git_archs" == *arm64* && "$git_archs" == *x86_64* ]] || { echo "bundled git is not universal" >&2; exit 1; }
+    svn_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/svn/bin/svn")"
+    echo "bundled svn: $svn_archs"
+    [[ "$svn_archs" == *arm64* && "$svn_archs" == *x86_64* ]] || { echo "bundled svn is not universal" >&2; exit 1; }
 fi
 BUNDLE_VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")"
 [[ "$BUNDLE_VERSION" == "$VERSION" ]] || { echo "Bundle version $BUNDLE_VERSION != $VERSION" >&2; exit 1; }
