@@ -235,13 +235,35 @@ if not defined APP_VERSION (
 )
 echo [DEBUG] Sourcerer version=!APP_VERSION!
 
+REM Bundle portable git (MinGit) so the application does not depend on a system git
+echo.
+echo Preparing bundled git...
+if not exist "%INSTALLER_DIR%3rdparty\git\cmd\git.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\fetch-mingit.ps1"
+    if errorlevel 1 (
+        echo Error: Failed to fetch MinGit
+        exit /b 1
+    )
+)
+if exist "%BUILD_DIR%\3rdparty\git" rmdir /s /q "%BUILD_DIR%\3rdparty\git"
+xcopy "%INSTALLER_DIR%3rdparty\git\*" "%BUILD_DIR%\3rdparty\git\" /Y /I /E >nul
+if errorlevel 1 (
+    echo Error: Failed to copy bundled git into the build directory
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-git-wxs.ps1" -SourceDir "%BUILD_DIR%\3rdparty\git" -OutFile "%INSTALLER_DIR%GitComponents.wxs"
+if errorlevel 1 (
+    echo Error: Failed to generate GitComponents.wxs
+    exit /b 1
+)
+
 REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
 set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
 echo [DEBUG] Running wix: !WIX_PATH! build !WXS_FILE! -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
-!WIX_PATH! build !WXS_FILE! -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
+!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
 if errorlevel 1 (
     echo Error: WiX candle compilation failed

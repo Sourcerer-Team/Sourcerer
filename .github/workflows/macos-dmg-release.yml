@@ -53,7 +53,7 @@ jobs:
           echo "QT_PREFIX=$HOME/Qt/$QT_VERSION/macos" >> "$GITHUB_ENV"
 
       - name: Install build tools
-        run: brew install ninja
+        run: brew install ninja openssl@3 pcre2 curl gettext
 
       - name: Import Developer ID certificate
         if: ${{ env.MACOS_CERTIFICATE != '' }}
