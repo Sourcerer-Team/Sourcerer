@@ -247,6 +247,28 @@ bool stageFiles(const QString &path, const QStringList &files) {
                                                 pool))) {
               return false;
             }
+          } else if (node.status == svn_wc_status_conflicted) {
+            // Saving a resolved three-way merge keeps the working file and
+            // clears the text/property conflict. Tree conflicts are resolved
+            // separately, so they are left untouched here.
+            svn_boolean_t textConflicted = FALSE;
+            svn_boolean_t propConflicted = FALSE;
+            svn_boolean_t conflicted = FALSE;
+            if (!reportError(SvnError::StatusFailed,
+                             svn_wc_conflicted_p3(
+                                 &textConflicted, &propConflicted, &conflicted,
+                                 ctx->wc_ctx, pathBytes.constData(), pool))) {
+              return false;
+            }
+
+            if ((textConflicted || propConflicted) &&
+                !reportError(SvnError::ResolveFailed,
+                             svn_client_resolve(pathBytes.constData(),
+                                                svn_depth_empty,
+                                                svn_wc_conflict_choose_merged,
+                                                ctx, pool))) {
+              return false;
+            }
           } else if (node.status == svn_wc_status_ignored) {
             continue;
           } else if (node.status == svn_wc_status_none &&
