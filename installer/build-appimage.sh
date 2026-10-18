@@ -74,6 +74,13 @@ if [ ! -x "$SVN_SRC/bin/svn" ]; then
 fi
 cp -a "$SVN_SRC" "$APPDIR/usr/bin/3rdparty/svn"
 
+echo "Bundling portable hg..."
+HG_SRC="$SCRIPT_DIR/3rdparty/hg"
+if [ ! -x "$HG_SRC/bin/hg" ]; then
+    "$SCRIPT_DIR/3rdparty/fetch-hg-unix.sh" "$HG_SRC" linux
+fi
+cp -a "$HG_SRC" "$APPDIR/usr/bin/3rdparty/hg"
+
 echo "Copying libraries..."
 # Function to copy a library and its dependencies
 copy_lib_dependencies() {

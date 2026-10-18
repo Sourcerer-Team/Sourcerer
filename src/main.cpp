@@ -134,6 +134,12 @@ void prependBundledToolsToPath() {
   prependBundledToolToPath(QStringLiteral("3rdparty/git/bin"));
 #endif
   prependBundledToolToPath(QStringLiteral("3rdparty/svn/bin"));
+  // Windows: hg.exe launcher sits in hg/ next to hg/python.
+#ifdef Q_OS_WIN
+  prependBundledToolToPath(QStringLiteral("3rdparty/hg"));
+#else
+  prependBundledToolToPath(QStringLiteral("3rdparty/hg/bin"));
+#endif
 }
 
 #ifdef Q_OS_MACOS

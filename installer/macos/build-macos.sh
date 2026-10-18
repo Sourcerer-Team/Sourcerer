@@ -107,6 +107,24 @@ REQUIRE_UNIVERSAL="$UNIVERSAL" OUTPUT_DIR="$SVN_SRC" \
 mkdir -p "$APP/Contents/MacOS/3rdparty"
 ditto "$SVN_SRC" "$APP/Contents/MacOS/3rdparty/svn"
 
+# Portable Mercurial (relocatable CPython plus the Mercurial wheel), per arch and
+# merged with lipo for universal builds.
+HG_SRC="$REPO_ROOT/installer/3rdparty/hg"
+if [[ ! -x "$HG_SRC/bin/hg" ]]; then
+    if [[ "$UNIVERSAL" == "1" ]]; then
+        HG_TMP="$(mktemp -d)"
+        "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" "$HG_TMP/arm64" macos-arm64
+        "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" "$HG_TMP/x86_64" macos-x86_64
+        "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" --merge-macos "$HG_SRC" "$HG_TMP/arm64" "$HG_TMP/x86_64"
+        rm -rf "$HG_TMP"
+    elif [[ "$(uname -m)" == "arm64" ]]; then
+        "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" "$HG_SRC" macos-arm64
+    else
+        "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" "$HG_SRC" macos-x86_64
+    fi
+fi
+ditto "$HG_SRC" "$APP/Contents/MacOS/3rdparty/hg"
+
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
 if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
@@ -119,7 +137,7 @@ while IFS= read -r -d '' bin; do
     if file -b "$bin" | grep -q "Mach-O"; then
         sign ${ENTITLEMENTS_ARGS[@]+"${ENTITLEMENTS_ARGS[@]}"} "$bin"
     fi
-done < <(find "$APP/Contents/MacOS/3rdparty/git" "$APP/Contents/MacOS/3rdparty/svn" -type f -print0)
+done < <(find "$APP/Contents/MacOS/3rdparty/git" "$APP/Contents/MacOS/3rdparty/svn" "$APP/Contents/MacOS/3rdparty/hg" -type f -print0)
 
 # Inside-out: loose libraries, then nested bundles (deepest first), then the
 # executables and finally the application bundle itself. --deep is avoided on
@@ -164,6 +182,9 @@ if [[ "$UNIVERSAL" == "1" ]]; then
     svn_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/svn/bin/svn")"
     echo "bundled svn: $svn_archs"
     [[ "$svn_archs" == *arm64* && "$svn_archs" == *x86_64* ]] || { echo "bundled svn is not universal" >&2; exit 1; }
+    hg_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/hg/python/bin/python3")"
+    echo "bundled hg python: $hg_archs"
+    [[ "$hg_archs" == *arm64* && "$hg_archs" == *x86_64* ]] || { echo "bundled hg python is not universal" >&2; exit 1; }
 fi
 BUNDLE_VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")"
 [[ "$BUNDLE_VERSION" == "$VERSION" ]] || { echo "Bundle version $BUNDLE_VERSION != $VERSION" >&2; exit 1; }

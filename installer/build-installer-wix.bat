@@ -280,13 +280,40 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Stage Mercurial: relocatable CPython + Mercurial package (fetched) plus the hg.exe launcher (built by Docker)
+echo.
+echo Preparing bundled hg...
+if not exist "%INSTALLER_DIR%3rdparty\hg\python\python.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\fetch-hg-windows.ps1"
+    if errorlevel 1 (
+        echo Error: Failed to fetch Mercurial
+        exit /b 1
+    )
+)
+if not exist "%BUILD_DIR%\hg.exe" (
+    echo Error: hg.exe launcher was not built
+    exit /b 1
+)
+if exist "%BUILD_DIR%\3rdparty\hg" rmdir /s /q "%BUILD_DIR%\3rdparty\hg"
+xcopy "%INSTALLER_DIR%3rdparty\hg\*" "%BUILD_DIR%\3rdparty\hg\" /Y /I /E >nul
+if errorlevel 1 (
+    echo Error: Failed to copy bundled hg into the build directory
+    exit /b 1
+)
+copy /Y "%BUILD_DIR%\hg.exe" "%BUILD_DIR%\3rdparty\hg\" >nul
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName hg -SourceDir "%BUILD_DIR%\3rdparty\hg" -OutFile "%INSTALLER_DIR%HgComponents.wxs"
+if errorlevel 1 (
+    echo Error: Failed to generate HgComponents.wxs
+    exit /b 1
+)
+
 REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
 set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
 echo [DEBUG] Running wix: !WIX_PATH! build !WXS_FILE! -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
-!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" "%INSTALLER_DIR%SvnComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
+!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" "%INSTALLER_DIR%SvnComponents.wxs" "%INSTALLER_DIR%HgComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
 if errorlevel 1 (
     echo Error: WiX candle compilation failed

@@ -41,6 +41,7 @@
 
             <ComponentGroupRef Id="GitFiles" />
         <ComponentGroupRef Id="SvnFiles" />
+        <ComponentGroupRef Id="HgFiles" />
 
             <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
