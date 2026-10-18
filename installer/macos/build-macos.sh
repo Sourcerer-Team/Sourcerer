@@ -89,12 +89,29 @@ if [[ -f "$REPO_ROOT/keys/cloud_jwt_public_key.pem" ]]; then
     cp "$REPO_ROOT/keys/cloud_jwt_public_key.pem" "$APP/Contents/Resources/keys/"
 fi
 
+# Portable git with its dylibs, placed next to the executables so the app can
+# put it on PATH at startup (see prependBundledGitToPath in src/main.cpp).
+GIT_SRC="$REPO_ROOT/installer/3rdparty/git"
+if [[ ! -x "$GIT_SRC/bin/git" ]]; then
+    if [[ "$UNIVERSAL" == "1" ]]; then GIT_ARCHS="arm64 x86_64"; else GIT_ARCHS="$(uname -m)"; fi
+    ARCHS="$GIT_ARCHS" "$REPO_ROOT/installer/3rdparty/build-git-macos.sh"
+fi
+mkdir -p "$APP/Contents/MacOS/3rdparty"
+ditto "$GIT_SRC" "$APP/Contents/MacOS/3rdparty/git"
+
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
 if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
     SIGN_ARGS+=(--options runtime --timestamp)
 fi
 sign() { codesign "${SIGN_ARGS[@]}" "$@"; }
+
+# Bundled git binaries and dylibs must be signed with the same identity as the app.
+while IFS= read -r -d '' bin; do
+    if file -b "$bin" | grep -q "Mach-O"; then
+        sign ${ENTITLEMENTS_ARGS[@]+"${ENTITLEMENTS_ARGS[@]}"} "$bin"
+    fi
+done < <(find "$APP/Contents/MacOS/3rdparty/git" -type f -print0)
 
 # Inside-out: loose libraries, then nested bundles (deepest first), then the
 # executables and finally the application bundle itself. --deep is avoided on
@@ -132,6 +149,11 @@ for exe in Sourcerer SourcererLauncher; do
         [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "$exe is not universal" >&2; exit 1; }
     fi
 done
+if [[ "$UNIVERSAL" == "1" ]]; then
+    git_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/git/bin/git")"
+    echo "bundled git: $git_archs"
+    [[ "$git_archs" == *arm64* && "$git_archs" == *x86_64* ]] || { echo "bundled git is not universal" >&2; exit 1; }
+fi
 BUNDLE_VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")"
 [[ "$BUNDLE_VERSION" == "$VERSION" ]] || { echo "Bundle version $BUNDLE_VERSION != $VERSION" >&2; exit 1; }
 # Nothing may reference the build machine.

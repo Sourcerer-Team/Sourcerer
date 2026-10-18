@@ -59,6 +59,14 @@ echo "Copying QtWebEngineProcess files..."
 cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$APPDIR/usr/bin"
 cp $QT_DIR/$QT_VER/gcc_64/resources/* "$APPDIR/usr/bin/resources"
 
+echo "Bundling portable git..."
+GIT_SRC="$SCRIPT_DIR/3rdparty/git"
+if [ ! -x "$GIT_SRC/bin/git" ]; then
+    "$SCRIPT_DIR/3rdparty/build-git-linux.sh"
+fi
+mkdir -p "$APPDIR/usr/bin/3rdparty"
+cp -a "$GIT_SRC" "$APPDIR/usr/bin/3rdparty/git"
+
 echo "Copying libraries..."
 # Function to copy a library and its dependencies
 copy_lib_dependencies() {
