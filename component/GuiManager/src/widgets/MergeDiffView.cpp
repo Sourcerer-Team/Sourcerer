@@ -97,7 +97,7 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
       QString(contentWithMarkers).replace("\r\n", "\n").split('\n');
   int lineIndexTop = 0;
 
-  enum State { Normal, InOurs, InTheirs } state = Normal;
+  enum State { Normal, InOurs, InBase, InTheirs } state = Normal;
   MergeDiffRange currentRangeTop;
   MergeDiffConflict currentConflict;
   QStringList currentCommon;
@@ -116,7 +116,12 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
       currentConflict = MergeDiffConflict();
       currentConflict.startMarkerLine = line;
       pendingConflictLines = {line};
-    } else if (line.startsWith("=======") && state == InOurs) {
+    } else if (line.startsWith("|||||||") && state == InOurs) {
+      // Subversion diff3 style: base section, not shown in either pane.
+      state = InBase;
+      currentRangeTop.leftEnd = lineIndexTop;
+    } else if (line.startsWith("=======") &&
+               (state == InOurs || state == InBase)) {
       state = InTheirs;
       currentRangeTop.leftEnd = lineIndexTop; // ours ended before separator
       currentRangeTop.rightStart =
@@ -125,7 +130,13 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
     } else if (line.startsWith(">>>>>>>") && state == InTheirs) {
       const QString endMarkerLabel = markerLabel(line);
 
+      // Subversion labels start markers ".working"/".mine" and end markers
+      // ".merge-right.rN" or ".rN", so any end label is accepted.
+      const bool subversionMarkers =
+          currentRangeTop.startMarkerLabel.startsWith(".");
+
       if (endMarkerLabel == currentRangeTop.startMarkerLabel ||
+          subversionMarkers ||
           (currentRangeTop.startMarkerLabel == UPDATED_UPSTREAM &&
            endMarkerLabel == STASHED_CHANGES)) {
         state = Normal;
