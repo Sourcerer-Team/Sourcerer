@@ -59,6 +59,19 @@ void clearCachedCredentials(const QString &repoPath);
 // presents then. Use it when the server's certificate or key was replaced.
 void forgetPinnedCertificates(const QString &host);
 
+// The policy for a TLS server certificate whose chain didn't verify, for
+// clients other than libgit2 (SvnRepo): a self-signed certificate is trusted
+// on first use and pinned per host, with the same pins as Git; anything else
+// is rejected. der is the certificate in DER. Returns true when it is
+// trusted; rejection receives the reason otherwise.
+bool checkUnverifiedServerCertificate(const QByteArray &der,
+                                      const QString &host,
+                                      QString *rejection = nullptr);
+
+// Whether the certificate (DER) names host, a name or an IP address, in its
+// subjectAltName or common name.
+bool certificateMatchesHost(const QByteArray &der, const QString &host);
+
 // The self-signed TLS certificates and SSH host keys trusted on first use,
 // sorted by host.
 QVector<PinnedCertificate> getPinnedCertificates();

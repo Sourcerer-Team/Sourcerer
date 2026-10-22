@@ -4,12 +4,14 @@
 #include <svn_hash.h>
 #include <svn_props.h>
 #include <svn_string.h>
+#include <svn_path.h>
 #include <svn_wc.h>
 
 #include <Log.h>
 
 #include <QDir>
 #include <QFileInfo>
+#include <QMap>
 
 #define THREAD_ID "SvnRepo"
 
@@ -234,31 +236,109 @@ bool updateRemote(const QString &path, const QString &remoteName,
 
   // Points the working copy at the repository's new location.
   const QString wcPath = normalizedPath(path);
-  const bool success = runWithClientContext(
+  WorkingCopyInfo info;
+  if (!readInfo(&info, wcPath)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const QString oldRoot = trimmedUrl(info.reposRootUrl);
+  const QString newRoot = canonicalUrl(fetchUrl);
+  if (newRoot.isEmpty() || newRoot == oldRoot) {
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+  const QString root = info.wcRoot.isEmpty() ? wcPath : info.wcRoot;
+  const QByteArray from = oldRoot.toUtf8();
+  const QByteArray to = newRoot.toUtf8();
+
+  // The relocation leaves the working copy's write lock behind (B64); a
+  // cleanup in a client context of its own releases it.
+  const auto relocate = [&](const QString &workingCopy) {
+    const QByteArray bytes = workingCopy.toUtf8();
+    return runWithClientContext(
+               [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+                 return reportError(
+                     SvnError::RelocateFailed,
+                     svn_client_relocate2(bytes.constData(), from.constData(),
+                                          to.constData(), TRUE, ctx, pool));
+               },
+               workingCopy) &&
+           runWithClientContext(
+               [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+                 return reportError(
+                     SvnError::RelocateFailed,
+                     svn_client_cleanup2(bytes.constData(), TRUE, FALSE, FALSE,
+                                         FALSE, FALSE, ctx, pool));
+               },
+               workingCopy);
+  };
+  if (!relocate(root)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // The externals of the same repository move along: definitions that name
+  // it by its old URL are rewritten (a local change to commit), and their
+  // working copies are relocated (B62).
+  QStringList externalsToRelocate;
+  const bool rewritten = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        WorkingCopyInfo info;
-        if (!reportError(
-                SvnError::InfoFailed,
-                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
+        QMap<QString, QByteArray> values;
+        if (!reportError(SvnError::PropertyFailed,
+                         readExternalsProperties(&values, root, QString(),
+                                                 svn_depth_infinity, ctx,
+                                                 pool))) {
           return false;
         }
+        for (auto it = values.cbegin(); it != values.cend(); ++it) {
+          const QByteArray value = it.value();
+          QByteArray updatedValue;
+          for (const QByteArray &line : value.split('\n')) {
+            QByteArray updated = line;
+            const qsizetype at = updated.indexOf(from);
+            const qsizetype end = at + from.size();
+            if (at >= 0 && (at == 0 || updated.at(at - 1) == ' ') &&
+                (end == updated.size() || updated.at(end) == '/' ||
+                 updated.at(end) == ' ' || updated.at(end) == '@')) {
+              updated.replace(at, from.size(), to);
+            }
+            updatedValue += updated + '\n';
+          }
+          updatedValue.chop(1);
+          if (updatedValue != value &&
+              !reportError(SvnError::PropertyFailed,
+                           setExternalsProperty(root, it.key(), updatedValue,
+                                                ctx, pool))) {
+            return false;
+          }
 
-        const QString oldRoot = trimmedUrl(info.reposRootUrl);
-        const QString newRoot = trimmedUrl(fetchUrl);
-        if (newRoot.isEmpty() || newRoot == oldRoot) {
-          return true;
+          QVector<ExternalDefinition> definitions;
+          svn_error_t *error = parseExternals(&definitions, root, it.key(),
+                                              updatedValue, pool);
+          if (error) {
+            svn_error_clear(error);
+            continue;
+          }
+          for (const ExternalDefinition &definition : definitions) {
+            const QString externalPath =
+                absoluteFilePath(root, definition.name);
+            WorkingCopyInfo external;
+            error = readInfo(&external, externalPath, revisionUnspecified(),
+                             ctx, pool);
+            if (error) {
+              svn_error_clear(error);
+            } else if (trimmedUrl(external.reposRootUrl) == oldRoot) {
+              externalsToRelocate.append(externalPath);
+            }
+          }
         }
-
-        const QByteArray wcRoot =
-            (info.wcRoot.isEmpty() ? wcPath : info.wcRoot).toUtf8();
-        const QByteArray from = oldRoot.toUtf8();
-        const QByteArray to = newRoot.toUtf8();
-        return reportError(
-            SvnError::RelocateFailed,
-            svn_client_relocate2(wcRoot.constData(), from.constData(),
-                                 to.constData(), FALSE, ctx, pool));
+        return true;
       },
-      wcPath);
+      root);
+  bool success = rewritten;
+  for (const QString &externalPath : externalsToRelocate) {
+    success = success && relocate(externalPath);
+  }
 
   LOG_PERF(0, "Exit");
   return success;
@@ -291,9 +371,14 @@ bool setDefaultTarget(const QString &, const QString &, const QString &) {
   return setUnsupported("Remote targets");
 }
 
-std::tuple<bool, QString, QString> getUpstream(const QString &,
+std::tuple<bool, QString, QString> getUpstream(const QString &path,
                                                const QString &localBranchName) {
-  // A branch is its own upstream.
+  // An existing branch is its own upstream.
+  const bool quit = false;
+  if (localBranchName.isEmpty() ||
+      !listLocalBranches(path, quit).contains(localBranchName)) {
+    return {false, QString(), QString()};
+  }
   return {true, kRemoteName, localBranchName};
 }
 
@@ -344,11 +429,51 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(const QString &path,
                       ? QString::number(external.revision)
                       : QString();
 
-    // Directory externals are working copies of their own.
+    // Directory externals are working copies of their own. Local changes
+    // in one, or a revision it doesn't have yet (the pinned one, or a newer
+    // one upstream), make it Outdated.
     const QString externalPath = absoluteFilePath(wcPath, external.name);
     info.statusInfo.status = QFileInfo::exists(externalPath)
                                  ? SubmoduleStatusType::UpToDate
                                  : SubmoduleStatusType::Outdated;
+    if (QFileInfo(externalPath).isDir() && !quitFlag) {
+      const SvnStatus local = readStatus(externalPath, &quitFlag);
+      bool outdated = !local.modifiedFiles.isEmpty() ||
+                      !local.deletedFiles.isEmpty() ||
+                      !local.typeChangedFiles.isEmpty() ||
+                      !local.newStagedFiles.isEmpty() ||
+                      !local.modifiedStagedFiles.isEmpty() ||
+                      !local.deletedStagedFiles.isEmpty() ||
+                      !local.conflictedFiles.isEmpty();
+      runWithClientContext(
+          [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+            svn_revnum_t newest = SVN_INVALID_REVNUM;
+            WorkingCopyInfo localInfo;
+            WorkingCopyInfo upstream;
+            svn_error_t *error =
+                readMaxRevision(&newest, externalPath, false, ctx, pool);
+            if (!error) {
+              error = readInfo(&localInfo, externalPath, revisionUnspecified(),
+                               ctx, pool);
+            }
+            if (!error && !SVN_IS_VALID_REVNUM(external.revision)) {
+              error = readInfo(&upstream, localInfo.url, revisionHead(), ctx,
+                               pool);
+            }
+            if (error) {
+              svn_error_clear(error);
+            } else if (SVN_IS_VALID_REVNUM(external.revision)) {
+              outdated = outdated || newest != external.revision;
+            } else {
+              outdated = outdated || upstream.lastChangedRevision > newest;
+            }
+            return true;
+          },
+          externalPath);
+      if (outdated) {
+        info.statusInfo.status = SubmoduleStatusType::Outdated;
+      }
+    }
     submodules.append(info);
   }
 
@@ -371,11 +496,36 @@ bool addSubmodule(const QString &path, const QString &url, const QString &name,
   const QString wcPath = normalizedPath(path);
   const QString relativeName = QDir::cleanPath(QDir::fromNativeSeparators(
       QFileInfo(name).isAbsolute() ? relativeFilePath(wcPath, name) : name));
-  const QString definingDirectory =
+  QString definingDirectory =
       relativeName.contains('/') ? relativeName.section('/', 0, -2) : QString();
-  const QString target = relativeName.section('/', -1);
+  QString target = relativeName.section('/', -1);
+  // A folder that isn't versioned can't hold the property: the nearest
+  // versioned one above it does, with the rest of the path as the target.
+  while (!definingDirectory.isEmpty()) {
+    WorkingCopyInfo directoryInfo;
+    const QString absoluteDirectory =
+        absoluteFilePath(wcPath, definingDirectory);
+    if (QFileInfo(absoluteDirectory).isDir() &&
+        runWithClientContext(
+            [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+              svn_error_t *error =
+                  readInfo(&directoryInfo, absoluteDirectory,
+                           revisionUnspecified(), ctx, pool);
+              svn_error_clear(error);
+              return !error;
+            },
+            wcPath)) {
+      break;
+    }
+    target = definingDirectory.section('/', -1) + QLatin1Char('/') + target;
+    definingDirectory = definingDirectory.contains('/')
+                            ? definingDirectory.section('/', 0, -2)
+                            : QString();
+  }
 
-  if (target.isEmpty() || url.trimmed().isEmpty()) {
+  if (target.isEmpty() || url.trimmed().isEmpty() ||
+      relativeName.startsWith(QLatin1String("..")) ||
+      QFileInfo(relativeName).isAbsolute()) {
     setLastError(SvnError::InvalidArgument, -1,
                  QStringLiteral("The external needs a URL and a path."));
     LOG_PERF(0, "Exit");
@@ -396,7 +546,20 @@ bool addSubmodule(const QString &path, const QString &url, const QString &name,
         if (!value.isEmpty() && !value.endsWith('\n')) {
           value += '\n';
         }
-        value += url.trimmed().toUtf8() + ' ' + target.toUtf8() + '\n';
+        // A target with a space is quoted; the URL is escaped.
+        const QByteArray quotedTarget =
+            target.contains(QLatin1Char(' '))
+                ? '"' + target.toUtf8() + '"'
+                : target.toUtf8();
+        QStringList urlParts = url.trimmed().split(QLatin1Char(' '),
+                                                   Qt::SkipEmptyParts);
+        if (!urlParts.isEmpty() &&
+            urlParts.last().contains(QLatin1String("://"))) {
+          urlParts.last() = QString::fromUtf8(svn_path_uri_autoescape(
+              urlParts.last().toUtf8().constData(), pool));
+        }
+        value += urlParts.join(QLatin1Char(' ')).toUtf8() + ' ' + quotedTarget +
+                 '\n';
 
         // Validate the new definition before setting it.
         QVector<ExternalDefinition> parsed;
@@ -409,9 +572,53 @@ bool addSubmodule(const QString &path, const QString &url, const QString &name,
           return false;
         }
 
+        // Only the new external is fetched, by checking it out where its
+        // definition puts it; nothing else in the working copy moves to
+        // another revision. Subversion only fetches externals in recursive
+        // updates.
+        apr_array_header_t *items = nullptr;
+        const QByteArray definingBytes =
+            absoluteFilePath(wcPath, definingDirectory).toUtf8();
+        const QByteArray line = urlParts.join(QLatin1Char(' ')).toUtf8() +
+                                ' ' + quotedTarget;
+        if (!reportError(SvnError::PropertyFailed,
+                         svn_wc_parse_externals_description3(
+                             &items, definingBytes.constData(),
+                             line.constData(), FALSE, pool))) {
+          return false;
+        }
+        const auto *item = APR_ARRAY_IDX(items, 0, svn_wc_external_item2_t *);
+        WorkingCopyInfo defining;
+        if (!reportError(SvnError::InfoFailed,
+                         readInfo(&defining,
+                                  absoluteFilePath(wcPath, definingDirectory),
+                                  revisionUnspecified(), ctx, pool))) {
+          return false;
+        }
+        QString externalUrl = QString::fromUtf8(item->url);
+        if (externalUrl.startsWith(QLatin1String("^/"))) {
+          externalUrl = trimmedUrl(defining.reposRootUrl) + externalUrl.mid(1);
+        } else if (externalUrl.startsWith(QLatin1String("../"))) {
+          externalUrl = trimmedUrl(defining.url) + QLatin1Char('/') + externalUrl;
+        }
+        const QByteArray checkoutUrl = canonicalUrl(externalUrl).toUtf8();
+        const QByteArray targetBytes =
+            absoluteFilePath(wcPath, joinRelative(definingDirectory, target))
+                .toUtf8();
+        svn_revnum_t resultRevision = SVN_INVALID_REVNUM;
+        const svn_opt_revision_t peg =
+            item->peg_revision.kind == svn_opt_revision_unspecified
+                ? revisionHead()
+                : item->peg_revision;
+        const svn_opt_revision_t revision =
+            item->revision.kind == svn_opt_revision_unspecified
+                ? peg
+                : item->revision;
         return reportError(
             SvnError::UpdateFailed,
-            updateExternals(wcPath, definingDirectory, ctx, pool));
+            svn_client_checkout3(&resultRevision, checkoutUrl.constData(),
+                                 targetBytes.constData(), &peg, &revision,
+                                 svn_depth_infinity, FALSE, FALSE, ctx, pool));
       },
       wcPath);
 
@@ -437,6 +644,16 @@ bool deleteSubmodule(const QString &path, const QString &submoduleName,
   }
 
   const ExternalDefinition definition = *external;
+  const QString externalPath = absoluteFilePath(wcPath, definition.name);
+  if (!submodulePath.isEmpty() &&
+      absoluteFilePath(wcPath, submodulePath) != externalPath) {
+    setLastError(SvnError::InvalidArgument, -1,
+                 QStringLiteral("'%1' isn't the folder of the external '%2'.")
+                     .arg(submodulePath, submoduleName));
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         QMap<QString, QByteArray> values;
@@ -479,9 +696,6 @@ bool deleteSubmodule(const QString &path, const QString &submoduleName,
       wcPath);
 
   if (success) {
-    const QString externalPath = submodulePath.isEmpty()
-                                     ? absoluteFilePath(wcPath, definition.name)
-                                     : absoluteFilePath(wcPath, submodulePath);
     if (QFileInfo(externalPath).isDir() &&
         !QDir(externalPath).removeRecursively()) {
       LOG_WARN("Failed to remove the external directory '{}'.", externalPath);

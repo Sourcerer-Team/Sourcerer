@@ -456,80 +456,18 @@ void SvnRepoManagerBridgeImpl::amend(const QWeakPointer<RepoContainer> &guard,
                                      bool signCommit) {
   LOG_PERF(0, "Enter");
 
-  const QString eventUuid = Uuid::createUuid();
+  Q_UNUSED(summary);
+  Q_UNUSED(description);
+  Q_UNUSED(author);
+  Q_UNUSED(email);
+  Q_UNUSED(signoff);
+  Q_UNUSED(signCommit);
 
-  const int token = _container._eventManager.startWait();
-
-  SvnRepoAmendCommand command;
-  command.uuid = _container._uuid;
-  command.syncUuid = eventUuid;
-  command.author = author;
-  command.email = email;
-  command.summary = summary;
-  command.message = description;
-  command.signoff = signoff;
-  command.signCommit = signCommit;
-
-  EventManager::Event amendEvent(EventManager::EventType::SvnRepoManagerAmend,
-                                 eventUuid);
-  amendEvent.addData(command);
-  _container._eventManager.send(amendEvent);
-
-  static std::set types = {EventManager::EventType::SvnRepoManagerAmendError,
-                           EventManager::EventType::SvnRepoManagerAmendResult};
-
-  const auto &[success, event] =
-      _container._eventManager.waitForAnswer(token, eventUuid, types);
-
-  if (!success) {
-    closeRepo();
-
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showErrorPage();
-      _container.showErrorToast(_container.tr("Failed to amend changes."),
-                                _container.tr("Error"));
-    });
-
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
-  if (event.type() != EventManager::EventType::SvnRepoManagerAmendResult) {
-    const auto error = event.data<SvnRepoError>();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorToast(error.message, _container.tr("Error"));
-    });
-
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
-  const auto commandResult = event.data<SvnRepoResult>();
-
-  const bool commitSuccess = commandResult.value.toBool();
-
-  if (!commitSuccess) {
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorToast(_container.tr("Failed to amend changes."),
-                                _container.tr("Error"));
-    });
-
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
-  _container.refreshHistory(guard);
-
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    if (commitSuccess) {
-      _container.clearSummaryAndDescription();
-    }
-    _container.showSpinnerOverlay(false);
-    _container.ui->stackedWidgetMiddle->setCurrentIndex(
-        static_cast<int>(MainViewPanes::History));
-  });
+  // Subversion revisions can't be amended. features() doesn't return
+  // RepoFeatures::CommitAmend, so the commit pane never asks for it.
+  reportUnsupportedOperation(_container.tr("Amending a revision"));
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -925,11 +863,16 @@ void SvnRepoManagerBridgeImpl::checkoutCommit(
 void SvnRepoManagerBridgeImpl::closeRepo() const {
   LOG_PERF(0, "Enter");
 
+  // The manager frees the repository's context when it answers the close
+  // with this sync uuid.
+  const QString eventUuid = Uuid::createUuid();
+
   SvnRepoCloseCommand closeCommand;
   closeCommand.uuid = _container._uuid;
+  closeCommand.syncUuid = eventUuid;
 
   EventManager::Event closeRepoEvent(
-      EventManager::EventType::SvnRepoManagerCloseRepo);
+      EventManager::EventType::SvnRepoManagerCloseRepo, eventUuid);
   closeRepoEvent.addData(closeCommand);
   _container._eventManager.send(closeRepoEvent);
 

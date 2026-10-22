@@ -425,9 +425,6 @@ namespace EventManager {
   X(SvnRepoManagerSetDefaultTarget)                                            \
   X(SvnRepoManagerSetDefaultTargetResult)                                      \
   X(SvnRepoManagerSetDefaultTargetError)                                       \
-  X(SvnRepoManagerAmend)                                                       \
-  X(SvnRepoManagerAmendResult)                                                 \
-  X(SvnRepoManagerAmendError)                                                  \
   X(SvnRepoManagerApplyPatch)                                                  \
   X(SvnRepoManagerApplyPatchResult)                                            \
   X(SvnRepoManagerApplyPatchError)                                             \

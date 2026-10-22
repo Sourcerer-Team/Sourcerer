@@ -29,7 +29,6 @@ private:
   void resolveTreeConflictWorker(
       const Structs::SvnRepoResolveTreeConflictCommand &command);
   void addSubmoduleWorker(const Structs::SvnRepoAddSubmoduleCommand &command);
-  void amendWorker(const Structs::SvnRepoAmendCommand &command);
   void blameWorker(const Structs::SvnRepoBlameCommand &command);
   void applyPatchWorker(const Structs::SvnRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::SvnRepoApplyStashCommand &command);
@@ -149,7 +148,6 @@ private:
       const Structs::SvnRepoResolveTreeConflictCommand &command);
   void scheduleWorkerForAddSubmodule(
       const Structs::SvnRepoAddSubmoduleCommand &command);
-  void scheduleWorkerForAmend(const Structs::SvnRepoAmendCommand &command);
   void scheduleWorkerForBlame(const Structs::SvnRepoBlameCommand &command);
   void
   scheduleWorkerForApplyPatch(const Structs::SvnRepoApplyPatchCommand &command);

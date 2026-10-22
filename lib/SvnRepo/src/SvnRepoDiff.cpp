@@ -16,6 +16,8 @@
 #include <QFile>
 #include <QFileInfo>
 
+#include <algorithm>
+
 #define THREAD_ID "SvnRepo"
 
 namespace SvnRepo {
@@ -151,10 +153,17 @@ static FilesDiff diffFilesFromShelf(const QString &path,
 
         for (const QString &file : files) {
           const QString relativePath = shelfRelativePath(wcPath, file);
-          const QByteArray oldContent =
+          QByteArray oldContent =
               readShelfCopy(shelfCopyPath(filesDir, relativePath, ".base"));
-          const QByteArray newContent =
+          QByteArray newContent =
               readShelfCopy(shelfCopyPath(filesDir, relativePath, ".work"));
+          // The base copy is the pristine text, which has LF where the work
+          // copy has the native CRLF (svn:eol-style native): compared with
+          // the same line endings, only real changes are left.
+          if (oldContent.contains("\r\n") != newContent.contains("\r\n")) {
+            oldContent.replace("\r\n", "\n");
+            newContent.replace("\r\n", "\n");
+          }
 
           result.repoContent.insert(file, contentWithinLimit(oldContent));
           result.filesContent.insert(file, contentWithinLimit(newContent));
@@ -235,12 +244,50 @@ static FilesDiffDelta addedFileDelta(const QString &file,
   return delta;
 }
 
-// Diff text in the format GitRepo uses for FilesDiff::diff.
+// Delta removing every line of content, for missing files.
+static FilesDiffDelta removedFileDelta(const QString &file,
+                                       const QString &content) {
+  FilesDiffDelta delta = addedFileDelta(file, content);
+  for (FilesDiffHunk &hunk : delta.hunks) {
+    hunk.oldStart = 1;
+    hunk.oldLines = hunk.newLines;
+    hunk.newStart = 0;
+    hunk.newLines = 0;
+    for (FilesDiffLine &line : hunk.lines) {
+      line.origin = QChar('-');
+    }
+  }
+  return delta;
+}
+
+// Diff text in the format GitRepo uses for FilesDiff::diff: a Git diff that
+// git apply and applyPatch take, with ---/+++ headers.
 static QString diffText(const QVector<FilesDiffDelta> &deltas) {
   QString text;
   for (const FilesDiffDelta &delta : deltas) {
+    const auto allHunks = [&](const auto &test) {
+      return !delta.hunks.isEmpty() &&
+             std::all_of(delta.hunks.cbegin(), delta.hunks.cend(), test);
+    };
+    const bool added = allHunks([](const FilesDiffHunk &hunk) {
+      return hunk.oldStart == 0 && hunk.oldLines == 0;
+    });
+    const bool deleted = allHunks([](const FilesDiffHunk &hunk) {
+      return hunk.newStart == 0 && hunk.newLines == 0;
+    });
     text += QStringLiteral("diff --git a/%1 b/%2\n")
                 .arg(delta.oldFilePath, delta.newFilePath);
+    if (added) {
+      text += QStringLiteral("new file mode 100644\n--- /dev/null\n+++ b/%1\n")
+                  .arg(delta.newFilePath);
+    } else if (deleted) {
+      text +=
+          QStringLiteral("deleted file mode 100644\n--- a/%1\n+++ /dev/null\n")
+              .arg(delta.oldFilePath);
+    } else if (!delta.hunks.isEmpty()) {
+      text += QStringLiteral("--- a/%1\n+++ b/%2\n")
+                  .arg(delta.oldFilePath, delta.newFilePath);
+    }
     for (const FilesDiffHunk &hunk : delta.hunks) {
       text += QStringLiteral("@@ -%1,%2 +%3,%4 @@\n")
                   .arg(hunk.oldStart)
@@ -278,15 +325,19 @@ static QString contentWithinLimit(const QByteArray &content) {
 
 struct FileSizeBaton {
   qint64 size = -1;
+  bool folder = false;
 };
 
-static svn_error_t *fileSizeCallback(void *baton, const char *,
+static svn_error_t *fileSizeCallback(void *baton, const char *path,
                                      const svn_dirent_t *dirent,
                                      const svn_lock_t *, const char *,
                                      const char *, const char *, apr_pool_t *) {
-  if (baton && dirent && dirent->kind == svn_node_file) {
-    static_cast<FileSizeBaton *>(baton)->size =
-        static_cast<qint64>(dirent->size);
+  auto *payload = static_cast<FileSizeBaton *>(baton);
+  if (payload && dirent && dirent->kind == svn_node_file) {
+    payload->size = static_cast<qint64>(dirent->size);
+  } else if (payload && dirent && dirent->kind == svn_node_dir && path &&
+             !*path) {
+    payload->folder = true;
   }
   return SVN_NO_ERROR;
 }
@@ -384,17 +435,25 @@ FilesDiff diffFiles(const QString &path, const QStringList &files) {
             continue;
           }
 
+          // BASE as the working copy shows it, keywords expanded (B44).
           QByteArray baseContent;
           if (status.status != svn_wc_status_added) {
-            svn_error_t *error = readFileAtRevision(&baseContent, absolutePath,
-                                                    revisionUnspecified(),
-                                                    revisionBase(), ctx, pool);
+            svn_error_t *error = readFileAtRevision(
+                &baseContent, absolutePath, revisionUnspecified(),
+                revisionBase(), ctx, pool, true);
             if (error) {
               svn_error_clear(error);
               baseContent.clear();
             }
           }
           result.repoContent.insert(file, contentWithinLimit(baseContent));
+
+          // Subversion has nothing to compare a missing file with (B49).
+          if (status.status == svn_wc_status_missing) {
+            result.deltas.append(
+                removedFileDelta(file, QString::fromUtf8(baseContent)));
+            continue;
+          }
 
           QString diff;
           if (!reportError(SvnError::DiffFailed,
@@ -437,6 +496,12 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
     LOG_PERF(0, "Exit");
     return diffFilesFromShelf(path, files, commit);
   }
+  if (revision < 1) {
+    setLastError(SvnError::InvalidRevision, -1,
+                 QStringLiteral("Revision 0 is the empty repository."));
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   const QString wcPath = normalizedPath(path);
   FilesDiff result;
@@ -453,30 +518,47 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
         const svn_opt_revision_t peg = revisionNumber(revision);
         const svn_opt_revision_t previous =
             revisionNumber(revision > 0 ? revision - 1 : 0);
+        // The file's name today, at the working copy's revision: Subversion
+        // follows it back through copies to where it was at the revision
+        // (B50). A file that is gone by then is read at the revision itself.
+        const svn_opt_revision_t current =
+            SVN_IS_VALID_REVNUM(info.revision) && info.revision >= revision
+                ? revisionNumber(info.revision)
+                : peg;
+        const auto read = [&](QByteArray *content, const QString &url,
+                              const svn_opt_revision_t &at) {
+          svn_error_t *error =
+              readFileAtRevision(content, url, current, at, ctx, pool);
+          if (error) {
+            svn_error_clear(error);
+            error = readFileAtRevision(content, url, at, at, ctx, pool);
+          }
+          if (error) {
+            svn_error_clear(error);
+            content->clear();
+          }
+        };
 
         for (const QString &file : files) {
           const QString fileUrl = commitFileUrl(info, wcPath, file);
 
           QByteArray oldContent;
-          svn_error_t *error = readFileAtRevision(
-              &oldContent, fileUrl, previous, previous, ctx, pool);
-          if (error) {
-            svn_error_clear(error);
-            oldContent.clear();
-          }
+          read(&oldContent, fileUrl, previous);
           result.repoContent.insert(file, contentWithinLimit(oldContent));
 
           QByteArray newContent;
-          error = readFileAtRevision(&newContent, fileUrl, peg, peg, ctx, pool);
-          if (error) {
-            svn_error_clear(error);
-            newContent.clear();
-          }
+          read(&newContent, fileUrl, peg);
           result.filesContent.insert(file, contentWithinLimit(newContent));
 
           QString diff;
-          error = runDiff(&diff, fileUrl, peg, previous, peg, QString(),
-                          svn_depth_empty, false, ctx, pool);
+          svn_error_t *error = runDiff(&diff, fileUrl, current, previous, peg,
+                                       QString(), svn_depth_empty, false, ctx,
+                                       pool);
+          if (error) {
+            svn_error_clear(error);
+            error = runDiff(&diff, fileUrl, peg, previous, peg, QString(),
+                            svn_depth_empty, false, ctx, pool);
+          }
           if (error) {
             // The file did not exist before the revision.
             svn_error_clear(error);
@@ -609,12 +691,31 @@ qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
         const QByteArray fileUrl =
             commitFileUrl(info, wcPath, filePath).toUtf8();
         const svn_opt_revision_t peg = revisionNumber(revision);
-        return reportError(SvnError::InfoFailed,
-                           svn_client_list4(fileUrl.constData(), &peg, &peg,
-                                            nullptr, svn_depth_empty,
-                                            SVN_DIRENT_KIND | SVN_DIRENT_SIZE,
-                                            FALSE, FALSE, fileSizeCallback,
-                                            &baton, ctx, pool));
+        // Followed from today's name, like diffFilesFromCommit.
+        const svn_opt_revision_t current =
+            SVN_IS_VALID_REVNUM(info.revision) && info.revision >= revision
+                ? revisionNumber(info.revision)
+                : peg;
+        svn_error_t *error = svn_client_list4(
+            fileUrl.constData(), &current, &peg, nullptr, svn_depth_empty,
+            SVN_DIRENT_KIND | SVN_DIRENT_SIZE, FALSE, FALSE, fileSizeCallback,
+            &baton, ctx, pool);
+        if (error) {
+          svn_error_clear(error);
+          error = svn_client_list4(fileUrl.constData(), &peg, &peg, nullptr,
+                                   svn_depth_empty,
+                                   SVN_DIRENT_KIND | SVN_DIRENT_SIZE, FALSE,
+                                   FALSE, fileSizeCallback, &baton, ctx, pool);
+        }
+        if (!reportError(SvnError::InfoFailed, error)) {
+          return false;
+        }
+        if (baton.folder) {
+          setLastError(SvnError::InvalidArgument, -1,
+                       QStringLiteral("%1 is a folder.").arg(filePath));
+          return false;
+        }
+        return true;
       },
       wcPath);
 
@@ -632,10 +733,25 @@ BlameReport blame(const QString &path, const QStringList &files,
   // A revision commit blames the files at that revision; otherwise the
   // working copy (local files) or HEAD (repository-root files) is used.
   svn_revnum_t revision = SVN_INVALID_REVNUM;
-  const bool atRevision = parseRevision(commit, &revision);
+  const bool atRevision = !commit.isEmpty() && parseRevision(commit, &revision);
 
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        if (!commit.isEmpty() && !atRevision) {
+          // A stash blames the working copy; anything else is unknown.
+          QString filesDir;
+          svn_error_t *error =
+              shelfFilesDir(&filesDir, commit, wcPath, ctx, pool);
+          if (error) {
+            svn_error_clear(error);
+            setLastError(SvnError::InvalidRevision, -1,
+                         QStringLiteral("'%1' is neither a revision nor a "
+                                        "stash.")
+                             .arg(commit));
+            return false;
+          }
+        }
+
         WorkingCopyInfo info;
         bool infoRead = false;
         for (const QString &file : files) {

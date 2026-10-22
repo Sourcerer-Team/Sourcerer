@@ -392,6 +392,38 @@ QString takeCertificateRejection() {
 
 } // namespace Private
 
+bool checkUnverifiedServerCertificate(const QByteArray &der,
+                                      const QString &host,
+                                      QString *rejection) {
+  gLastRejection.clear();
+  git_cert_x509 cert{};
+  cert.parent.cert_type = GIT_CERT_X509;
+  cert.data = const_cast<char *>(der.constData());
+  cert.len = static_cast<size_t>(der.size());
+  const bool trusted = checkX509(&cert, host) == 0;
+  // libgit2 isn't the caller here: its error is not left behind.
+  git_error_clear();
+  if (rejection) {
+    *rejection = takeCertificateRejection();
+  } else {
+    gLastRejection.clear();
+  }
+  return trusted;
+}
+
+bool certificateMatchesHost(const QByteArray &der, const QString &host) {
+  X509Ptr x509 = parseDer(der);
+  if (!x509) {
+    return false;
+  }
+  const QByteArray name = host.toUtf8();
+  return !QHostAddress(host).isNull()
+             ? X509_check_ip_asc(x509.get(), name.constData(), 0) == 1
+             : X509_check_host(x509.get(), name.constData(), name.size(),
+                               X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS,
+                               nullptr) == 1;
+}
+
 void forgetPinnedCertificates(const QString &host) {
   PinStore &store = pinStore();
   LOCKGUARD(store.mutex);
