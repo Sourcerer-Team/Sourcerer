@@ -9,6 +9,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFileInfo>
 
 #include <algorithm>
 
@@ -53,17 +54,22 @@ static svn_error_t *readShelves(QVector<ShelfEntry> *shelves,
   return SVN_NO_ERROR;
 }
 
-static svn_error_t *shelfAt(ShelfEntry *shelf, int index, const QString &wcPath,
-                            svn_client_ctx_t *ctx, apr_pool_t *pool) {
+// The shelf with index; records InvalidArgument when there is none.
+static bool shelfAt(ShelfEntry *shelf, int index, const QString &wcPath,
+                    svn_client_ctx_t *ctx, apr_pool_t *pool) {
   QVector<ShelfEntry> shelves;
-  SVN_ERR(readShelves(&shelves, wcPath, ctx, pool));
+  if (!reportError(SvnError::ShelveFailed,
+                   readShelves(&shelves, wcPath, ctx, pool))) {
+    return false;
+  }
   if (index < 0 || index >= shelves.size()) {
-    return svn_error_createf(SVN_ERR_ILLEGAL_TARGET, nullptr,
-                             "There is no stash with index %d", index);
+    setLastError(SvnError::InvalidArgument, -1,
+                 QStringLiteral("There is no stash with index %1.").arg(index));
+    return false;
   }
 
   *shelf = shelves[index];
-  return SVN_NO_ERROR;
+  return true;
 }
 
 static svn_error_t *readLogMessage(QString *message, const QString &name,
@@ -80,6 +86,42 @@ static svn_error_t *readLogMessage(QString *message, const QString &name,
   *message = logMessage ? QString::fromUtf8(logMessage) : name;
 
   return svn_client__shelf2_close(shelf, pool);
+}
+
+struct AddedDirectoriesBaton {
+  QStringList directories;
+};
+
+static svn_error_t *addedDirectoryCallback(void *baton, const char *,
+                                           const svn_client_status_t *status,
+                                           apr_pool_t *) {
+  auto *payload = static_cast<AddedDirectoriesBaton *>(baton);
+  if (payload && status && status->kind == svn_node_dir &&
+      status->node_status == svn_wc_status_added && !status->copied) {
+    payload->directories.append(QString::fromUtf8(status->local_abspath));
+  }
+  return SVN_NO_ERROR;
+}
+
+// Added folders of the working copy, deepest first.
+static svn_error_t *readAddedDirectories(QStringList *directories,
+                                         const QString &wcPath,
+                                         svn_client_ctx_t *ctx,
+                                         apr_pool_t *pool) {
+  AddedDirectoriesBaton baton;
+  const QByteArray wcBytes = wcPath.toUtf8();
+  const svn_opt_revision_t revision = revisionWorking();
+  svn_revnum_t youngest = SVN_INVALID_REVNUM;
+  SVN_ERR(svn_client_status6(&youngest, ctx, wcBytes.constData(), &revision,
+                             svn_depth_infinity, FALSE, FALSE, TRUE, FALSE,
+                             TRUE, FALSE, nullptr, addedDirectoryCallback,
+                             &baton, pool));
+  std::sort(baton.directories.begin(), baton.directories.end(),
+            [](const QString &left, const QString &right) {
+              return left.size() > right.size();
+            });
+  *directories = baton.directories;
+  return SVN_NO_ERROR;
 }
 
 struct StashFilesBaton {
@@ -159,6 +201,10 @@ bool stash(const QString &path, const QString &note) {
   LOG_PERF(0, "Enter");
 
   const QString wcPath = normalizedPath(path);
+  if (refuseWhileOperationInProgress(wcPath)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
   const QByteArray name = QStringLiteral("sourcerer-%1")
                               .arg(QDateTime::currentDateTimeUtc().toString(
                                   QStringLiteral("yyyyMMddHHmmsszzz")))
@@ -173,6 +219,12 @@ bool stash(const QString &path, const QString &note) {
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         const QByteArray wcBytes = wcPath.toUtf8();
+        QStringList addedDirectories;
+        if (!reportError(SvnError::ShelveFailed,
+                         readAddedDirectories(&addedDirectories, wcPath, ctx,
+                                              pool))) {
+          return false;
+        }
         svn_client__shelf2_t *shelf = nullptr;
         if (!reportError(SvnError::ShelveFailed,
                          svn_client__shelf2_open_or_create(
@@ -208,8 +260,26 @@ bool stash(const QString &path, const QString &note) {
           return reportError(SvnError::ShelveFailed, error);
         }
 
-        return reportError(SvnError::ShelveFailed,
-                           svn_client__shelf2_close(shelf, pool));
+        if (!reportError(SvnError::ShelveFailed,
+                         svn_client__shelf2_close(shelf, pool))) {
+          return false;
+        }
+
+        // Unapplying leaves the added folders behind, empty and added: they
+        // were part of the stash and go with it (B19h); applyStash makes and
+        // adds them again.
+        for (const QString &directory : addedDirectories) {
+          if (!QDir(directory).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot |
+                                       QDir::Hidden | QDir::System)) {
+            continue;
+          }
+          const PathArray target = makePathArray(pool, {directory});
+          svn_error_clear(svn_client_revert4(target.array, svn_depth_empty,
+                                             nullptr, TRUE, FALSE, FALSE, ctx,
+                                             pool));
+          QDir().rmdir(directory);
+        }
+        return true;
       },
       wcPath);
 
@@ -261,9 +331,60 @@ bool applyStash(const QString &path, int index) {
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         ShelfEntry shelf;
+        if (!shelfAt(&shelf, index, wcPath, ctx, pool)) {
+          return false;
+        }
+
+        // A file the stash adds that is already there, unversioned, is the
+        // user's: it is never overwritten (B58).
+        CommitStatus stashed;
+        if (!reportError(SvnError::ShelveFailed,
+                         readStashFiles(&stashed, shelf.name, wcPath, ctx,
+                                        pool))) {
+          return false;
+        }
+        QStringList inTheWay;
+        for (const QString &file : stashed.newFiles) {
+          if (QFileInfo::exists(absoluteFilePath(wcPath, file))) {
+            inTheWay.append(file);
+          }
+        }
+        if (!inTheWay.isEmpty()) {
+          setLastError(SvnError::ShelveFailed, -1,
+                       QStringLiteral("Files of the stash are in the way: %1")
+                           .arg(inTheWay.join(QStringLiteral(", "))));
+          return false;
+        }
+
+        // The folders the stash's new files go in are added first; stash
+        // un-added them when they were empty (B19h).
+        for (const QString &file : stashed.newFiles) {
+          QStringList missing;
+          for (QString directory =
+                   QFileInfo(absoluteFilePath(wcPath, file)).path();
+               directory.size() > wcPath.size();
+               directory = QFileInfo(directory).path()) {
+            WorkingCopyInfo info;
+            svn_error_t *error =
+                readInfo(&info, directory, revisionUnspecified(), ctx, pool);
+            if (!error) {
+              break;
+            }
+            svn_error_clear(error);
+            missing.prepend(directory);
+          }
+          for (const QString &directory : missing) {
+            QDir().mkpath(directory);
+            if (!reportError(SvnError::ShelveFailed,
+                             svn_client_add5(directory.toUtf8().constData(),
+                                             svn_depth_empty, FALSE, FALSE,
+                                             FALSE, FALSE, ctx, pool))) {
+              return false;
+            }
+          }
+        }
+
         return reportError(SvnError::ShelveFailed,
-                           shelfAt(&shelf, index, wcPath, ctx, pool)) &&
-               reportError(SvnError::ShelveFailed,
                            applyShelf(shelf.name, wcPath, ctx, pool));
       },
       wcPath);
@@ -279,8 +400,7 @@ bool deleteStash(const QString &path, int index) {
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         ShelfEntry shelf;
-        if (!reportError(SvnError::ShelveFailed,
-                         shelfAt(&shelf, index, wcPath, ctx, pool))) {
+        if (!shelfAt(&shelf, index, wcPath, ctx, pool)) {
           return false;
         }
 
@@ -336,8 +456,7 @@ CommitStatus getStashStatus(const QString &path, int stashIndex) {
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         ShelfEntry shelf;
-        if (!reportError(SvnError::ShelveFailed,
-                         shelfAt(&shelf, stashIndex, wcPath, ctx, pool))) {
+        if (!shelfAt(&shelf, stashIndex, wcPath, ctx, pool)) {
           return false;
         }
 

@@ -22,12 +22,12 @@ This implementation provides secure, per-repository encrypted credential storage
    - Singleton class managing encrypted credential storage
    - Handles encryption/decryption, persistence, and memory management
 
-2. **GitRepo Integration** (`lib/GitRepo/src/GitRepo.cpp`)
+2. **GitRepo Integration** (`lib/GitRepo/src/GitRepoCredentials.cpp`)
    - Modified credential callback to use encrypted storage
    - Automatically stores credentials when user chooses to remember them
    - Retrieves stored credentials before prompting user
 
-3. **GitCredentialsResponse** (`lib/GitRepo/include/GitRepo.h`)
+3. **GitCredentialsResponse** (`lib/GitRepo/include/GitRepoTypes.h`)
    - Extended with `rememberCredentials` boolean field
    - Allows UI to indicate user's preference for credential persistence
 

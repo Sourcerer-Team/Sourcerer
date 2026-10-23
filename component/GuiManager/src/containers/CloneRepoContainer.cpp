@@ -3,6 +3,7 @@
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
+#include <HgRepoManagerStructs.h>
 #include <Log.h>
 #include <SvnRepoManagerStructs.h>
 #include <Uuid.h>
@@ -16,6 +17,7 @@
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
+using namespace HgRepoManager::Structs;
 using namespace SvnRepoManager::Structs;
 
 namespace GuiManager {
@@ -50,12 +52,26 @@ CloneRepoContainer::CloneRepoContainer(QWidget *parent, CloneType cloneType)
 
   ui->setupUi(this);
 
-  const bool gitClone = _cloneType == CloneType::Git;
-  setWindowTitle(gitClone ? tr("Clone Git repository")
-                          : tr("Checkout Subversion repository"));
-  ui->labelWhereToDir->setText(gitClone ? tr("Clone to") : tr("Checkout to"));
-  ui->labelUrl->setText(gitClone ? tr("Git URL") : tr("Subversion URL"));
-  ui->pushButtonClone->setText(gitClone ? tr("Clone") : tr("Checkout"));
+  switch (_cloneType) {
+  case CloneType::Git:
+    setWindowTitle(tr("Clone Git repository"));
+    ui->labelWhereToDir->setText(tr("Clone to"));
+    ui->labelUrl->setText(tr("Git URL"));
+    ui->pushButtonClone->setText(tr("Clone"));
+    break;
+  case CloneType::Subversion:
+    setWindowTitle(tr("Checkout Subversion repository"));
+    ui->labelWhereToDir->setText(tr("Checkout to"));
+    ui->labelUrl->setText(tr("Subversion URL"));
+    ui->pushButtonClone->setText(tr("Checkout"));
+    break;
+  case CloneType::Mercurial:
+    setWindowTitle(tr("Clone Mercurial repository"));
+    ui->labelWhereToDir->setText(tr("Clone to"));
+    ui->labelUrl->setText(tr("Mercurial URL"));
+    ui->pushButtonClone->setText(tr("Clone"));
+    break;
+  }
 
   ui->labelFullDir->setVisible(false);
   ui->labelFullDirPrefix->setVisible(false);
@@ -92,11 +108,21 @@ void CloneRepoContainer::onBrowseClicked() {
     return;
   }
 
-  const QString path = QFileDialog::getExistingDirectory(
-      this,
-      _cloneType == CloneType::Git ? tr("Clone Git repository to")
-                                   : tr("Checkout Subversion repository to"),
-      documentsPaths[0]);
+  QString title;
+  switch (_cloneType) {
+  case CloneType::Git:
+    title = tr("Clone Git repository to");
+    break;
+  case CloneType::Subversion:
+    title = tr("Checkout Subversion repository to");
+    break;
+  case CloneType::Mercurial:
+    title = tr("Clone Mercurial repository to");
+    break;
+  }
+
+  const QString path =
+      QFileDialog::getExistingDirectory(this, title, documentsPaths[0]);
   if (!path.isEmpty())
     ui->lineEditWhereToDir->setText(QDir::toNativeSeparators(path));
 
@@ -127,6 +153,17 @@ void CloneRepoContainer::onCloneClicked() {
         EventManager::EventType::GitRepoManagerCloneRepo);
 
     GitRepoCloneCommand cloneCommand;
+    cloneCommand.uuid = _uuid;
+    cloneCommand.destinationDir = destinationDir;
+    cloneCommand.url = url;
+
+    cloneEvent.addData(cloneCommand);
+    _eventManager.send(cloneEvent);
+  } else if (_cloneType == CloneType::Mercurial) {
+    EventManager::Event cloneEvent(
+        EventManager::EventType::HgRepoManagerCloneRepo);
+
+    HgRepoCloneRepoCommand cloneCommand;
     cloneCommand.uuid = _uuid;
     cloneCommand.destinationDir = destinationDir;
     cloneCommand.url = url;

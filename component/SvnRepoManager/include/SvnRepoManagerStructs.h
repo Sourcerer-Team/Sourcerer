@@ -15,7 +15,6 @@ enum class SvnRepoCommandType : int {
   AbortMerge,
   AddSubmodule,
   AddRemote,
-  Amend,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,
@@ -120,6 +119,7 @@ struct SvnRepoBlameCommand final : SvnRepoCommand {
   ~SvnRepoBlameCommand() override = default;
 
   QStringList files;
+  QString commit;
 };
 
 struct SvnRepoBlameCommandResult {
@@ -151,19 +151,6 @@ struct SvnRepoAddSubmoduleCommand final : SvnRepoCommand {
   QString url;
   QString name;
   QString branch;
-};
-
-struct SvnRepoAmendCommand final : SvnRepoCommand {
-  SvnRepoAmendCommand() : SvnRepoCommand(SvnRepoCommandType::Amend) {}
-
-  ~SvnRepoAmendCommand() override = default;
-
-  QString author;
-  QString email;
-  QString summary;
-  QString message;
-  bool signoff = false;
-  bool signCommit = false;
 };
 
 struct SvnRepoApplyPatchCommand final : SvnRepoCommand {
@@ -894,9 +881,13 @@ struct SvnRepoResult {
 
 struct SvnRepoContext {
   QString uuid;
+  // Sync uuid of the request that made the context (open, clone or init) and
+  // of its close. Only their answers end the context; a refused request is
+  // answered with the same event types.
+  QString ownerSyncUuid;
+  QString closeSyncUuid;
   BlockingQueue<SvnRepoCommand *> commandsQueue;
   QThread *workersThread = nullptr;
-  ;
   QString SvnRepo;
   bool quit = false;
 };

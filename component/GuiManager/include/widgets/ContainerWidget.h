@@ -19,6 +19,7 @@ enum class ContainerType {
   IssueTracker,
   ReleaseNotes,
   SvnRepo,
+  HgRepo,
   last
 };
 

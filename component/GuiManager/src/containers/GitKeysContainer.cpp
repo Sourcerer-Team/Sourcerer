@@ -1,7 +1,9 @@
 #include "containers/GitKeysContainer.h"
 #include "ui_GitKeysContainer.h"
+#include "widgets/PinnedCertificatesWidget.h"
 
 #include <Log.h>
+#include <SshKnownHosts.h>
 
 #include <QAction>
 #include <QApplication>
@@ -19,11 +21,13 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPixmap>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QSize>
 #include <QStandardItemModel>
 #include <QStyle>
 #include <QTextEdit>
+#include <QThread>
 #include <QVBoxLayout>
 
 #include <StylesheetManager.h>
@@ -82,12 +86,86 @@ GitKeysContainer::GitKeysContainer(QWidget *parent)
 
   loadKeyPairs();
 
+  // Self-signed SSH host keys trusted on first use.
+  _pinnedCertificates = new PinnedCertificatesWidget(
+      GitRepo::PinnedCertificateType::Ssh, this);
+  ui->mainLayout->addWidget(_pinnedCertificates);
+
   LOG_PERF(0, "Exit");
 }
 
 GitKeysContainer::~GitKeysContainer() {
   LOG_PERF(0, "Enter");
   delete ui;
+  LOG_PERF(0, "Exit");
+}
+
+void GitKeysContainer::offerToTrustHost(const QString &host) {
+  LOG_PERF(0, "Enter");
+
+  namespace KnownHosts = GitRepo::SshKnownHosts;
+  if (host.isEmpty() || KnownHosts::isKnown(host)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // The scan connects to the host, it runs off the GUI thread.
+  QProgressDialog progress(tr("Getting the SSH host key of %1...").arg(host),
+                           QString(), 0, 0, this);
+  progress.setWindowTitle(tr("SSH host key"));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+
+  QVector<KnownHosts::HostKey> keys;
+  QString error;
+  QThread *scanner = QThread::create(
+      [&keys, &error, host]() { keys = KnownHosts::scan(host, &error); });
+  // Queued, so a scan finished before exec() still closes the dialog.
+  connect(scanner, &QThread::finished, &progress, &QProgressDialog::accept,
+          Qt::QueuedConnection);
+  scanner->start();
+  progress.exec();
+  scanner->wait();
+  delete scanner;
+
+  const QString knownHosts =
+      QDir::toNativeSeparators(KnownHosts::defaultFile());
+  if (keys.isEmpty()) {
+    QMessageBox::warning(
+        this, tr("SSH host key"),
+        tr("Couldn't get the SSH host key of %1:\n\n%2\n\nMercurial "
+           "repositories on this host can be used after its key is in %3, "
+           "e.g. after connecting to it once with ssh.")
+            .arg(host, error, knownHosts));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList fingerprints;
+  for (const KnownHosts::HostKey &key : keys) {
+    fingerprints << QStringLiteral("%1  %2").arg(key.type, key.fingerprint);
+  }
+
+  // The scan can't tell a man in the middle from the host: the user compares
+  // the fingerprints with the ones the host's provider publishes.
+  const auto answer = QMessageBox::question(
+      this, tr("Trust SSH host key"),
+      tr("%1 isn't a known SSH host yet, so Mercurial can't connect to it. It "
+         "offers these host keys:\n\n%2\n\nCompare them with the fingerprints "
+         "its provider publishes. Trust them and add them to %3?")
+          .arg(host, fingerprints.join('\n'), knownHosts),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (answer != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!KnownHosts::add(keys, &error)) {
+    QMessageBox::critical(this, tr("Trust SSH host key"), error);
+  } else {
+    LOG_INFO("Added the SSH host keys of '{}' to known_hosts", host);
+  }
+
   LOG_PERF(0, "Exit");
 }
 
@@ -266,6 +344,7 @@ void GitKeysContainer::onGenerateClicked() {
 
   if (ok && !host.isEmpty()) {
     _keyStorage.setKeyPair(host, keyName, privateKeyPath, publicKeyPath);
+    offerToTrustHost(host);
   }
 
   if (host.isEmpty()) {
@@ -411,6 +490,7 @@ void GitKeysContainer::onAddClicked() {
 
     // Reload the table
     loadKeyPairs();
+    offerToTrustHost(host);
 
     LOG_INFO("SSH key mapping added for host '{}'", host);
   } else {
@@ -474,6 +554,7 @@ void GitKeysContainer::onEditClicked() {
 
   // Reload the table
   loadKeyPairs();
+  offerToTrustHost(newHost);
 
   LOG_INFO("SSH key mapping updated: '{}' -> '{}'", oldHost, newHost);
   LOG_PERF(0, "Exit");
@@ -532,6 +613,7 @@ void GitKeysContainer::onSelectionChanged() {
 void GitKeysContainer::selected() {
   LOG_PERF(0, "Enter");
   loadKeyPairs();
+  _pinnedCertificates->reload();
   LOG_PERF(0, "Exit");
 }
 

@@ -20,7 +20,7 @@ set TEMP=C:\buildtmp
 
 set CC=cl
 set CXX=cl
-cmake -S C:\workspace\src -B C:\workspace\build\Release-Windows -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\msvc2022_64;%OPENSSL_ROOT_DIR%" -DOPENSSL_ROOT_DIR="%OPENSSL_ROOT_DIR%" -DUSE_THREADS=win32 -DSTATIC_CRT=OFF -DCMAKE_EXE_LINKER_FLAGS=/MANIFEST:NO -DCMAKE_SHARED_LINKER_FLAGS=/MANIFEST:NO
+cmake -S C:\workspace\src -B C:\workspace\build\Release-Windows -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\msvc2022_64;%OPENSSL_ROOT_DIR%" -DOPENSSL_ROOT_DIR="%OPENSSL_ROOT_DIR%" -DSOURCERER_BUILD_SVN_CLI=ON -DUSE_THREADS=win32 -DSTATIC_CRT=OFF -DCMAKE_EXE_LINKER_FLAGS=/MANIFEST:NO -DCMAKE_SHARED_LINKER_FLAGS=/MANIFEST:NO
 if errorlevel 1 (
     echo Error: CMake configure failed
     exit /b 1
@@ -29,6 +29,13 @@ if errorlevel 1 (
 cmake --build C:\workspace\build\Release-Windows --parallel 20
 if errorlevel 1 (
     echo Error: CMake build failed
+    exit /b 1
+)
+
+rem Relocatable hg.exe launcher that runs 3rdparty\hg\python\python.exe -m mercurial
+cl /nologo /O2 /MD /W3 /Fo:C:\buildtmp\ /Fe:C:\workspace\build\Release-Windows\hg.exe C:\workspace\installer\3rdparty\hg-launcher\hg.c
+if errorlevel 1 (
+    echo Error: Failed to build hg.exe launcher
     exit /b 1
 )
 

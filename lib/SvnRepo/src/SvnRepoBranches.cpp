@@ -1,7 +1,14 @@
 #include "SvnRepo.h"
 #include "SvnRepoPrivate.h"
 
+#include <svn_path.h>
+
 #include <Log.h>
+
+#include <QDir>
+#include <QFileInfo>
+
+#include <algorithm>
 
 #define THREAD_ID "SvnRepo"
 
@@ -27,13 +34,60 @@ static bool readChildren(const WorkingCopyInfo &info, const QString &directory,
   svn_error_t *error = listDirectories(
       names, trimmedUrl(info.layoutRootUrl) + QStringLiteral("/") + directory,
       ctx, pool);
-  if (error && error->apr_err != SVN_ERR_CANCELLED) {
+  if (isMissingPathError(error)) {
     svn_error_clear(error);
     names->clear();
     return true;
   }
 
   return reportError(SvnError::ErrorWhileOpening, error);
+}
+
+// Whether name can name a branch (Local) or tag: not empty, not "." or "..",
+// no slash or backslash, and not trunk for a branch. Subversion has no
+// nested branches the way Git does: every folder below branches/ is one
+// branch, so "feature/x" would be a folder inside the branch "feature".
+// Records InvalidArgument when it can't.
+static bool checkRefName(const QString &name, BranchType type) {
+  QString reason;
+  if (name.trimmed().isEmpty()) {
+    reason = QStringLiteral("The name is empty.");
+  } else if (name.contains(QLatin1Char('/')) ||
+             name.contains(QLatin1Char('\\'))) {
+    reason = QStringLiteral("'%1' can't contain a slash.").arg(name);
+  } else if (name == QLatin1String(".") || name == QLatin1String("..")) {
+    reason = QStringLiteral("'%1' isn't a name.").arg(name);
+  } else if (type != BranchType::Tag && name == QLatin1String("trunk")) {
+    reason = QStringLiteral("trunk isn't a branch that can be created, "
+                            "renamed or deleted.");
+  }
+  if (!reason.isEmpty()) {
+    setLastError(SvnError::InvalidArgument, -1, reason);
+    return false;
+  }
+  return true;
+}
+
+// The URL of the trunk, branch or tag the working copy is in, without the
+// subfolder it may have checked out.
+static QString branchRootUrl(const WorkingCopyInfo &info) {
+  const QString url = trimmedUrl(info.url);
+  return url.left(url.size() - branchSubpath(info).size());
+}
+
+// Records InvalidArgument when the working copy isn't on trunk, a branch or a
+// tag (the project or repository root, a repository without trunk).
+static bool checkOnBranch(const WorkingCopyInfo &info) {
+  if (branchNameFromUrl(info.url, info.layoutRootUrl, BranchType::Local)
+          .isEmpty() &&
+      branchNameFromUrl(info.url, info.layoutRootUrl, BranchType::Tag)
+          .isEmpty()) {
+    setLastError(SvnError::InvalidArgument, -1,
+                 QStringLiteral("The working copy isn't on trunk, a branch or "
+                                "a tag."));
+    return false;
+  }
+  return true;
 }
 
 // Runs a server side operation that commits with message.
@@ -92,16 +146,6 @@ static svn_error_t *switchWorkingCopy(const QString &wcPath, const QString &url,
       &head, svn_depth_infinity, FALSE, FALSE, TRUE, FALSE, ctx, pool);
 }
 
-static svn_error_t *updateWorkingCopy(const QString &wcPath,
-                                      svn_client_ctx_t *ctx, apr_pool_t *pool) {
-  const PathArray paths = makePathArray(pool, {wcPath});
-  const svn_opt_revision_t head = revisionHead();
-  apr_array_header_t *resultRevisions = nullptr;
-  return svn_client_update4(&resultRevisions, paths.array, &head,
-                            svn_depth_infinity, FALSE, FALSE, TRUE, TRUE, FALSE,
-                            ctx, pool);
-}
-
 // Merges the changes of source between start and end into the working copy.
 // Without a range, every revision not merged yet is merged.
 //
@@ -111,7 +155,8 @@ static svn_error_t *updateWorkingCopy(const QString &wcPath,
 static svn_error_t *mergeIntoWorkingCopy(
     const QString &wcPath, const QString &sourceUrl,
     const svn_opt_revision_t &peg, const svn_opt_revision_t *start,
-    const svn_opt_revision_t *end, svn_client_ctx_t *ctx, apr_pool_t *pool) {
+    const svn_opt_revision_t *end, svn_client_ctx_t *ctx, apr_pool_t *pool,
+    const bool dryRun = false) {
   WorkingCopyInfo target;
   SVN_ERR(readInfo(&target, wcPath, revisionUnspecified(), ctx, pool));
   const svn_boolean_t ignoreMergeinfo =
@@ -131,32 +176,361 @@ static svn_error_t *mergeIntoWorkingCopy(
   const QByteArray targetBytes = wcPath.toUtf8();
   return svn_client_merge_peg5(sourceBytes.constData(), ranges, &peg,
                                targetBytes.constData(), svn_depth_infinity,
-                               ignoreMergeinfo, FALSE, FALSE, FALSE, FALSE,
+                               ignoreMergeinfo, FALSE, FALSE, FALSE, dryRun,
                                TRUE, nullptr, ctx, pool);
 }
 
-// Commits a merge result unless it left conflicts. A conflicted merge is
-// completed by committing after the conflicts are resolved.
-static bool commitMergeResult(const QString &wcPath, const QString &message) {
-  if (hasConflicts(wcPath)) {
-    return true;
-  }
+// What a merge, cherry-pick or revert changes, from its notifications.
+struct OperationNotifyBaton {
+  QStringList paths;
+  QStringList added;
+  QStringList conflicted;
+  // Paths the operation can't change: obstructed, missing or conflicted.
+  QStringList skipped;
+};
 
-  return runWithClientContext(
-      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        return reportError(SvnError::CommitFailed,
-                           commitWorkingCopy(wcPath, message, ctx, pool));
-      },
-      wcPath);
+static void appendOnce(QStringList *list, const QString &path) {
+  if (!list->contains(path)) {
+    list->append(path);
+  }
 }
 
-// Branch whose history contains revision.
+static void operationNotifyCallback(void *baton, const svn_wc_notify_t *notify,
+                                    apr_pool_t *) {
+  auto *payload = static_cast<OperationNotifyBaton *>(baton);
+  if (!payload || !notify || !notify->path ||
+      svn_path_is_url(notify->path)) {
+    return;
+  }
+
+  const QString path =
+      QDir::fromNativeSeparators(QString::fromUtf8(notify->path));
+  switch (notify->action) {
+  case svn_wc_notify_update_add:
+  case svn_wc_notify_update_shadowed_add:
+    appendOnce(&payload->added, path);
+    appendOnce(&payload->paths, path);
+    break;
+  case svn_wc_notify_update_update:
+  case svn_wc_notify_update_delete:
+  case svn_wc_notify_update_replace:
+  case svn_wc_notify_update_shadowed_update:
+  case svn_wc_notify_update_shadowed_delete:
+  case svn_wc_notify_exists:
+    appendOnce(&payload->paths, path);
+    break;
+  case svn_wc_notify_tree_conflict:
+    appendOnce(&payload->paths, path);
+    appendOnce(&payload->conflicted, path);
+    break;
+  case svn_wc_notify_skip:
+  case svn_wc_notify_skip_conflicted:
+  case svn_wc_notify_update_skip_obstruction:
+  case svn_wc_notify_update_skip_working_only:
+    appendOnce(&payload->skipped, path);
+    break;
+  default:
+    return;
+  }
+
+  if (notify->content_state == svn_wc_notify_state_conflicted ||
+      notify->prop_state == svn_wc_notify_state_conflicted) {
+    appendOnce(&payload->conflicted, path);
+  }
+}
+
+// Installs a notification callback while alive.
+class NotifyScope {
+public:
+  NotifyScope(svn_client_ctx_t *ctx, svn_wc_notify_func2_t func, void *baton)
+      : _ctx(ctx), _func(ctx->notify_func2), _baton(ctx->notify_baton2) {
+    _ctx->notify_func2 = func;
+    _ctx->notify_baton2 = baton;
+  }
+  ~NotifyScope() {
+    _ctx->notify_func2 = _func;
+    _ctx->notify_baton2 = _baton;
+  }
+
+  NotifyScope(const NotifyScope &) = delete;
+  NotifyScope &operator=(const NotifyScope &) = delete;
+
+private:
+  svn_client_ctx_t *_ctx;
+  svn_wc_notify_func2_t _func;
+  void *_baton;
+};
+
+struct PathStatus {
+  svn_wc_status_kind status = svn_wc_status_none;
+  svn_wc_status_kind propStatus = svn_wc_status_none;
+  bool conflicted = false;
+};
+
+static svn_error_t *pathStatusCallback(void *baton, const char *,
+                                       const svn_client_status_t *status,
+                                       apr_pool_t *) {
+  auto *payload = static_cast<PathStatus *>(baton);
+  if (payload && status) {
+    payload->status = status->node_status;
+    payload->propStatus = status->prop_status;
+    payload->conflicted = status->conflicted;
+  }
+  return SVN_NO_ERROR;
+}
+
+// Status of one path; a path below an unversioned folder is unversioned.
+static svn_error_t *readPathStatus(PathStatus *result, const QString &path,
+                                   svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  const QByteArray pathBytes = path.toUtf8();
+  const svn_opt_revision_t revision = revisionWorking();
+  svn_revnum_t youngest = SVN_INVALID_REVNUM;
+  svn_error_t *error = svn_client_status6(
+      &youngest, ctx, pathBytes.constData(), &revision, svn_depth_empty, TRUE,
+      FALSE, TRUE, TRUE, TRUE, FALSE, nullptr, pathStatusCallback, result,
+      pool);
+  if (error && error->apr_err == SVN_ERR_WC_PATH_NOT_FOUND) {
+    svn_error_clear(error);
+    result->status = QFileInfo::exists(path) ? svn_wc_status_unversioned
+                                             : svn_wc_status_none;
+    return SVN_NO_ERROR;
+  }
+  return error;
+}
+
+static QString relativePaths(const QString &wcPath, QStringList paths) {
+  for (QString &path : paths) {
+    const QString relativePath = relativeFilePath(wcPath, path);
+    path = relativePath.isEmpty() ? QStringLiteral(".") : relativePath;
+  }
+  paths.sort();
+  return paths.join(QStringLiteral(", "));
+}
+
+// A merge, cherry-pick or revert (docs/SVN_TEST_PLAN.md 3.11.1).
+struct OperationRequest {
+  QString kind; // "merge", "cherry-pick" or "revert"
+  // The branch the changes come from; empty for the checked out one.
+  QString source;
+  // Without a range, every revision not merged yet.
+  bool hasRange = false;
+  svn_revnum_t start = SVN_INVALID_REVNUM;
+  svn_revnum_t end = SVN_INVALID_REVNUM;
+  QString message;
+  SvnError conflictsError = SvnError::MergeFailedWithConflicts;
+  SvnError emptyError = SvnError::MergeIsEmpty;
+};
+
+// Applies the operation and commits exactly its changes, in one revision.
+// A local change in a path it changes refuses it before anything is touched.
+// With conflicts, or when the commit fails, it stays in progress until
+// commitStaged or abortMerge ends it.
+static bool runOperation(const QString &wcPath,
+                         const OperationRequest &request) {
+  const svn_opt_revision_t peg =
+      request.hasRange ? revisionNumber((std::max)(request.start, request.end))
+                       : revisionHead();
+  const svn_opt_revision_t start = revisionNumber(request.start);
+  const svn_opt_revision_t end = revisionNumber(request.end);
+  const svn_opt_revision_t *startRevision = request.hasRange ? &start : nullptr;
+  const svn_opt_revision_t *endRevision = request.hasRange ? &end : nullptr;
+
+  OperationNotifyBaton dryRun;
+  OperationNotifyBaton applied;
+  QString sourceUrl;
+  QString destination;
+  bool recordsMergeinfo = false;
+  const bool applies = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
+        if (!reportError(
+                SvnError::InfoFailed,
+                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
+          return false;
+        }
+        sourceUrl = request.source.isEmpty()
+                        ? info.url
+                        : branchUrl(info.layoutRootUrl, request.source,
+                                    BranchType::Local) +
+                              branchSubpath(info);
+        recordsMergeinfo = trimmedUrl(info.url) != trimmedUrl(sourceUrl);
+        destination =
+            branchNameFromUrl(info.url, info.layoutRootUrl, BranchType::Local);
+
+        // What it will change, without changing anything.
+        {
+          const NotifyScope scope(ctx, operationNotifyCallback, &dryRun);
+          if (!reportError(SvnError::MergeFailed,
+                           mergeIntoWorkingCopy(wcPath, sourceUrl, peg,
+                                                startRevision, endRevision,
+                                                ctx, pool, true))) {
+            return false;
+          }
+        }
+
+        // The data-loss guard: local changes in those paths, or in the
+        // root's properties when the mergeinfo is recorded there.
+        QStringList inTheWay = dryRun.skipped;
+        for (const QString &operationPath : dryRun.paths) {
+          PathStatus local;
+          if (!reportError(SvnError::StatusFailed,
+                           readPathStatus(&local, operationPath, ctx, pool))) {
+            return false;
+          }
+          if (local.conflicted || (local.status != svn_wc_status_normal &&
+                                   local.status != svn_wc_status_none)) {
+            appendOnce(&inTheWay, operationPath);
+          }
+        }
+        if (recordsMergeinfo) {
+          PathStatus root;
+          if (!reportError(SvnError::StatusFailed,
+                           readPathStatus(&root, wcPath, ctx, pool))) {
+            return false;
+          }
+          if (root.conflicted || root.propStatus == svn_wc_status_modified) {
+            appendOnce(&inTheWay, wcPath);
+          }
+        }
+        if (!inTheWay.isEmpty()) {
+          setLastError(SvnError::LocalChangesInTheWay, -1,
+                       QStringLiteral("Local changes are in the way of the "
+                                      "%1: %2")
+                           .arg(request.kind, relativePaths(wcPath, inTheWay)));
+          return false;
+        }
+
+        // Only those paths, and the root, come to HEAD. They have no local
+        // changes, so this can't conflict; everything else keeps its BASE.
+        QStringList toUpdate{wcPath};
+        for (const QString &operationPath : dryRun.paths) {
+          appendOnce(&toUpdate, operationPath);
+        }
+        const PathArray updateTargets = makePathArray(pool, toUpdate);
+        const svn_opt_revision_t head = revisionHead();
+        apr_array_header_t *resultRevisions = nullptr;
+        if (!reportError(SvnError::UpdateFailed,
+                         svn_client_update4(&resultRevisions,
+                                            updateTargets.array, &head,
+                                            svn_depth_empty, FALSE, TRUE,
+                                            FALSE, TRUE, FALSE, ctx, pool))) {
+          return false;
+        }
+
+        const NotifyScope scope(ctx, operationNotifyCallback, &applied);
+        return reportError(SvnError::MergeFailed,
+                           mergeIntoWorkingCopy(wcPath, sourceUrl, peg,
+                                                startRevision, endRevision, ctx,
+                                                pool));
+      },
+      wcPath);
+  if (!applies) {
+    return false;
+  }
+
+  // Nothing but the mergeinfo: undone, and no revision.
+  QStringList changed = applied.paths;
+  changed.removeAll(wcPath);
+  if (changed.isEmpty()) {
+    if (recordsMergeinfo) {
+      runWithClientContext(
+          [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+            const PathArray root = makePathArray(pool, {wcPath});
+            return reportError(SvnError::RevertFailed,
+                               svn_client_revert4(root.array, svn_depth_empty,
+                                                  nullptr, FALSE, FALSE, TRUE,
+                                                  ctx, pool));
+          },
+          wcPath);
+    }
+    setLastError(request.emptyError, -1,
+                 QStringLiteral("The %1 has nothing to change.")
+                     .arg(request.kind));
+    return false;
+  }
+
+  OperationState state;
+  state.kind = request.kind;
+  state.source = request.source;
+  state.sourceUrl = sourceUrl;
+  state.start = request.start;
+  state.end = request.end;
+  state.destination = destination;
+  state.message = request.message;
+  state.paths = changed;
+  if (recordsMergeinfo) {
+    state.paths.append(wcPath);
+  }
+  state.added = applied.added;
+  state.conflicted = applied.conflicted;
+
+  // Staged: what it changed without a conflict. The user's own changes stay
+  // unstaged.
+  QStringList toStage;
+  for (const QString &operationPath : state.paths) {
+    if (!state.conflicted.contains(operationPath)) {
+      toStage.append(operationPath);
+    }
+  }
+  if (!toStage.isEmpty() && !stageFiles(wcPath, toStage)) {
+    writeOperationState(wcPath, state);
+    return false;
+  }
+
+  if (!state.conflicted.isEmpty()) {
+    writeOperationState(wcPath, state);
+    setLastError(request.conflictsError, -1,
+                 QStringLiteral("The %1 left conflicts in: %2")
+                     .arg(request.kind,
+                          relativePaths(wcPath, state.conflicted)));
+    return false;
+  }
+
+  const bool committed = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        return reportError(SvnError::CommitFailed,
+                           commitPaths(state.paths, request.message, ctx,
+                                       pool));
+      },
+      wcPath);
+  if (!committed) {
+    writeOperationState(wcPath, state);
+    return false;
+  }
+
+  QSet<QString> stagedDirectories = readStagedDirectories(wcPath);
+  for (const QString &operationPath : state.paths) {
+    stagedDirectories.remove(operationPath);
+  }
+  writeStagedDirectories(wcPath, stagedDirectories);
+  return true;
+}
+
+// Branch whose history contains revision. A revision can change several
+// branches: the working copy's own branch is taken when preferActive is set
+// (a revert) and avoided otherwise (a cherry-pick); among the others the
+// first by name, so the choice doesn't depend on hash order.
 static QString branchOfRevision(const QString &wcPath,
-                                const svn_revnum_t revision) {
+                                const svn_revnum_t revision,
+                                const bool preferActive) {
   const bool quit = false;
-  const QStringList branches =
+  QStringList branches =
       getCommitBranches(wcPath, QString::number(revision), quit);
-  return branches.isEmpty() ? QString() : branches.first();
+  if (branches.isEmpty()) {
+    return {};
+  }
+
+  branches.sort();
+  const QString active = getActiveBranch(wcPath, BranchType::Local, quit);
+  if (branches.contains(active)) {
+    if (preferActive) {
+      return active;
+    }
+    if (branches.size() > 1) {
+      branches.removeOne(active);
+    }
+  }
+  return branches.first();
 }
 
 static QString commitSummary(const QString &wcPath,
@@ -308,10 +682,12 @@ static svn_error_t *countRevisionsBehind(int *count,
                                          apr_pool_t *pool) {
   *count = 0;
 
+  // The newest revision the working copy has, also of its own commits.
+  svn_revnum_t newest = SVN_INVALID_REVNUM;
+  SVN_ERR(readMaxRevision(&newest, info.wcRoot, false, ctx, pool));
   WorkingCopyInfo head;
   SVN_ERR(readInfo(&head, info.url, revisionHead(), ctx, pool));
-  if (!SVN_IS_VALID_REVNUM(info.revision) ||
-      head.lastChangedRevision <= info.revision) {
+  if (!SVN_IS_VALID_REVNUM(newest) || head.lastChangedRevision <= newest) {
     return SVN_NO_ERROR;
   }
 
@@ -320,7 +696,7 @@ static svn_error_t *countRevisionsBehind(int *count,
   auto *range = static_cast<svn_opt_revision_range_t *>(
       apr_pcalloc(pool, sizeof(svn_opt_revision_range_t)));
   range->start = revisionHead();
-  range->end = revisionNumber(info.revision + 1);
+  range->end = revisionNumber(newest + 1);
   apr_array_header_t *ranges =
       apr_array_make(pool, 1, sizeof(svn_opt_revision_range_t *));
   APR_ARRAY_PUSH(ranges, svn_opt_revision_range_t *) = range;
@@ -341,8 +717,9 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &path,
                                                  const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
+  // Every branch, trunk too.
   const QString wcPath = normalizedPath(path);
-  const QStringList remoteBranches = listRemoteBranches(wcPath, quitFlag);
+  const QStringList remoteBranches = listLocalBranches(wcPath, quitFlag);
   if (quitFlag) {
     LOG_PERF(0, "Exit");
     return {};
@@ -391,6 +768,11 @@ bool checkoutBranch(const QString &path, const QString &branchOrTagName,
   LOG_PERF(0, "Enter");
 
   const QString wcPath = normalizedPath(path);
+  if (refuseWhileOperationInProgress(wcPath)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         WorkingCopyInfo info;
@@ -414,15 +796,21 @@ bool checkoutBranch(const QString &path, const QString &branchOrTagName,
           return false;
         }
 
-        // Local changes are carried over to the switched working copy.
+        // Local changes are carried over to the switched working copy; a
+        // conflict with them is reported.
+        const ConflictWatch conflicts(ctx);
         return reportError(
-            SvnError::SwitchFailed,
-            switchWorkingCopy(wcPath,
-                              branchUrl(info.layoutRootUrl, branchOrTagName,
-                                        type == BranchType::Tag
-                                            ? BranchType::Tag
-                                            : BranchType::Local),
-                              ctx, pool));
+                   SvnError::SwitchFailed,
+                   switchWorkingCopy(wcPath,
+                                     branchUrl(info.layoutRootUrl,
+                                               branchOrTagName,
+                                               type == BranchType::Tag
+                                                   ? BranchType::Tag
+                                                   : BranchType::Local) +
+                                         branchSubpath(info),
+                                     ctx, pool)) &&
+               conflicts.reportConflicts(SvnError::SwitchFailed, wcPath,
+                                         QStringLiteral("The switch"));
       },
       wcPath);
 
@@ -435,12 +823,18 @@ bool createBranchFromCommit(const QString &path, const QString &commit,
   LOG_PERF(0, "Enter");
 
   svn_revnum_t revision = SVN_INVALID_REVNUM;
-  if (!commit.isEmpty() && !parseRevision(commit, &revision)) {
+  if (!checkRefName(branchName, BranchType::Local) ||
+      (!commit.isEmpty() && !parseRevision(commit, &revision))) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
   const QString wcPath = normalizedPath(path);
+  WorkingCopyInfo wcInfo;
+  if (!readInfo(&wcInfo, wcPath) || !checkOnBranch(wcInfo)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
   const QString message =
       SVN_IS_VALID_REVNUM(revision)
           ? QStringLiteral("Create branch %1 from r%2")
@@ -451,9 +845,10 @@ bool createBranchFromCommit(const QString &path, const QString &commit,
   const bool success = runRepositoryCommit(
       wcPath, message,
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool,
-          const WorkingCopyInfo &info) {
+          const WorkingCopyInfo &info) -> svn_error_t * {
+        // The whole branch, also from a working copy of one of its folders.
         return copyUrl(
-            info.url,
+            branchRootUrl(info),
             SVN_IS_VALID_REVNUM(revision) ? revisionNumber(revision)
                                           : revisionHead(),
             branchUrl(info.layoutRootUrl, branchName, BranchType::Local), ctx,
@@ -467,6 +862,11 @@ bool createBranchFromCommit(const QString &path, const QString &commit,
 
 bool deleteBranch(const QString &path, const QString &branchName) {
   LOG_PERF(0, "Enter");
+
+  if (!checkRefName(branchName, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const QString wcPath = normalizedPath(path);
   const bool quit = false;
@@ -482,10 +882,18 @@ bool deleteBranch(const QString &path, const QString &branchName) {
   const bool success = runRepositoryCommit(
       wcPath, QStringLiteral("Delete branch %1").arg(branchName),
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool,
-          const WorkingCopyInfo &info) {
-        const PathArray urls = makePathArray(
-            pool,
-            {branchUrl(info.layoutRootUrl, branchName, BranchType::Local)});
+          const WorkingCopyInfo &info) -> svn_error_t * {
+        // Not the folder the working copy is in, at any depth.
+        const QString url =
+            branchUrl(info.layoutRootUrl, branchName, BranchType::Local);
+        const QString wcUrl = trimmedUrl(info.url);
+        if (wcUrl == url || wcUrl.startsWith(url + QLatin1Char('/'))) {
+          return svn_error_createf(
+              SVN_ERR_ILLEGAL_TARGET, nullptr,
+              "The working copy is in '%s', which can't be deleted.",
+              branchName.toUtf8().constData());
+        }
+        const PathArray urls = makePathArray(pool, {url});
         return svn_client_delete4(urls.array, FALSE, FALSE, nullptr, nullptr,
                                   nullptr, ctx, pool);
       },
@@ -503,6 +911,12 @@ bool deleteRemoteBranch(const QString &path, const QString &branchName) {
 bool renameBranch(const QString &path, const QString &oldBranchName,
                   const QString &newBranchName) {
   LOG_PERF(0, "Enter");
+
+  if (!checkRefName(oldBranchName, BranchType::Local) ||
+      !checkRefName(newBranchName, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const QString wcPath = normalizedPath(path);
   const bool quit = false;
@@ -527,7 +941,8 @@ bool renameBranch(const QString &path, const QString &oldBranchName,
 
         // The working copy has to follow its branch.
         if (active) {
-          SVN_ERR(switchWorkingCopy(wcPath, destination, ctx, pool));
+          SVN_ERR(switchWorkingCopy(wcPath, destination + branchSubpath(info),
+                                    ctx, pool));
         }
 
         return SVN_NO_ERROR;
@@ -571,12 +986,18 @@ bool createTagFromCommit(const QString &path, const QString &commit,
   LOG_PERF(0, "Enter");
 
   svn_revnum_t revision = SVN_INVALID_REVNUM;
-  if (!commit.isEmpty() && !parseRevision(commit, &revision)) {
+  if (!checkRefName(tagName, BranchType::Tag) ||
+      (!commit.isEmpty() && !parseRevision(commit, &revision))) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
   const QString wcPath = normalizedPath(path);
+  WorkingCopyInfo wcInfo;
+  if (!readInfo(&wcInfo, wcPath) || !checkOnBranch(wcInfo)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
   const QString logMessage =
       message.trimmed().isEmpty()
           ? QStringLiteral("Create tag %1").arg(tagName)
@@ -585,8 +1006,9 @@ bool createTagFromCommit(const QString &path, const QString &commit,
   const bool success = runRepositoryCommit(
       wcPath, logMessage,
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool,
-          const WorkingCopyInfo &info) {
-        return copyUrl(info.url,
+          const WorkingCopyInfo &info) -> svn_error_t * {
+        // The whole branch, also from a working copy of one of its folders.
+        return copyUrl(branchRootUrl(info),
                        SVN_IS_VALID_REVNUM(revision) ? revisionNumber(revision)
                                                      : revisionHead(),
                        branchUrl(info.layoutRootUrl, tagName, BranchType::Tag),
@@ -600,6 +1022,11 @@ bool createTagFromCommit(const QString &path, const QString &commit,
 
 bool deleteTag(const QString &path, const QString &tagName) {
   LOG_PERF(0, "Enter");
+
+  if (!checkRefName(tagName, BranchType::Tag)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const bool success = runRepositoryCommit(
       normalizedPath(path), QStringLiteral("Delete tag %1").arg(tagName),
@@ -623,6 +1050,12 @@ bool deleteRemoteTag(const QString &path, const QString &tagName) {
 bool renameTag(const QString &path, const QString &oldTagName,
                const QString &newTagName) {
   LOG_PERF(0, "Enter");
+
+  if (!checkRefName(oldTagName, BranchType::Tag) ||
+      !checkRefName(newTagName, BranchType::Tag)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const bool success = runRepositoryCommit(
       normalizedPath(path),
@@ -658,46 +1091,42 @@ bool merge(const QString &path, const QString &sourceBranch,
   LOG_PERF(0, "Enter");
 
   const QString wcPath = normalizedPath(path);
-  const bool quit = false;
-  if (!destinationBranch.isEmpty() &&
-      getActiveBranch(wcPath, BranchType::Local, quit) != destinationBranch &&
-      !checkoutBranch(wcPath, destinationBranch, BranchType::Local)) {
+  if (refuseWhileOperationInProgress(wcPath)) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  const bool merged = runWithClientContext(
-      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        WorkingCopyInfo info;
-        if (!reportError(
-                SvnError::InfoFailed,
-                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
-          return false;
-        }
+  const bool quit = false;
+  const QString active = getActiveBranch(wcPath, BranchType::Local, quit);
+  const QString destination =
+      destinationBranch.isEmpty() ? active : destinationBranch;
+  if (sourceBranch.trimmed().isEmpty() || sourceBranch == destination) {
+    setLastError(SvnError::InvalidArgument, -1,
+                 sourceBranch.trimmed().isEmpty()
+                     ? QStringLiteral("There is no branch to merge.")
+                     : QStringLiteral("A branch can't be merged into itself."));
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
-        // Merges need a working copy at a single revision.
-        if (!reportError(SvnError::UpdateFailed,
-                         updateWorkingCopy(wcPath, ctx, pool))) {
-          return false;
-        }
+  // Local changes go along to the destination, as with git checkout; a
+  // conflict with them stops the merge there.
+  if (destination != active) {
+    if (!checkoutBranch(wcPath, destination, BranchType::Local)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
 
-        return reportError(
-            SvnError::MergeFailed,
-            mergeIntoWorkingCopy(
-                wcPath,
-                branchUrl(info.layoutRootUrl, sourceBranch, BranchType::Local),
-                revisionHead(), nullptr, nullptr, ctx, pool));
-      },
-      wcPath);
-
-  const bool success =
-      merged &&
-      commitMergeResult(
-          wcPath, makeLogMessage(QStringLiteral("Merge branch '%1' into %2")
-                                     .arg(sourceBranch,
-                                          getActiveBranch(
-                                              wcPath, BranchType::Local, quit)),
-                                 QString(), true, false, author, email));
+  OperationRequest request;
+  request.kind = QStringLiteral("merge");
+  request.source = sourceBranch;
+  request.message = makeLogMessage(QStringLiteral("Merge branch '%1' into '%2'")
+                                       .arg(sourceBranch, destination),
+                                   QString(), true, false, author, email);
+  request.conflictsError = SvnError::MergeFailedWithConflicts;
+  request.emptyError = SvnError::MergeIsEmpty;
+  const bool success = runOperation(wcPath, request);
 
   LOG_PERF(0, "Exit");
   return success;
@@ -718,42 +1147,24 @@ bool cherryPickCommit(const QString &path, const QString &commit,
   }
 
   const QString wcPath = normalizedPath(path);
-  const QString sourceBranch = branchOfRevision(wcPath, revision);
-  const QString summary = commitSummary(wcPath, revision);
+  if (refuseWhileOperationInProgress(wcPath)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
-  const bool merged = runWithClientContext(
-      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        WorkingCopyInfo info;
-        if (!reportError(
-                SvnError::InfoFailed,
-                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
-          return false;
-        }
-
-        if (!reportError(SvnError::UpdateFailed,
-                         updateWorkingCopy(wcPath, ctx, pool))) {
-          return false;
-        }
-
-        const QString sourceUrl =
-            sourceBranch.isEmpty() ? info.url
-                                   : branchUrl(info.layoutRootUrl, sourceBranch,
-                                               BranchType::Local);
-        const svn_opt_revision_t peg = revisionNumber(revision);
-        const svn_opt_revision_t start = revisionNumber(revision - 1);
-        return reportError(SvnError::MergeFailed,
-                           mergeIntoWorkingCopy(wcPath, sourceUrl, peg, &start,
-                                                &peg, ctx, pool));
-      },
-      wcPath);
-
-  const bool success =
-      merged &&
-      commitMergeResult(
-          wcPath,
-          makeLogMessage(
-              summary, QStringLiteral("(cherry picked from r%1)").arg(revision),
-              true, false, author, email));
+  OperationRequest request;
+  request.kind = QStringLiteral("cherry-pick");
+  request.source = branchOfRevision(wcPath, revision, false);
+  request.hasRange = true;
+  request.start = revision - 1;
+  request.end = revision;
+  request.message = makeLogMessage(
+      commitSummary(wcPath, revision),
+      QStringLiteral("(cherry picked from r%1)").arg(revision), true, false,
+      author, email);
+  request.conflictsError = SvnError::CherryPickFailedWithConflicts;
+  request.emptyError = SvnError::CherryPickIsEmpty;
+  const bool success = runOperation(wcPath, request);
 
   LOG_PERF(0, "Exit");
   return success;
@@ -775,8 +1186,19 @@ bool revertCommit(const QString &path, const QString &commit,
   }
 
   const QString wcPath = normalizedPath(path);
-  const QString sourceBranch = branchOfRevision(wcPath, revision);
-  const QString logMessage =
+  if (refuseWhileOperationInProgress(wcPath)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // A reverse merge of the revision.
+  OperationRequest request;
+  request.kind = QStringLiteral("revert");
+  request.source = branchOfRevision(wcPath, revision, true);
+  request.hasRange = true;
+  request.start = revision;
+  request.end = revision - 1;
+  request.message =
       message.trimmed().isEmpty()
           ? makeLogMessage(
                 QStringLiteral("Revert \"%1\"")
@@ -784,35 +1206,9 @@ bool revertCommit(const QString &path, const QString &commit,
                 QStringLiteral("This reverts revision r%1.").arg(revision),
                 true, false, author, email)
           : makeLogMessage(message, QString(), true, false, author, email);
-
-  const bool merged = runWithClientContext(
-      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        WorkingCopyInfo info;
-        if (!reportError(
-                SvnError::InfoFailed,
-                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
-          return false;
-        }
-
-        if (!reportError(SvnError::UpdateFailed,
-                         updateWorkingCopy(wcPath, ctx, pool))) {
-          return false;
-        }
-
-        // A reverse merge of the revision.
-        const QString sourceUrl =
-            sourceBranch.isEmpty() ? info.url
-                                   : branchUrl(info.layoutRootUrl, sourceBranch,
-                                               BranchType::Local);
-        const svn_opt_revision_t peg = revisionNumber(revision);
-        const svn_opt_revision_t end = revisionNumber(revision - 1);
-        return reportError(SvnError::MergeFailed,
-                           mergeIntoWorkingCopy(wcPath, sourceUrl, peg, &peg,
-                                                &end, ctx, pool));
-      },
-      wcPath);
-
-  const bool success = merged && commitMergeResult(wcPath, logMessage);
+  request.conflictsError = SvnError::RevertFailedWithConflicts;
+  request.emptyError = SvnError::RevertIsEmpty;
+  const bool success = runOperation(wcPath, request);
 
   LOG_PERF(0, "Exit");
   return success;

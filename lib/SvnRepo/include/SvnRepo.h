@@ -72,6 +72,16 @@ enum class SvnError : int {
   InvalidArgument,
   Cancelled,
   ResolveFailed,
+  // Merge, cherry-pick and revert (docs/SVN_TEST_PLAN.md 3.11.1).
+  MergeFailedWithConflicts,
+  CherryPickFailedWithConflicts,
+  RevertFailedWithConflicts,
+  MergeIsEmpty,
+  CherryPickIsEmpty,
+  RevertIsEmpty,
+  LocalChangesInTheWay,
+  OperationInProgress,
+  AbortMergeNothingToAbort,
   Last
 };
 
@@ -172,6 +182,10 @@ struct SvnErrorContext {
   SvnError error = SvnError::Unknown;
   int errorCode = -1;
   QString errorMessage;
+  // Counts the errors recorded on this thread, so a caller can tell whether
+  // a call recorded one: a call that succeeds leaves the last error as it
+  // was.
+  quint64 serial = 0;
 };
 
 // Subversion has no index. The staging area is the changelist
@@ -257,6 +271,10 @@ struct BlameReport {
 
 SvnErrorContext getLastError();
 
+// Subversion's text for one of its error codes (apr_status_t), empty for an
+// unknown code.
+QString errorCodeText(int errorCode);
+
 void initForCurrentThread();
 void shutdownForCurrentThread();
 
@@ -288,18 +306,26 @@ bool unstageFiles(const QString &path, const QStringList &files);
 // svn:global-ignores on the parent directory ignores everything below it.
 bool ignoreFiles(const QString &path, const QStringList &files, bool recursive);
 bool discardFiles(const QString &path, const QStringList &files);
+// Commits the files in the staging changelist and nothing else. While a
+// merge, cherry-pick or revert is in progress, it fails as long as one of its
+// conflicts is unresolved; otherwise it also commits the operation's
+// svn:mergeinfo and ends the operation.
 bool commitStaged(const QString &path, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email, bool cleanup, bool signoff,
                   bool signCommit);
-bool amend(const QString &path, const QString &summary, const QString &message,
-           const QString &author, const QString &email, bool signoff,
-           bool signCommit);
 bool applyPatch(const QString &path, const QString &patchContent);
 bool checkoutCommit(const QString &path, const QString &commit);
-bool resetToCommit(const QString &path, const QString &commit, ResetType type);
 QString listConflictsForAFile(const QString &path, const QString &filePath);
+// True while a merge, cherry-pick or revert stopped with conflicts or
+// couldn't commit: from then until commitStaged or abortMerge ends it, also
+// across closing and reopening the repository. Conflicts from an update don't
+// count.
 bool getIsMergeInProgress(const QString &path);
+// Ends the merge, cherry-pick or revert in progress: its paths go back to
+// BASE and leave the staging changelist, and the files it added are removed.
+// Other local changes and unversioned files are kept. Without an operation in
+// progress it fails with AbortMergeNothingToAbort and changes nothing.
 bool abortMerge(const QString &path);
 bool isTreeConflict(const QString &path, const QString &filePath);
 bool resolveTreeConflict(const QString &path, const QString &filePath,
@@ -312,7 +338,8 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
 QString createPatchFromCommit(const QString &path, const QString &commit);
 qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
                              const QString &commit);
-BlameReport blame(const QString &path, const QStringList &files);
+BlameReport blame(const QString &path, const QStringList &files,
+                  const QString &commit);
 
 // History.
 SvnHistory getBranchHistory(const QString &path, const QString &branchName,
@@ -356,7 +383,19 @@ bool renameTag(const QString &path, const QString &oldTagName,
 bool pushTag(const QString &path, const QString &tagName);
 bool pushAllTags(const QString &path);
 
-// Merging.
+// Merging. These work like the Git backend (docs/SVN_TEST_PLAN.md 3.11.1):
+// - a clean result is committed as one revision holding only the
+//   operation's changes; the user's own local changes are neither committed
+//   nor touched;
+// - a local change in a path the operation changes refuses it before
+//   anything is touched (LocalChangesInTheWay), as does another operation in
+//   progress (OperationInProgress);
+// - conflicts return false with ...FailedWithConflicts and leave the
+//   operation in progress, its other changes staged, for commitStaged or
+//   abortMerge;
+// - nothing to do returns false with ...IsEmpty and makes no revision.
+// A merge into another branch than the checked out one switches to it first,
+// taking the local changes along like git checkout.
 bool merge(const QString &path, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email);
@@ -420,6 +459,10 @@ QString listConflictsForStashFile(const QString &path, int index,
                                   const QString &filePath);
 
 // Git only operations.
+bool amend(const QString &path, const QString &summary, const QString &message,
+           const QString &author, const QString &email, bool signoff,
+           bool signCommit);
+bool resetToCommit(const QString &path, const QString &commit, ResetType type);
 GitRepo::Lfs::StorageStatus getLfsStorageStatus(const QString &path);
 bool rebaseBranches(const QString &path, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
@@ -484,6 +527,53 @@ bool applyGitFlowNextWorkflow(const QString &path,
                               const GitRepo::GitFlowNextWorkflow &workflow);
 bool getGitFlowNextWorkflowReference(const QString &path, QString *id,
                                      int *revision);
+
+#ifdef SOURCERER_SVNREPO_TESTING
+// Hooks for the tests in tests/svnrepo. Only built when SvnRepo is compiled
+// with SOURCERER_SVNREPO_TESTING.
+namespace Testing {
+
+// Makes every client context read its configuration (config, servers) and
+// cached credentials from path instead of the user's Subversion configuration
+// area. An empty path restores the default.
+void setConfigDirectory(const QString &path);
+QString configDirectory();
+
+// The server certificate a TLS connection presents, as Subversion reports it
+// to the trust prompt.
+struct ServerCertificateInfo {
+  QString hostname;
+  QString fingerprint;
+  QString validFrom;
+  QString validUntil;
+  QString issuerDistinguishedName;
+  QString asciiCertificate;
+};
+
+// Runs the server trust prompt for a certificate with failures (a mask of
+// SVN_AUTH_SSL_* bits). Returns true when the certificate is accepted;
+// acceptedFailures receives the failures the answer accepts.
+bool sslServerTrustCheck(quint32 failures, const ServerCertificateInfo &info,
+                         const QString &realm = QString(),
+                         quint32 *acceptedFailures = nullptr);
+
+// Makes libsvn malfunctions (SVN_ERR_MALFUNCTION, SVN_ERR_ASSERT) return an
+// error and record the failed assertion, instead of aborting the process.
+// Malfunctions that can't return still abort, after they are recorded.
+void installMalfunctionHandler();
+
+// The malfunctions recorded since the last call, as "file:line: expression".
+QStringList takeMalfunctions();
+
+// Clears this thread's last error. Successful calls leave it as it was.
+void resetLastError();
+
+// Takes the working copy's write lock and leaves it behind, as an interrupted
+// operation does. Only `svn cleanup` removes it.
+bool leaveStaleWorkingCopyLock(const QString &path);
+
+} // namespace Testing
+#endif
 
 } // namespace SvnRepo
 

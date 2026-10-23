@@ -30,6 +30,10 @@ struct LogEntry {
   // Action of each changed path: 'A' added, 'D' deleted, 'M' modified or
   // 'R' replaced.
   QHash<QString, char> changeActions;
+  // Node kind of each changed path, unknown in old repositories.
+  QHash<QString, svn_node_kind_t> changeKinds;
+  // The path a changed path was copied from.
+  QHash<QString, QString> copyFromPaths;
 };
 
 struct LogBaton {
@@ -57,7 +61,10 @@ static svn_error_t *logCallback(void *baton, svn_log_entry_t *logEntry,
   LogEntry entry;
   entry.revision = logEntry->revision;
   entry.author = revisionProperty(logEntry->revprops, SVN_PROP_REVISION_AUTHOR);
+  // A log stored with CRLF (by another client) reads with LF.
   entry.message = revisionProperty(logEntry->revprops, SVN_PROP_REVISION_LOG);
+  entry.message.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+  entry.message.replace(QLatin1Char('\r'), QLatin1Char('\n'));
 
   const QString date =
       revisionProperty(logEntry->revprops, SVN_PROP_REVISION_DATE);
@@ -88,6 +95,11 @@ static svn_error_t *logCallback(void *baton, svn_log_entry_t *logEntry,
                                            : SVN_INVALID_REVNUM});
       if (changedPath) {
         entry.changeActions.insert(path, changedPath->action);
+        entry.changeKinds.insert(path, changedPath->node_kind);
+        if (changedPath->copyfrom_path) {
+          entry.copyFromPaths.insert(
+              path, QString::fromUtf8(changedPath->copyfrom_path));
+        }
       }
     }
   }
@@ -96,15 +108,19 @@ static svn_error_t *logCallback(void *baton, svn_log_entry_t *logEntry,
   return SVN_NO_ERROR;
 }
 
-// Log of url from HEAD down to revision 0 (or of the single revision when
-// revision is valid). limit <= 0 reads every revision.
+// Log of url from HEAD (or from youngest when it is valid) down to revision
+// 0, or of the single revision when revision is valid. limit <= 0 reads every
+// revision.
 static svn_error_t *readLog(QVector<LogEntry> *entries, const QString &url,
                             svn_revnum_t revision, int limit, bool changedPaths,
-                            svn_client_ctx_t *ctx, apr_pool_t *pool) {
+                            svn_client_ctx_t *ctx, apr_pool_t *pool,
+                            svn_revnum_t youngest = SVN_INVALID_REVNUM) {
   const PathArray targets = makePathArray(pool, {url});
 
   const svn_opt_revision_t peg =
-      SVN_IS_VALID_REVNUM(revision) ? revisionNumber(revision) : revisionHead();
+      SVN_IS_VALID_REVNUM(revision)   ? revisionNumber(revision)
+      : SVN_IS_VALID_REVNUM(youngest) ? revisionNumber(youngest)
+                                      : revisionHead();
 
   auto *range = static_cast<svn_opt_revision_range_t *>(
       apr_pcalloc(pool, sizeof(svn_opt_revision_range_t)));
@@ -112,7 +128,7 @@ static svn_error_t *readLog(QVector<LogEntry> *entries, const QString &url,
     range->start = revisionNumber(revision);
     range->end = revisionNumber(revision);
   } else {
-    range->start = revisionHead();
+    range->start = peg;
     range->end = revisionNumber(0);
   }
 
@@ -181,6 +197,8 @@ SvnHistory getBranchHistory(const QString &path, const QString &branchName,
   LOG_PERF(0, "Enter");
 
   if (quitFlag) {
+    setLastError(SvnError::Cancelled, SVN_ERR_CANCELLED,
+                 QStringLiteral("The history was cancelled."));
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -208,10 +226,23 @@ SvnHistory getBranchHistory(const QString &path, const QString &branchName,
           return false;
         }
 
-        return reportError(SvnError::HistoryFailed,
-                           readLog(&entries,
-                                   historyUrl(info, branchName, branchType),
-                                   SVN_INVALID_REVNUM, limit, true, ctx, pool));
+        const QString url = historyUrl(info, branchName, branchType);
+        svn_error_t *error = readLog(&entries, url, SVN_INVALID_REVNUM, limit,
+                                     true, ctx, pool);
+        if (isMissingPathError(error) &&
+            trimmedUrl(url) == trimmedUrl(info.url)) {
+          // The checked out branch is gone or renamed at HEAD: its history up
+          // to the working copy's newest revision.
+          svn_error_clear(error);
+          entries.clear();
+          svn_revnum_t newest = SVN_INVALID_REVNUM;
+          error = readMaxRevision(&newest, wcPath, false, ctx, pool);
+          if (!error) {
+            error = readLog(&entries, url, SVN_INVALID_REVNUM, limit, true, ctx,
+                            pool, newest);
+          }
+        }
+        return reportError(SvnError::HistoryFailed, error);
       },
       wcPath);
 
@@ -287,9 +318,16 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
           return false;
         }
 
-        return reportError(
-            SvnError::HistoryFailed,
-            readLog(&entries, info.reposRootUrl, revision, 1, true, ctx, pool));
+        svn_error_t *error =
+            readLog(&entries, info.reposRootUrl, revision, 1, true, ctx, pool);
+        if (error &&
+            svn_error_find_cause(error, SVN_ERR_FS_NO_SUCH_REVISION)) {
+          svn_error_clear(error);
+          setLastError(SvnError::InvalidRevision, -1,
+                       QStringLiteral("r%1 doesn't exist.").arg(revision));
+          return false;
+        }
+        return reportError(SvnError::HistoryFailed, error);
       },
       wcPath);
 
@@ -306,16 +344,21 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
   status.timeStamp = entry.timeStamp;
 
   // Changed paths are repository paths such as "/trunk/src/main.cpp". The
-  // ones inside the working copy are reported relative to its root.
+  // ones inside the working copy are reported relative to its root. Others
+  // (e.g. from a parent branch) keep the repository path with the leading
+  // slash, which marks them as repository-root relative.
   const QString wcRepoPath =
       info.url.mid(trimmedUrl(info.reposRootUrl).length());
   for (const auto &[changedPath, copyFromRevision] : entry.changedPaths) {
     Q_UNUSED(copyFromRevision);
-    if (!changedPath.startsWith(wcRepoPath + QLatin1Char('/'))) {
+    const QString file =
+        changedPath.startsWith(wcRepoPath + QLatin1Char('/'))
+            ? changedPath.mid(wcRepoPath.length() + 1)
+            : changedPath;
+    if (entry.changeKinds.value(changedPath, svn_node_unknown) ==
+        svn_node_dir) {
       continue;
     }
-
-    const QString file = changedPath.mid(wcRepoPath.length() + 1);
     switch (entry.changeActions.value(changedPath)) {
     case 'A':
       status.newFiles.append(file);
@@ -328,6 +371,9 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
       break;
     }
   }
+  status.newFiles.sort();
+  status.modifiedFiles.sort();
+  status.deletedFiles.sort();
 
   LOG_PERF(0, "Exit");
   return status;
@@ -387,53 +433,97 @@ QStringList getCommitTags(const QString &path, const QString &commitOid,
 
   const QString wcPath = normalizedPath(path);
   const QuitScope quitScope(&quitFlag);
+  const QStringList existingTags = listTags(wcPath);
+  if (existingTags.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
-  // Tags are copies, a tag points at the revision it was copied from.
-  WorkingCopyInfo info;
-  QVector<LogEntry> entries;
-  const bool success = runWithClientContext(
+  // Tags are copies: a tag points at the last change of what it was copied
+  // from, which a tag copied from another tag (a rename) takes over.
+  QStringList tags;
+  runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
         if (!reportError(
                 SvnError::InfoFailed,
                 readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
           return false;
         }
+        const QString reposRoot = trimmedUrl(info.reposRootUrl);
+        const QString tagsPath =
+            trimmedUrl(info.layoutRootUrl).mid(reposRoot.size()) +
+            QStringLiteral("/tags/");
 
-        svn_error_t *error = readLog(
-            &entries, trimmedUrl(info.layoutRootUrl) + QStringLiteral("/tags"),
-            SVN_INVALID_REVNUM, 0, true, ctx, pool);
-        if (error && (error->apr_err == SVN_ERR_FS_NOT_FOUND ||
+        // Canonical URLs: no trailing slash, the path encoded.
+        QVector<LogEntry> entries;
+        svn_error_t *error =
+            readLog(&entries,
+                    urlOfRelativePath(reposRoot, tagsPath.mid(1).chopped(1)),
+                    SVN_INVALID_REVNUM, 0, true, ctx, pool);
+        if (error && (isMissingPathError(error) ||
                       error->apr_err == SVN_ERR_CLIENT_UNRELATED_RESOURCES)) {
-          // No tags directory.
           svn_error_clear(error);
           return true;
         }
+        if (!reportError(SvnError::HistoryFailed, error)) {
+          return false;
+        }
 
-        return reportError(SvnError::HistoryFailed, error);
+        // The newest copy that made each tag path (the log is newest first).
+        QHash<QString, QPair<QString, svn_revnum_t>> sources;
+        for (const LogEntry &entry : entries) {
+          for (const auto &[changedPath, copyFromRevision] :
+               entry.changedPaths) {
+            const QString name = changedPath.mid(tagsPath.size());
+            if (!changedPath.startsWith(tagsPath) || name.contains('/') ||
+                !SVN_IS_VALID_REVNUM(copyFromRevision) ||
+                sources.contains(name)) {
+              continue;
+            }
+            sources.insert(name, {entry.copyFromPaths.value(changedPath),
+                                  copyFromRevision});
+          }
+        }
+
+        for (const QString &tag : existingTags) {
+          QString name = tag;
+          for (int depth = 0; depth < 16 && sources.contains(name); ++depth) {
+            const auto &[fromPath, fromRevision] = sources.value(name);
+            if (fromPath.startsWith(tagsPath) &&
+                !fromPath.mid(tagsPath.size()).contains('/')) {
+              name = fromPath.mid(tagsPath.size());
+              continue;
+            }
+            // The last change can't be newer than the copy's revision.
+            if (fromRevision < revision) {
+              break;
+            }
+            WorkingCopyInfo source;
+            const QByteArray sourceUrl =
+                urlOfRelativePath(reposRoot, fromPath.mid(1)).toUtf8();
+            const svn_opt_revision_t at = revisionNumber(fromRevision);
+            svn_error_t *infoError = svn_client_info4(
+                sourceUrl.constData(), &at, &at, svn_depth_empty, FALSE, TRUE,
+                FALSE, nullptr,
+                [](void *baton, const char *, const svn_client_info2_t *item,
+                   apr_pool_t *) -> svn_error_t * {
+                  static_cast<WorkingCopyInfo *>(baton)->lastChangedRevision =
+                      item->last_changed_rev;
+                  return SVN_NO_ERROR;
+                },
+                &source, ctx, pool);
+            if (infoError) {
+              svn_error_clear(infoError);
+            } else if (source.lastChangedRevision == revision) {
+              tags.append(tag);
+            }
+            break;
+          }
+        }
+        return true;
       },
       wcPath);
-
-  if (!success) {
-    LOG_PERF(0, "Exit");
-    return {};
-  }
-
-  const QStringList existingTags = listTags(wcPath);
-
-  QStringList tags;
-  for (const LogEntry &entry : entries) {
-    for (const auto &[changedPath, copyFromRevision] : entry.changedPaths) {
-      if (copyFromRevision != revision) {
-        continue;
-      }
-
-      const QStringList parts = changedPath.split('/', Qt::SkipEmptyParts);
-      if (parts.size() == 2 && parts[0] == QStringLiteral("tags") &&
-          existingTags.contains(parts[1]) && !tags.contains(parts[1])) {
-        tags.append(parts[1]);
-      }
-    }
-  }
 
   tags.sort(Qt::CaseInsensitive);
 
@@ -492,8 +582,10 @@ QStringList getCommitHeads(const QString &path, const QString &commitOid,
         WorkingCopyInfo trunk;
         svn_error_t *error =
             readInfo(&trunk, root + QStringLiteral("/trunk"), head, ctx, pool);
-        if (error) {
+        if (isMissingPathError(error)) {
           svn_error_clear(error);
+        } else if (error) {
+          return reportError(SvnError::InfoFailed, error);
         } else {
           heads.append({QStringLiteral("trunk"), trunk.lastChangedRevision});
         }
@@ -504,7 +596,7 @@ QStringList getCommitHeads(const QString &path, const QString &commitOid,
             branchesUrl.constData(), &head, &head, nullptr,
             svn_depth_immediates, SVN_DIRENT_KIND | SVN_DIRENT_CREATED_REV,
             FALSE, FALSE, headsCallback, &baton, ctx, pool);
-        if (error && error->apr_err != SVN_ERR_CANCELLED) {
+        if (isMissingPathError(error)) {
           // No branches directory.
           svn_error_clear(error);
           return true;
@@ -540,12 +632,18 @@ bool getCommitIsHead(const QString &path, const QString &commitOid,
     return false;
   }
 
-  // The newest revision of the checked out branch in the working copy.
-  WorkingCopyInfo info;
-  const bool success = readInfo(&info, normalizedPath(path));
+  // The newest change in the working copy, its own commits included.
+  const QString wcPath = normalizedPath(path);
+  svn_revnum_t newest = SVN_INVALID_REVNUM;
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        return reportError(SvnError::InfoFailed,
+                           readMaxRevision(&newest, wcPath, true, ctx, pool));
+      },
+      wcPath);
 
   LOG_PERF(0, "Exit");
-  return success && info.lastChangedRevision == revision;
+  return success && newest == revision;
 }
 
 } // namespace SvnRepo

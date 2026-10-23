@@ -36,8 +36,6 @@ SvnRepoManager::SvnRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerSetDefaultTarget, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::SvnRepoManagerAmend, callbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerBlame, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerApplyPatch, callbackFunc));
@@ -208,8 +206,6 @@ SvnRepoManager::~SvnRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerSetDefaultTarget, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::SvnRepoManagerAmend, callbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerBlame, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerApplyPatch, callbackFunc));
@@ -287,6 +283,8 @@ SvnRepoManager::~SvnRepoManager() {
       EventManager::EventType::SvnRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerGetUpstream, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerListConflicts, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -443,13 +441,6 @@ void SvnRepoManager::eventCallback(const EventManager::Event &event) {
     setDefaultTargetEvent.addParam(
         QVariant::fromValue(setDefaultTargetCommand));
     _fsm.send(setDefaultTargetEvent);
-    break;
-  }
-  case EventManager::EventType::SvnRepoManagerAmend: {
-    const auto amendCommand = event.data<SvnRepoAmendCommand>();
-    SvnRepoManagerEvent amendEvent(EventType::Amend);
-    amendEvent.addParam(QVariant::fromValue(amendCommand));
-    _fsm.send(amendEvent);
     break;
   }
   case EventManager::EventType::SvnRepoManagerBlame: {

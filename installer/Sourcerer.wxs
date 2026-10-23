@@ -29,6 +29,7 @@
                  Description="Sourcerer - Git Repository Manager">
             <ComponentRef Id="SourcererExecutable" />
             <ComponentRef Id="SourcererLauncherExecutable" />
+            <ComponentRef Id="SourcererAskPassExecutable" />
             <ComponentRef Id="QtDependencies" />
             <ComponentRef Id="QtPlatformPlugins" />
             <ComponentRef Id="QtImageFormatPlugins" />
@@ -37,6 +38,10 @@
             <ComponentRef Id="QtTlsPlugins" />
             <ComponentRef Id="QtWebEngineSupportFiles" />
             <ComponentRef Id="QtWebEngineResourceFiles" />
+
+            <ComponentGroupRef Id="GitFiles" />
+        <ComponentGroupRef Id="SvnFiles" />
+        <ComponentGroupRef Id="HgFiles" />
 
             <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
@@ -85,6 +90,18 @@
                 <RegistryKey Root="HKCU"
                              Key="Software\Sourcerer\InstalledComponents">
                     <RegistryValue Name="SourcererLauncherExecutable"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
+            </Component>
+
+            <Component Id="SourcererAskPassExecutable" Guid="6b1e3f52-9c4d-4a7e-8f21-3d5c7a9b0e64">
+                <File Id="SourcererAskPassExe"
+                      Source="$(var.SourcererBinPath)\SourcererAskPass.exe" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="SourcererAskPassExecutable"
                                    Type="integer"
                                    Value="1"
                                    KeyPath="yes" />
