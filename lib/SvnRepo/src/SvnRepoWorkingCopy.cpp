@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <functional>
 
+#include <algorithm>
+
 #define THREAD_ID "SvnRepo"
 
 namespace SvnRepo {
@@ -565,6 +567,11 @@ bool stageFiles(const QString &path, const QStringList &files) {
               (hasOnlyPropertyChanges(node) || node.copied)) {
             // The folder's own change, not the files below it.
             stagedDirectories.insert(absolutePath);
+            continue;
+          } else if (node.status == svn_wc_status_none &&
+                     !QFileInfo(absolutePath).exists()) {
+            // Missing on disk and unknown to Subversion, e.g. below a deleted
+            // folder. Nothing can be scheduled or added to a changelist.
             continue;
           }
           if (isDirectory && node.status != svn_wc_status_deleted &&
