@@ -28,7 +28,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "Running CMake configuration..."
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -Wno-dev ../../src
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DSOURCERER_BUILD_SVN_CLI=ON -Wno-dev ../../src
 if [ $? -ne 0 ]; then
     echo "Error: CMake configuration failed"
     exit 1

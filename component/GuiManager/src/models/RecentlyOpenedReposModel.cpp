@@ -122,9 +122,19 @@ QIcon RecentlyOpenedReposModel::repositoryTypeIcon(
         QStringLiteral(":/icons/repo-type-git.svg"), color));
     _svnIcon = QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
         QStringLiteral(":/icons/repo-type-svn.svg"), color));
+    _hgIcon = QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+        QStringLiteral(":/icons/repo-type-hg.svg"), color));
   }
 
-  return type == RepositoryType::Subversion ? _svnIcon : _gitIcon;
+  switch (type) {
+  case RepositoryType::Subversion:
+    return _svnIcon;
+  case RepositoryType::Mercurial:
+    return _hgIcon;
+  case RepositoryType::Git:
+    break;
+  }
+  return _gitIcon;
 }
 
 void RecentlyOpenedReposModel::load() {

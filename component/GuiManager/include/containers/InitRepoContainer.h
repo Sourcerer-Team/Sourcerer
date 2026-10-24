@@ -14,7 +14,7 @@ class InitRepoContainer;
 
 namespace GuiManager::Containers {
 
-enum class InitType { Git, Subversion };
+enum class InitType { Git, Subversion, Mercurial };
 
 class InitRepoContainer final
     : public Widgets::ContainerWidget,

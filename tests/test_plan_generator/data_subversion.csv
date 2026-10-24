@@ -1,0 +1,486 @@
+Test ID,Category,Feature Area,Test Case,Test Steps,Expected Result,Priority,Status,Notes,Origin
+SVN-001,Subversion,Subversion - Checkout,Checkout entry point and dialog labels,"1. On the Home screen open the Clone drop-down menu.
+2. Choose 'Subversion checkout'.","A new tab titled 'Checkout Subversion' opens.
+The form shows 'Subversion URL', 'Checkout to' and a 'Checkout' button (not 'Clone').
+No Git-only field (default branch, recurse submodules) is shown.",High,Not Tested,HomeContainer.cpp:419; MainWindow.cpp:1281; CloneRepoContainer.cpp:62-67,New
+SVN-002,Subversion,Subversion - Checkout,Checkout over https:// with a trusted certificate,"1. Open 'Subversion checkout'.
+2. Enter https://<server>/svn/<repo>/trunk (certificate signed by a CA in the Windows store).
+3. Choose an empty destination folder and click 'Checkout'.
+4. Answer 'Yes' to the 'Repository cloned' question.","A progress toast titled 'Checkout' appears (busy bar, no percentage) and closes after about 1-2 s once finished.
+No certificate prompt or error is shown.
+The question 'The repository was cloned successfully. Do you want to open it?' names the destination folder.
+The working copy opens; History shows the newest revision first with a 'Revision' column.",High,Not Tested,SvnRepo.cpp:2003 cloneRepository; SvnRepo.cpp:528 Windows store trust provider; MainWindow.cpp:1798,New
+SVN-003,Subversion,Subversion - Checkout,Checkout over http://,"1. Open 'Subversion checkout'.
+2. Enter http://<server>/svn/<repo>/trunk of a repository with anonymous read access.
+3. Choose an empty destination and click 'Checkout'.","Checkout completes without a credentials prompt.
+The destination contains the trunk files and a .svn folder.
+Opening it shows 'trunk' as the active branch in Local Branches.",High,Not Tested,SvnRepo.cpp:2003; SvnRepo.cpp:1241 canonicalUrl,New
+SVN-004,Subversion,Subversion - Checkout,Checkout over svn:// (svnserve) with credentials,"1. Start svnserve with anon-access = none and a passwd file.
+2. Open 'Subversion checkout', enter svn://127.0.0.1:<port>/trunk and a destination.
+3. Click 'Checkout' and enter the valid user name and password in the credentials overlay.","Exactly one credentials overlay is shown; it closes once the server accepts the answer.
+Checkout completes and the open question appears.
+A later commit from this working copy records the svnserve user as author in History.",High,Not Tested,SvnRepo.cpp:224 acquireCredentials; SvnRepo.cpp:337 confirmSaveCredentials,New
+SVN-005,Subversion,Subversion - Checkout,Checkout over svn+ssh:// uses the ssh client from the Subversion config,"1. In %APPDATA%\Subversion\config set [tunnels] ssh = <path to ssh/plink with key>.
+2. Open 'Subversion checkout', enter svn+ssh://user@host/repo/trunk and a destination.
+3. Click 'Checkout'.","Checkout uses the configured tunnel; Sourcerer shows no SSH passphrase overlay of its own.
+With a working tunnel the checkout completes.
+Without a [tunnels] entry the progress toast closes and no working copy is created (see the checkout error case).",Medium,Not Tested,SvnRepo.cpp:1939 getSshAuthInfo returns nothing (svn+ssh uses the config ssh client); Edge case,New
+SVN-006,Subversion,Subversion - Checkout,Checkout of a file:/// URL and of a plain local path,"1. Create a repository with 'svnadmin create C:\repos\r1' and a trunk folder.
+2. Check out 'file:///C:/repos/r1/trunk'.
+3. Repeat with the plain path 'C:\repos\r1\trunk' and with 'file://localhost/C:/repos/r1/trunk'.","All three spellings check out the same trunk.
+Each working copy opens and shows trunk as the active branch.
+No crash or assertion with a lower-case drive letter (c:/repos/...).",Medium,Not Tested,"CloneRepoContainer.cpp:38 file URL turned into a local path; SvnRepo.cpp:1241 canonicalUrl (file://localhost, drive case); Edge case",New
+SVN-007,Subversion,Subversion - Checkout,Checkout destination name is derived from the URL,"1. Open 'Subversion checkout'.
+2. Type a parent folder in 'Checkout to'.
+3. Type the URL https://host/svn/my.project/trunk, then https://host/svn/proj/ (trailing slash).","For .../trunk the proposed folder name is 'trunk' (the last URL segment).
+For a trailing slash the proposed folder name is empty; edit it before clicking Checkout.
+The full path preview updates as you type and can be edited.",Medium,Not Tested,CloneRepoContainer.cpp:199 onTextChanged uses QUrl::fileName + baseName; Edge case,New
+SVN-008,Subversion,Subversion - Checkout,"Checkout of the repository root (trunk, branches, tags side by side)","1. Check out https://host/svn/repo (the root, not trunk).
+2. Open the working copy.
+3. Look at Local Branches, the toolbar and the commit pane.","The working copy contains trunk, branches and tags folders.
+No branch is marked active (the root is not a branch).
+Checking out another branch shows: 'The working copy is at the project root ... Check out trunk or a branch to switch between branches.'",Medium,Not Tested,SvnRepoBranches.cpp:785 checkoutBranch project-root refusal; SvnRepo.cpp:1335 branchNameFromUrl; Edge case,New
+SVN-009,Subversion,Subversion - Checkout,Checkout of a URL with spaces and Unicode,"1. Create a repository folder 'my repo' with a branch path containing 'é' and '日本'.
+2. Check out 'https://host/svn/my repo/branches/é日本' (unescaped) to a destination with spaces and Unicode.
+3. Open the working copy.","The URL is escaped automatically and the checkout succeeds.
+The destination folder name with Unicode is created correctly.
+Local Branches shows the branch name decoded ('é日本'), not percent-encoded.",Medium,Not Tested,SvnRepo.cpp:1253 svn_path_uri_autoescape; SvnRepo.cpp:1364 name decoded; Edge case,New
+SVN-010,Subversion,Subversion - Checkout,Checkout of an empty repository (revision 0),"1. Create a repository with 'svnadmin create' and no commits.
+2. Check out its root URL.
+3. Open the working copy.","Checkout succeeds and creates an empty working copy at r0.
+History is empty and no error toast is shown.
+Status is clean; Local Branches is empty (no trunk exists).",Medium,Not Tested,SvnRepo.cpp:2003; SvnRepoHistory.cpp:194; SvnRepoBranches.cpp:567; Edge case,New
+SVN-011,Subversion,Subversion - Checkout,Checkout to an existing non-empty folder and to an existing working copy of another URL,"1. Choose a destination folder that already holds unrelated files.
+2. Check out https://host/svn/repo/trunk into it.
+3. Repeat into a folder that is already a working copy of another repository.","Into a folder with unversioned files: the files stay on disk; versioned files that clash are left as obstructions and show in Status.
+Into a working copy of another URL: the checkout fails, the progress toast closes and the existing working copy is untouched.
+No files outside the destination are created or deleted.",Medium,Not Tested,SvnRepo.cpp:2048 svn_client_checkout3 (allow_unver_obstructions FALSE); Edge case,New
+SVN-012,Subversion,Subversion - Checkout,Checkout failure is reported to the user (bad URL / unreachable server),"1. Open 'Subversion checkout'.
+2. Enter https://no-such-host.invalid/svn/repo and a destination.
+3. Click 'Checkout'.","The progress toast closes.
+An error toast naming the reason is expected; verify one appears (MainWindow does not subscribe to SvnRepoManagerCloneRepoError, so the user may get no message).
+No half-created working copy is left that Sourcerer would later offer to open.",High,Not Tested,MainWindow.cpp:283-293 and 1765 (only GitRepoManagerCloneRepoError handled); GitProgressToast.cpp:116; SvnRepoManagerProcessingState.cpp:897; Edge case,New
+SVN-013,Subversion,Subversion - Checkout,Checkout with externals fetches the externals,"1. Prepare a trunk whose root has svn:externals 'https://host/svn/lib/trunk lib'.
+2. Check out the trunk.","The 'lib' folder is checked out with the external's content.
+After opening, the left panel section is titled 'Externals' and lists 'lib'.
+Changes inside 'lib' are not listed as changes of the outer working copy.",Medium,Not Tested,SvnRepo.cpp:2048 ignore_externals FALSE; SvnRepo.cpp:716 externals skipped in status,New
+SVN-014,Subversion,Subversion - Create Repository,Create a local Subversion repository with standard layout,"1. Make sure a user profile exists and is the default.
+2. Home > Init > 'Subversion create'.
+3. Enter name 'demo' and parent directory C:\work, click Init.","The form label reads 'Parent directory'; there is no default branch field.
+C:\work\demo is a working copy of trunk; C:\work\demo-svnrepo is the repository.
+The repository has trunk, branches and tags; History shows r1 'Initial layout' by the profile author.
+The new working copy opens in a tab.",High,Not Tested,"InitRepoContainer.cpp:44,147; SvnRepo.cpp:2065 initRepository",New
+SVN-015,Subversion,Subversion - Create Repository,Create repository without a user profile,"1. Remove or unset the default user profile.
+2. Home > Init > 'Subversion create', enter a name and parent, click Init.","An error toast says a Git profile must be created and set as default.
+Nothing is created on disk.",Medium,Not Tested,InitRepoContainer.cpp:133,New
+SVN-016,Subversion,Subversion - Create Repository,Create repository with invalid names,"1. Open 'Subversion create'.
+2. Try the names '..', 'a/b', 'a\b' and an empty name in turn.","Each attempt shows the toast 'Unable to initialize Subversion repository'.
+No folder is created outside or inside the parent directory.
+A valid name afterwards succeeds.",Medium,Not Tested,SvnRepo.cpp:2076-2096 name validation; InitRepoContainer.cpp:237; Edge case,New
+SVN-017,Subversion,Subversion - Open Working Copy,Open an existing working copy root,"1. Home > Open, choose the root folder of a Subversion working copy (has .svn).","A Subversion tab opens; the commit info label reads 'revision:' and the email row is hidden.
+The history column header and search bar say 'Revision' ('Search revision').
+The working copy is added to the recent list.",High,Not Tested,MainWindow.cpp:66 isRepository; RepoContainer.cpp:579-611; SvnRepoManagerBridgeImpl.cpp:4041,New
+SVN-018,Subversion,Subversion - Open Working Copy,Open a subfolder of a working copy,"1. Home > Open, choose 'wc\src' (a versioned subfolder, no .svn in it).","Expected: the working copy root opens (SvnRepo walks up to the root).
+Observe: MainWindow only checks for .svn in the chosen folder, so nothing may open and no message is shown; record the actual behaviour.",Medium,Not Tested,MainWindow.cpp:559-566 openRepositoryByType (silent log); SvnRepo.cpp:1966 svn_client_get_wc_root; Edge case,New
+SVN-019,Subversion,Subversion - Open Working Copy,Reopen a Subversion working copy from Recent and after restart,"1. Open a Subversion working copy, then close Sourcerer.
+2. Start Sourcerer again.
+3. Close the tab and reopen it from the recent list.","The tab is restored as a Subversion tab (revision labels, Externals, Shelves).
+Opening from the recent list opens it as Subversion, not Git.",Medium,Not Tested,MainWindow.cpp:1059 restore SvnRepo; MainWindow.cpp:688 onRecentClicked,New
+SVN-020,Subversion,Subversion - Open Working Copy,Open a working copy in an older format that needs an upgrade,"1. Use a working copy created by Subversion 1.6 (zipped fixture).
+2. Home > Open, choose it.","The tab shows the error page; the working copy is not modified (no automatic upgrade exists).
+After 'svn upgrade' with the CLI, opening succeeds.",Medium,Not Tested,SvnRepo.cpp:1966 svn_wc_check_wc2; no svn_client_upgrade call in lib/SvnRepo; Edge case,New
+SVN-021,Subversion,Subversion - Open Working Copy,Open a working copy made by the TortoiseSVN 1.14 CLI and use it from both tools,"1. Check out with TortoiseSVN 1.14.
+2. Open it in Sourcerer, stage and commit one file.
+3. Run 'svn status' and 'svn update' with the 1.14 CLI on the same working copy.","Sourcerer opens and commits without error.
+The 1.14 CLI still reads the working copy afterwards (no format upgrade by the 1.16 library).
+'svn status' shows the file in no changelist after the commit.",High,Not Tested,lib/subversion 1.16 vs CLI 1.14 (docs/SVN_TEST_PLAN.md line 160); Edge case,New
+SVN-022,Subversion,Subversion - Open Working Copy,Open a working copy whose wc.db is locked (interrupted operation),"1. Start 'svn update' on a big working copy with the CLI and kill the process halfway.
+2. Open the working copy in Sourcerer.
+3. Try to stage a file.","Status or staging fails with an error toast quoting Subversion's message (working copy locked, run cleanup).
+Sourcerer has no Cleanup command; nothing is changed by Sourcerer.
+After 'svn cleanup' with the CLI and a refresh, Sourcerer works normally.",High,Not Tested,SvnRepo.cpp:1028 svnErrorMessage; no svn_client_cleanup outside relocate (SvnRepoRemotes.cpp:270); Edge case,New
+SVN-023,Subversion,Subversion - Open Working Copy,Working copy with a nested independent working copy,"1. Inside the working copy, check out another repository into 'nested\' (not an external).
+2. Open the outer working copy.","'nested' is listed once as a new item, not file by file.
+Staging the outer changes never adds files of 'nested'.",Medium,Not Tested,SvnRepo.cpp:764 and 857 nested working copies reported as a whole; Edge case,New
+SVN-024,Subversion,Subversion - Git Feature Mapping,Toolbar of a Subversion tab,"1. Open a Subversion working copy.
+2. Look at the toolbar buttons and hover over them.","The pull button has the tooltip 'Update' and no drop-down menu.
+The Push button is hidden.
+The Git Flow button is hidden.
+Stash and Pop buttons are visible (they work on shelves).",High,Not Tested,"RepoContainer.cpp:1226-1280, 1559-1570; SvnRepoManagerBridgeImpl.cpp:132 features",New
+SVN-025,Subversion,Subversion - Git Feature Mapping,Left panel sections for Subversion,1. Open a Subversion working copy and expand the left panel sections.,"Sections shown: Local Branches, Remote Branches, Tags, Shelves, Externals.
+Remotes and Worktrees sections are not shown.
+Local Branches has no 'all branches' item.",High,Not Tested,RepoContainer.cpp:632-694,New
+SVN-026,Subversion,Subversion - Git Feature Mapping,History context menu hides Git-only items,1. Right-click a revision in History.,"Shown: Pull, Copy revision to clipboard, Create branch from commit, Revert, Cherry-pick, Apply patch, Rename <branch>, Create tag from commit, Create patch from commit.
+Not shown: Push, Checkout commit, Copy SHA, Soft/Mixed/Hard reset, Strip, Bisect.
+'Copy revision to clipboard' copies the bare number and shows 'Revision copied to clipboard.'",High,Not Tested,RepoContainer.cpp:4071-4130,New
+SVN-027,Subversion,Subversion - Git Feature Mapping,"Branch, tag and drag-and-drop menus hide Git-only items","1. Right-click a local branch.
+2. Right-click a tag.
+3. Drag a local branch onto another local branch.","Branch menu: Checkout, Rename, Delete; no 'Set upstream'.
+Tag menu: Checkout, Rename, Delete; no 'Push to remote' or 'Delete from remote'.
+Drag-and-drop menu offers only 'Merge'.",Medium,Not Tested,"RepoContainer.cpp:4495-4512, 4672-4690, 7340-7356",New
+SVN-028,Subversion,Subversion - Git Feature Mapping,'Amend previous commit' is offered but unsupported,"1. Stage a change and enter a summary.
+2. Open the 'Amend and Sign' menu next to Commit.
+3. Check 'Amend previous commit' and click Commit.","Observe: the amend item is visible (RepoContainer only hides it during merge or rebase).
+The commit is not made; the toast 'Amending a revision is not supported for Subversion repositories.' appears.
+No revision property is changed; the staged change is still staged.",High,Not Tested,RepoContainer.cpp:10852; SvnRepoManagerBridgeImpl.cpp:451; docs/SVN_TEST_PLAN.md:21 claims RepoFeatures::CommitAmend hides it; Edge case,New
+SVN-029,Subversion,Subversion - Git Feature Mapping,'Sign commit' is silently ignored,"1. Check 'Sign commit' in the 'Amend and Sign' menu.
+2. Stage a file and commit.","The commit succeeds without a signature and without a warning toast.
+History shows the revision as not signed.",Low,Not Tested,SvnRepoWorkingCopy.cpp:1006 LOG_WARN only; Edge case,New
+SVN-030,Subversion,Subversion - Git Feature Mapping,Update button behaviour (Git pull),"1. Have another working copy commit a change to trunk.
+2. Click the Update button.","The incoming revision is applied and appears in History.
+The toast 'Subversion repository is up to-date.' appears.
+Local uncommitted changes are kept (merged).",High,Not Tested,SvnRepoWorkingCopy.cpp:1559 pull; SvnRepoManagerBridgeImpl.cpp:4163,New
+SVN-031,Subversion,Subversion - Git Feature Mapping,Remote Branches list and Behind indicator,"1. Open a working copy of trunk.
+2. Have another working copy commit twice to trunk.
+3. Refresh the tab.","Remote Branches lists trunk and every folder under branches/.
+Trunk shows '↓2' and the tooltip 'Behind remote by 2 commit(s)'.
+After your own commit (no update) trunk is not shown as behind.",Medium,Not Tested,SvnRepoBranches.cpp:716 listRemoteBranchesWithStatus; BranchesModel.cpp:303,New
+SVN-032,Subversion,Subversion - Git Feature Mapping,Remotes panel and relocate are not reachable,"1. Open a Subversion working copy.
+2. Search the UI for a Remotes section or an 'Edit remote' action.","There is no Remotes section, so the working copy can't be relocated from the UI.
+Relocation must be done with 'svn relocate'; the working copy then still opens in Sourcerer.",Low,Not Tested,RepoContainer.cpp:687 hides Remotes (no RepoFeatures::Remotes); SvnRepoRemotes.cpp:221 updateRemote implemented but unused; Edge case,New
+SVN-033,Subversion,Subversion - Status,"Modified, added, deleted and unversioned files","1. In a clean working copy: edit a.txt, 'svn add' b.txt with the CLI, 'svn delete' c.txt, create d.txt.
+2. Refresh the tab.","Unstaged changes list a.txt (modified), b.txt (new), c.txt (deleted) and d.txt (new).
+Nothing is in the staged list.
+The list matches 'svn status' with the CLI.",High,Not Tested,SvnRepo.cpp:657 addStatusPath; changes are unstaged unless in the staging changelist,New
+SVN-034,Subversion,Subversion - Status,Missing file ('!') shows as deleted,"1. Delete tracked file e.txt in Explorer (not with svn delete).
+2. Refresh.","e.txt is listed as deleted in the unstaged list.
+Staging it schedules the deletion (svn status shows 'D').",High,Not Tested,SvnRepo.cpp:674 missing -> deletedFiles; SvnRepoWorkingCopy.cpp:498 missing -> svn_client_delete4; Edge case,New
+SVN-035,Subversion,Subversion - Status,Obstructed and replaced items,"1. Delete tracked file f.txt in Explorer and create a folder named f.txt.
+2. With the CLI, 'svn delete g.txt' then create and 'svn add' a new g.txt.
+3. Refresh.","f.txt (obstructed) is listed as type changed and can't be staged as a normal edit.
+g.txt (replaced) is listed as type changed; after staging it moves to the staged list.",Medium,Not Tested,"SvnRepo.cpp:677 replaced, 685 obstructed -> typeChanged; Edge case",New
+SVN-036,Subversion,Subversion - Status,Ignored files are hidden from changes,"1. Set svn:ignore '*.log' on the root with the CLI and commit.
+2. Create build.log and notes.txt.
+3. Refresh.","notes.txt is listed as new; build.log is not in the changes list.
+A file matching the user's global-ignores (e.g. *.obj in %APPDATA%\Subversion\config) is also hidden.",Medium,Not Tested,SvnRepo.cpp:691 ignored; SvnRepo.cpp:796 readIgnorePatterns,New
+SVN-037,Subversion,Subversion - Status,Unversioned folder contents and empty folders,"1. Create newdir\sub\x.txt and an empty folder empty\.
+2. Refresh.","newdir/sub/x.txt is listed as a file (like Git), not just 'newdir'.
+The empty unversioned folder is not listed.
+Files in newdir matching svn:global-ignores of a parent are hidden.",Medium,Not Tested,SvnRepo.cpp:835 addUnversionedFiles; Edge case,New
+SVN-038,Subversion,Subversion - Status,Property change on a folder and on the root,"1. With the CLI run 'svn propset custom:prop v docs' and 'svn propset custom:prop v .'.
+2. Refresh.","'docs' and '.' (the root) are listed as modified.
+Staging and committing them creates a revision with only the property changes.",Medium,Not Tested,SvnRepo.cpp:728-748 folder property changes; SvnRepoWorkingCopy.cpp:1146 folders brought to HEAD,New
+SVN-039,Subversion,Subversion - Status,Keyword expansion and eol-style do not show false changes,"1. Commit a file with svn:keywords 'Id Rev' and $Id$ in it, and a file with svn:eol-style native.
+2. Update so the keywords expand.
+3. Refresh without editing.","Neither file is listed as modified.
+Opening the diff of an edited keyword file shows only the real edit, not the $Id$ line.",Medium,Not Tested,SvnRepoPrivate.h:248 keywords expanded; SvnRepoDiff.cpp:161 eol-style; docs B44; Edge case,New
+SVN-040,Subversion,Subversion - Status,Mixed-revision working copy,"1. Have another working copy commit to a.txt.
+2. Update only a.txt with 'svn update a.txt' (CLI).
+3. Refresh in Sourcerer and stage/commit a change to b.txt.","Status shows no spurious change for the mixed revisions.
+The commit of b.txt succeeds; Remote Branches does not count your own commit as Behind.",Medium,Not Tested,SvnRepoBranches.cpp:679 countRevisionsBehind uses the newest revision; Edge case,New
+SVN-041,Subversion,Subversion - Status,Sparse working copy (depth empty/files),"1. Check out trunk with the CLI using '--depth files', then 'svn update --set-depth exclude lib'.
+2. Open it in Sourcerer and click Update.","Folders not checked out are not shown as missing or deleted.
+Update keeps the sparse depth (excluded folders are not fetched).",Medium,Not Tested,"SvnRepoWorkingCopy.cpp:1575 update depth infinity, depth_is_sticky FALSE; Edge case",New
+SVN-042,Subversion,Subversion - Status,"Unicode, spaces and special characters in file names","1. Create 'a b.txt', 'ünï.txt', '日本.txt', '#hash.txt', '100%.txt', 'a@b.txt', 'file[1].txt'.
+2. Refresh, stage all, commit.","Every name is listed exactly as on disk.
+The commit contains all of them; History file list shows the same names.
+Names with '@' and '%' are not mistaken for peg revisions or escapes.",High,Not Tested,docs/SVN_TEST_PLAN.md 3.0 matrix; SvnRepo.cpp:1311 encodedUrlPath; Edge case,New
+SVN-043,Subversion,Subversion - Status,Case-only rename on Windows,"1. Rename tracked Foo.txt to foo.txt in Explorer.
+2. Refresh.
+3. Stage both entries and commit.","Foo.txt is listed as deleted (missing) and foo.txt as new.
+The commit creates one revision that deletes Foo.txt and adds foo.txt; afterwards the status is clean.
+If Subversion refuses, an error toast quotes its message and nothing is committed.",Medium,Not Tested,SvnRepo.cpp:674 missing; SvnRepoWorkingCopy.cpp:498; Edge case,New
+SVN-044,Subversion,Subversion - Staging,Stage and unstage files (changelist 'sourcerer-staged'),"1. Modify a.txt and b.txt.
+2. Stage a.txt.
+3. Run 'svn status' with the CLI.
+4. Unstage a.txt.","After staging, a.txt is in the staged list and b.txt stays unstaged.
+The CLI shows a.txt in changelist 'sourcerer-staged'.
+After unstaging, a.txt is still modified but unstaged; its content is unchanged.",High,Not Tested,"SvnRepo.h:177 staging changelist; SvnRepoWorkingCopy.cpp:459, 613",New
+SVN-045,Subversion,Subversion - Staging,Staging a new file adds it; unstaging keeps it added,"1. Create new.txt and stage it.
+2. Unstage it.","After staging, new.txt is in the staged list as new and 'svn status' shows 'A'.
+After unstaging it stays scheduled for add ('A') and appears in the unstaged list as new.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:490 svn_client_add5; 613 unstage only removes the changelist,New
+SVN-046,Subversion,Subversion - Staging,Stage a folder,"1. Create docs\a.md and docs\b.md (unversioned folder) and edit src\x.c.
+2. Stage the 'docs' folder.","docs, docs/a.md and docs/b.md are added and staged.
+src/x.c stays unstaged.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:575 folder staging,New
+SVN-047,Subversion,Subversion - Staging,Stage an empty added folder and a copied folder,"1. With the CLI 'svn mkdir empty' and 'svn copy lib lib2'.
+2. Stage 'empty' and 'lib2', commit.","Both are listed as staged (lib2 as renamed/copied).
+The commit contains the empty folder and the whole copied folder with history.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:567 staged directories file; docs B7; Edge case,New
+SVN-048,Subversion,Subversion - Staging,Staging a file that still has conflict markers is refused,"1. Create a text conflict on a.txt with an update.
+2. Try to stage a.txt without editing it.
+3. Remove the markers, save, stage again.","The first attempt fails: 'a.txt still has conflict markers.'
+After removing the markers, staging resolves the conflict and stages the file.",High,Not Tested,SvnRepoWorkingCopy.cpp:510-534; Edge case,New
+SVN-049,Subversion,Subversion - Staging,Staging a property-conflicted file is refused,"1. Create a property conflict on a.txt (both sides set custom:p differently).
+2. Try to stage a.txt.","Error toast: 'The property conflict of a.txt must be resolved first.'
+Sourcerer offers no way to resolve a property conflict; resolve it with 'svn resolve' and stage again.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:517; Edge case,New
+SVN-050,Subversion,Subversion - Commit,Partial commit: only staged files are committed,"1. Modify a.txt, b.txt, c.txt; stage only a.txt and b.txt.
+2. Enter summary 'Part 1' and click Commit.","One new revision contains exactly a.txt and b.txt ('svn log -v').
+c.txt is still modified and unstaged.
+Summary and description fields are cleared; History shows the new revision on top.",High,Not Tested,SvnRepoWorkingCopy.cpp:999 commitStaged; SvnRepoManagerBridgeImpl.cpp:882,New
+SVN-051,Subversion,Subversion - Commit,Commit with summary and multi-line description,"1. Stage a file.
+2. Enter summary '#42 Fix crash' and a two-paragraph description with a line starting with '#'.
+3. Commit.","The log message is the summary, a blank line, then the description.
+A summary starting with '#' is kept; '#' lines in the description are kept (cleanup is off for normal commits).
+Line endings in the stored log are LF.",Medium,Not Tested,SvnRepo.cpp:1429 makeLogMessage; RepoContainer.cpp:3205 cleanup only during merge,New
+SVN-052,Subversion,Subversion - Commit,Commit button needs a staged file and a message,"1. With nothing staged, type a summary.
+2. Stage a file and clear the summary and description.
+3. Type only spaces in the summary and click Commit.","Commit is disabled with nothing staged or with empty fields.
+With spaces only, the commit fails with 'The commit message is empty.'",Medium,Not Tested,RepoContainer.cpp:10826 resetCommitButton; SvnRepoWorkingCopy.cpp:1012; Edge case,New
+SVN-053,Subversion,Subversion - Commit,Commit an added folder tree and a deleted folder,"1. Create a\b\c.txt and stage it.
+2. With the CLI 'svn delete old' (folder with files) and stage 'old'.
+3. Commit.","The revision adds a, a/b and a/b/c.txt and deletes old with all children.
+No 'non-recursive commit' error appears.",High,Not Tested,SvnRepoWorkingCopy.cpp:1086-1185 parents and deleted folders; docs B1; Edge case,New
+SVN-054,Subversion,Subversion - Commit,Commit a move made with the CLI (both sides vs one side),"1. With the CLI 'svn move a.txt b.txt'.
+2. Stage only b.txt and commit.
+3. Then stage a.txt as well and commit.","Committing only one side fails with Subversion's message that both sides of a move must be committed together; nothing is committed.
+Committing both creates one revision; 'svn log -v' shows b.txt copied from a.txt.",Medium,Not Tested,SvnRepo.cpp:662 copied+staged -> renamedStagedFiles; SvnRepo.cpp:1493 commitPaths; Edge case,New
+SVN-055,Subversion,Subversion - Commit,Out-of-date commit,"1. In working copy A and B edit the same file f.txt.
+2. Commit in B.
+3. Stage and commit f.txt in A.","A's commit fails with an error toast quoting the out-of-date message.
+f.txt stays staged in A; after Update (merging the change) the commit succeeds.",High,Not Tested,SvnRepoWorkingCopy.cpp:1185 CommitFailed with svn message; Edge case,New
+SVN-056,Subversion,Subversion - Commit,Commit while checked out on a tag is refused,"1. Check out a tag from the Tags section.
+2. Edit a file, stage it and commit.","Checking out the tag shows the warning: 'Tag ... is checked out. Tags are meant to be read-only snapshots, so create a branch from it to make changes.'
+The commit fails: 'A tag can't be committed to. Check out a branch to commit.'",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:751; SvnRepoWorkingCopy.cpp:1026; Edge case,New
+SVN-057,Subversion,Subversion - Commit,Commit rejected by a pre-commit hook,"1. Install a pre-commit hook that rejects messages without an issue number.
+2. Stage a file and commit with summary 'no issue'.","The error toast shows the hook's output.
+The file stays staged; no revision is created.",Medium,Not Tested,SvnRepo.cpp:1028 svnErrorMessage joins nested messages; Edge case,New
+SVN-058,Subversion,Subversion - Discard,Discard a modified file,"1. Edit a.txt and stage it; edit it again (staged plus more edits).
+2. Right-click a.txt > Discard.","a.txt goes back to its BASE content and leaves the staged list.
+No backup file is created.",High,Not Tested,SvnRepoWorkingCopy.cpp:837 discardFiles,New
+SVN-059,Subversion,Subversion - Discard,Discard an added file keeps it on disk,"1. Create new.txt and stage it (scheduled for add).
+2. Discard new.txt.","new.txt is no longer added; it stays on disk and is listed as new (unversioned).
+Its content is unchanged.",High,Not Tested,SvnRepoWorkingCopy.cpp:866 revert with added_keep_local; docs B28; Edge case,New
+SVN-060,Subversion,Subversion - Discard,Discard a deleted or missing file restores it,"1. Delete a.txt in Explorer and b.txt with 'svn delete'.
+2. Discard both.","Both files are restored with their BASE content.
+Status is clean for both.",High,Not Tested,SvnRepoWorkingCopy.cpp:837,New
+SVN-061,Subversion,Subversion - Discard,Discard one file of a deleted folder,"1. 'svn delete docs' (folder with a.md, b.md).
+2. Discard only docs/a.md.","docs and docs/a.md are restored.
+docs/b.md stays deleted.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:890-945 topmost deleted folder; Edge case,New
+SVN-062,Subversion,Subversion - Discard,Discard of unversioned files leaves them,"1. Create temp.txt (unversioned).
+2. Discard it.","temp.txt stays on disk and in the list; nothing is deleted.
+Use 'Delete' if the file should be removed.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:882 unversioned skipped; Edge case,New
+SVN-063,Subversion,Subversion - Ignore,Ignore a file in its folder (svn:ignore),"1. Create src\out.o (unversioned).
+2. Right-click > Ignore.","src gets svn:ignore 'out.o' (check with 'svn propget svn:ignore src').
+out.o disappears from the changes; 'src' appears as modified (property change) and can be committed.
+No .gitignore file is written.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:5720; SvnRepoWorkingCopy.cpp:724 ignoreFiles,New
+SVN-064,Subversion,Subversion - Ignore,Ignore recursively (svn:global-ignores),"1. Create a\cache.tmp and a\b\cache.tmp.
+2. Right-click a\cache.tmp > Ignore recursively.","'a' gets svn:global-ignores 'cache.tmp'.
+Both cache.tmp files are hidden; other new files below 'a' stay visible.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:766 recursive -> svn:global-ignores; docs 7.4 item 7,New
+SVN-065,Subversion,Subversion - Update,Update to HEAD with no local changes,"1. Commit three revisions from another working copy.
+2. Click Update.","The working copy is at HEAD; History shows the three revisions.
+Toast 'Subversion repository is up to-date.'",High,Not Tested,SvnRepoWorkingCopy.cpp:1559 pull,New
+SVN-066,Subversion,Subversion - Update,Update with a conflicting local edit,"1. Edit line 1 of a.txt locally; commit a different edit of line 1 from another working copy.
+2. Click Update.","An error toast says 'The update left conflicts in: a.txt'.
+a.txt is listed as conflicted and contains conflict markers; .mine/.rN files exist.
+No merge is 'in progress' (the Abort button is not shown).",High,Not Tested,"SvnRepoWorkingCopy.cpp:1584 ConflictWatch; docs B9, B24; Edge case",New
+SVN-067,Subversion,Subversion - Update,Update to a specific revision is not offered,1. Right-click an older revision in History.,"There is no 'Checkout commit' / 'Update to revision' item for Subversion.
+Use 'svn update -r N' in the CLI; Sourcerer then shows the working copy at that revision without errors.",Low,Not Tested,RepoContainer.cpp:4088 (HistoryViewContextMenuCheckoutCommit not in SVN features); SvnRepoWorkingCopy.cpp:1301 checkoutCommit unused; Edge case,New
+SVN-068,Subversion,Subversion - Update,Update while the server is unreachable,"1. Disconnect the network or stop the server.
+2. Click Update.","An error toast quotes the connection error.
+The working copy and local changes are unchanged; the tab stays usable.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:4138; Edge case,New
+SVN-069,Subversion,Subversion - Update,Update brings an incoming add that is obstructed by an unversioned file,"1. Create unversioned new.txt locally.
+2. From another working copy add and commit new.txt with different content.
+3. Click Update.","The update reports a tree conflict on new.txt in an error toast.
+Opening new.txt shows the 'Tree conflict' dialog with 'Keep local', 'Take incoming' and Cancel.",High,Not Tested,SvnRepoWorkingCopy.cpp:1575 allow_unver_obstructions; SvnRepoManagerBridgeImpl.cpp:2368; Edge case,New
+SVN-070,Subversion,Subversion - Branches and Switch,Local Branches lists trunk and branches/,"1. Open a working copy of trunk in a standard-layout repository with branches b1, b2.","Local Branches shows trunk, b1, b2; trunk is marked active.
+Tags shows the folders under tags/.",High,Not Tested,SvnRepoBranches.cpp:567 listLocalBranches; 956 listTags,New
+SVN-071,Subversion,Subversion - Branches and Switch,Switch to another branch,1. Double-click or right-click > Checkout on branch b1 with a clean working copy.,"The working copy is switched to branches/b1 ('svn info' URL).
+b1 becomes active and History shows b1's revisions.",High,Not Tested,SvnRepoBranches.cpp:766 checkoutBranch; SvnRepoManagerBridgeImpl.cpp:656,New
+SVN-072,Subversion,Subversion - Branches and Switch,Switch with local changes carries them along,"1. Edit a.txt (unrelated to b1's changes).
+2. Checkout b1 and confirm the 'Uncommitted Changes' warning.","The warning 'You have uncommitted changes on the current branch...' is shown first; Cancel stops the switch.
+After confirming, the switch succeeds and a.txt keeps its edit.",High,Not Tested,RepoContainer.cpp:11319; SvnRepoBranches.cpp:800,New
+SVN-073,Subversion,Subversion - Branches and Switch,Switch with local changes that conflict,"1. Edit a.txt where b1 has a different change on the same lines.
+2. Checkout b1 and confirm.","Error toast: 'The switch left conflicts in: a.txt'.
+The working copy is on b1 with a.txt conflicted (markers present).",Medium,Not Tested,SvnRepoBranches.cpp:812 ConflictWatch; Edge case,New
+SVN-074,Subversion,Subversion - Branches and Switch,Create branch from a revision,"1. Right-click revision r5 > Create branch from commit, name 'feature1'.","A server-side copy of the whole trunk at r5 to branches/feature1 is made with log 'Create branch feature1 from r5'.
+feature1 appears in Local Branches; the working copy is not switched.",High,Not Tested,SvnRepoBranches.cpp:821 createBranchFromCommit,New
+SVN-075,Subversion,Subversion - Branches and Switch,Branch name validation,"1. Try to create branches named '', 'feature/x', 'a\b', '..', 'trunk', 'my branch', 'é日本', '100%'.","'', 'feature/x', 'a\b', '..' and 'trunk' are refused with an error toast (e.g. 'can't contain a slash').
+'my branch', 'é日本' and '100%' are created and listed with the same name, and can be checked out, renamed and deleted.",Medium,Not Tested,"SvnRepoBranches.cpp:51 checkRefName; SvnRepo.cpp:1311 encodedUrlPath; docs B2h, B13; Edge case",New
+SVN-076,Subversion,Subversion - Branches and Switch,Rename the active branch,"1. Check out b1.
+2. Rename it to b1-renamed.","Toast 'Successfully renamed branch.'
+The repository has branches/b1-renamed; the working copy follows it (svn info URL changed) and it is still active.",Medium,Not Tested,SvnRepoBranches.cpp:911 renameBranch switches the working copy,New
+SVN-077,Subversion,Subversion - Branches and Switch,Delete a branch and the guards,"1. Delete branch b2 (not active) and confirm.
+2. Try to delete the active branch and 'trunk'.","b2 is removed from the repository with log 'Delete branch b2'.
+Deleting the active branch fails: 'The checked out branch ... cannot be deleted.'
+Deleting trunk fails: 'trunk isn't a branch that can be created, renamed or deleted.'",High,Not Tested,SvnRepoBranches.cpp:863 deleteBranch; 62 trunk guard; Edge case,New
+SVN-078,Subversion,Subversion - Branches and Switch,Non-standard layout (no trunk/branches/tags),"1. Check out a repository whose root holds projects 'app' and 'lib' and no trunk.
+2. Open it and look at the branch sections; try Create branch from commit.","Local Branches is empty; Remote Branches lists 'app' and 'lib'.
+No active branch is shown; creating a branch fails with 'The working copy isn't on trunk, a branch or a tag.'",Medium,Not Tested,SvnRepoBranches.cpp:636 top-level folders; 80 checkOnBranch; Edge case,New
+SVN-079,Subversion,Subversion - Branches and Switch,"Project-root layout (/proj/trunk, /proj/branches)","1. Check out /proj/trunk of a repository with several projects.
+2. Create, switch and delete a branch.","Branches are created under /proj/branches, not /branches.
+Switching and history work for the project's branches.",Medium,Not Tested,SvnRepo.cpp:1283 layoutRootUrlFor; Edge case,New
+SVN-080,Subversion,Subversion - Branches and Switch,Branch deleted in the repository while checked out,"1. Check out b1; from another working copy delete branches/b1.
+2. Refresh History in Sourcerer and switch to trunk.","History still shows b1's revisions up to the working copy's revision (no error).
+Switching to trunk works.",Medium,Not Tested,SvnRepoHistory.cpp:228 missing branch fallback; docs B16h; Edge case,New
+SVN-081,Subversion,Subversion - Tags,Create a tag from HEAD and from an older revision,"1. Right-click the newest revision > Create tag from commit, name 'v1.0', message 'Release 1.0'.
+2. Create 'v0.9' from an older revision without a message.","tags/v1.0 is a copy of the whole branch with log 'Release 1.0'.
+tags/v0.9 has log 'Create tag v0.9'.
+Both appear in Tags; History marks the tagged revisions.",High,Not Tested,SvnRepoBranches.cpp:983 createTagFromCommit,New
+SVN-082,Subversion,Subversion - Tags,Checkout a tag,1. Right-click tag v1.0 > Checkout.,"The working copy is switched to tags/v1.0.
+Warning toast: 'Tag 'v1.0' is checked out. Tags are meant to be read-only snapshots...'",Medium,Not Tested,SvnRepoManagerBridgeImpl.cpp:751,New
+SVN-083,Subversion,Subversion - Tags,Rename and delete a tag,"1. Rename v0.9 to v0.9.1.
+2. Delete v0.9.1 and confirm.","Toast 'Successfully renamed tag.'; tags/v0.9.1 exists, v0.9 does not.
+After deleting, the tag disappears with log 'Delete tag v0.9.1'.",Medium,Not Tested,"SvnRepoBranches.cpp:1023, 1050",New
+SVN-084,Subversion,Subversion - Tags,Delete or rename the tag that is checked out,"1. Check out tag v1.0.
+2. Delete v1.0 (or rename it).","Expected for a safe client: refused like the active branch.
+Observe: deleteTag and renameTag have no active-tag guard and do not switch the working copy, so the working copy may point at a deleted URL; record the result and check that Update/Switch still recover.",Medium,Not Tested,"SvnRepoBranches.cpp:1023 deleteTag, 1050 renameTag (no guard, unlike deleteBranch 873 / renameBranch 939); Edge case",New
+SVN-085,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merge a branch into trunk (clean),"1. Commit changes on branch b1.
+2. Check out trunk; drag b1 onto trunk and choose Merge.","One new revision with log ""Merge branch 'b1' into 'trunk'"" contains only b1's changes plus svn:mergeinfo on the root.
+Status is clean; no merge in progress.",High,Not Tested,SvnRepoBranches.cpp:1088 merge; 328 runOperation,New
+SVN-086,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merge keeps unrelated local changes uncommitted,"1. Edit z.txt (not touched by b1) without staging.
+2. Merge b1 into trunk.","The merge revision does not contain z.txt.
+z.txt is still modified and unstaged.",High,Not Tested,SvnRepoBranches.cpp:458 only the operation's paths are staged; docs B4h; Edge case,New
+SVN-087,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merge refused when local changes are in the way,"1. Edit a.txt, which b1 also changed.
+2. Merge b1 into trunk.","Error toast: 'Local changes are in the way of the merge: a.txt'.
+a.txt keeps the local edit; no revision; no merge in progress.",High,Not Tested,SvnRepoBranches.cpp:394 data-loss guard; Edge case,New
+SVN-088,Subversion,"Subversion - Merge, Cherry-pick and Revert","Merge with conflicts, then resolve and commit","1. Make trunk and b1 change the same line of a.txt.
+2. Merge b1 into trunk.
+3. Remove the markers in a.txt, stage it, enter a message and click the Merge button.","The merge stops with 'The merge left conflicts in: a.txt'; Abort and Merge buttons appear and Commit is hidden.
+Non-conflicted merge changes are already staged.
+After resolving, one revision with the merge changes and mergeinfo is created; the merge is no longer in progress.",High,Not Tested,SvnRepoBranches.cpp:476; SvnRepoWorkingCopy.cpp:1033; RepoContainer.cpp:10826-10850; Edge case,New
+SVN-089,Subversion,"Subversion - Merge, Cherry-pick and Revert",Abort a conflicted merge,"1. Start a merge that conflicts and also leave an unrelated local edit and an unversioned file.
+2. Click Abort.","The merge's paths go back to BASE, files it added are removed, the staged list is empty.
+The unrelated edit and the unversioned file are kept.
+Abort/Merge buttons disappear.",High,Not Tested,SvnRepoWorkingCopy.cpp:1378 abortMerge; Edge case,New
+SVN-090,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merge state survives closing and reopening,"1. Start a merge with conflicts.
+2. Close the tab and reopen the working copy (also after restarting Sourcerer).","The merge is still in progress (Abort and Merge buttons shown).
+Commit or Abort works as before.",Medium,Not Tested,SvnRepo.cpp:1559 .svn/sourcerer/operation.json; Edge case,New
+SVN-091,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merging an already merged branch makes no revision,"1. Merge b1 into trunk.
+2. Merge b1 into trunk again with no new changes.","The second merge shows the error 'The merge has nothing to change.'
+No new revision is created.",Medium,Not Tested,SvnRepoBranches.cpp:444 MergeIsEmpty; Edge case,New
+SVN-092,Subversion,"Subversion - Merge, Cherry-pick and Revert",Merge into a branch that is not checked out,"1. With trunk checked out, drag b1 onto b2 and choose Merge.","The working copy is switched to b2 first, then b1 is merged into b2.
+If the merge is refused or conflicts, the working copy stays on b2 (it is not switched back); record this.",Medium,Not Tested,SvnRepoBranches.cpp:1113 switch before runOperation; docs 7.4 item 11; Edge case,New
+SVN-093,Subversion,"Subversion - Merge, Cherry-pick and Revert",Cherry-pick a revision from another branch,"1. Note a revision rN committed on b1.
+2. On trunk, History context menu > Cherry-pick, enter 'rN' (also try 'N').","The dialog placeholder reads 'Commit revision to cherry-pick'.
+One revision on trunk with the picked revision's summary and '(cherry picked from rN)'.
+Toast 'Successfully cherry-picked commit.'",High,Not Tested,SvnRepoBranches.cpp:1135 cherryPickCommit; RepoContainer.cpp:7716,New
+SVN-094,Subversion,"Subversion - Merge, Cherry-pick and Revert",Cherry-pick invalid input and conflicts,"1. Cherry-pick 'r0', 'abc', '+2' and a revision above HEAD.
+2. Cherry-pick a revision whose change conflicts with trunk.","r0: 'Revision 0 has no changes.'; abc and +2: ""'...' is not a Subversion revision.""
+A conflicting pick stops with 'The cherry-pick left conflicts in: ...' and can be aborted or committed like a merge.
+Picking an already applied revision: 'The cherry-pick has nothing to change.'",Medium,Not Tested,SvnRepo.cpp:1189 parseRevision; SvnRepoBranches.cpp:1140; Edge case,New
+SVN-095,Subversion,"Subversion - Merge, Cherry-pick and Revert",Revert a committed revision,"1. Right-click revision rN in History > Revert, confirm.","A confirmation 'Confirm revert' is shown first.
+One new revision undoes rN with the log '[Revert] <summary of rN>'.
+Toast 'Successfully reverted commit.'",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:5248 message '[Revert] %2'; SvnRepoBranches.cpp:1173,New
+SVN-096,Subversion,"Subversion - Merge, Cherry-pick and Revert","Merge, cherry-pick and stash are refused while another operation is in progress","1. Leave a cherry-pick with conflicts in progress.
+2. Try a merge, another cherry-pick, a branch checkout and Stash.","Each is refused with 'A cherry-pick is in progress. Commit it or abort it first.'
+Discarding a single file still works.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:425; SvnRepoShelves.cpp:204; Edge case,New
+SVN-097,Subversion,Subversion - Conflicts,Text conflict shown in the three-way view,"1. Create a text conflict on a.txt by Update.
+2. Click a.txt in the changes list.","The three-way/merge diff view opens with the file content including the conflict markers.
+The save button of the merge view is enabled.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:2461 diffThreeWay; SvnRepoWorkingCopy.cpp:1353,New
+SVN-098,Subversion,Subversion - Conflicts,Tree conflict: keep local,"1. Create a tree conflict: unversioned local new.txt vs incoming add of new.txt.
+2. Click new.txt, choose 'Keep local'.","Dialog title 'Tree conflict' with the text about an unversioned local file blocking the incoming change.
+After 'Keep local' the toast 'Tree conflict resolved.' appears and new.txt keeps the local content.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:2368; SvnRepoWorkingCopy.cpp:1482; Edge case,New
+SVN-099,Subversion,Subversion - Conflicts,Tree conflict: take incoming,"1. Repeat the tree conflict.
+2. Choose 'Take incoming'.","new.txt has the repository content.
+The dialog promises the local file is renamed to 'new.txt.local'; observe that no .local file remains (the code deletes the backup after success). Check that this is intended before local data is lost.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:2384 text vs SvnRepoWorkingCopy.cpp:1552 QFile::remove(backupPath); Edge case,New
+SVN-100,Subversion,Subversion - Conflicts,Tree conflict: local edit vs incoming delete,"1. Edit a.txt locally; delete a.txt in another working copy and commit.
+2. Update, then click a.txt.","Update reports the tree conflict on a.txt.
+The same 'Tree conflict' dialog opens (its text mentions an unversioned file even though this is an edit/delete conflict).
+Cancel leaves the conflict unchanged.",Medium,Not Tested,SvnRepoManagerBridgeImpl.cpp:2380 fixed dialog text; Edge case,New
+SVN-101,Subversion,Subversion - Conflicts,Property-only conflict has no resolution path,"1. Create a conflict on a property of a.txt only (no text conflict).
+2. Click a.txt in the list.","Observe the toast 'No difference compared to the HEAD commit.' (no property view).
+Staging fails with 'The property conflict of a.txt must be resolved first.'; resolve with the CLI.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:1353 only text conflicts; SvnRepoManagerBridgeImpl.cpp:2533; Edge case,New
+SVN-102,Subversion,Subversion - Conflicts,Update conflict can't be aborted,"1. Create an update conflict.
+2. Look for the Abort button.","No Abort button is shown (an update conflict is not an operation).
+The user's local edits are never reverted automatically.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:1374 getIsMergeInProgress; docs B9; Edge case,New
+SVN-103,Subversion,Subversion - History,History shows revisions newest first,"1. Open a working copy with 20 revisions.
+2. Select a revision.","The list is newest first with revision numbers in the 'Revision' column.
+Details show 'revision:', author, date and the full message; no email row.
+The changed-files list is sorted and holds files only (no folders).",High,Not Tested,SvnRepoHistory.cpp:194; 301 getCommitStatus; RepoContainer.cpp:579-611,New
+SVN-104,Subversion,Subversion - History,Very long history pages in,"1. Open a working copy with 10,000+ revisions.
+2. Scroll to the end of the list repeatedly.","The first page loads quickly; more pages load on scroll.
+No revision appears twice or is skipped at page boundaries.",Medium,Not Tested,"SvnRepoHistory.cpp:212-260 page + 1 trick, GitRepoHistoryPageSize; Edge case",New
+SVN-105,Subversion,Subversion - History,History of a branch includes revisions before the branch copy,"1. Create branch b1 from trunk r10 and commit twice on b1.
+2. Check out b1 and look at History.","History shows b1's two revisions, the copy revision and trunk revisions up to r10.
+Diffs of the older trunk revisions open from the branch.",Medium,Not Tested,SvnRepoHistory.cpp readLog strict FALSE follows copies; docs B50,New
+SVN-106,Subversion,Subversion - Diff,Diff of a modified working file,"1. Edit three lines of a.txt.
+2. Click a.txt in the changes list.","The unified view shows ---/+++ headers and the changed lines; side-by-side shows BASE vs working.
+Scrollbar marks show added and deleted lines.",High,Not Tested,SvnRepoDiff.cpp:393 diffFiles; SvnRepoManagerBridgeImpl.cpp:2235,New
+SVN-107,Subversion,Subversion - Diff,"Diff of new, unversioned, deleted and missing files","1. Create new.txt, delete a.txt in Explorer, 'svn delete' b.txt.
+2. Click each file.","new.txt shows every line added (/dev/null old side).
+a.txt (missing) and b.txt show every line removed.",Medium,Not Tested,"SvnRepoDiff.cpp:428 unversioned, 455 missing; docs B49, B22h; Edge case",New
+SVN-108,Subversion,Subversion - Diff,Diff of a file in a historical revision,"1. Select a revision in History and click a modified, an added and a deleted file in it.","Each diff shows the change of that revision against the previous one.
+A file with no textual change shows 'No difference compared to the previous revision.'",High,Not Tested,SvnRepoDiff.cpp:490 diffFilesFromCommit; SvnRepoManagerBridgeImpl.cpp:2641,New
+SVN-109,Subversion,Subversion - Blame,Blame a committed file,1. Open blame for a file with several revisions.,"Each line shows the revision, author and summary that last changed it.
+The number of lines equals the file's line count (no extra trailing line).",High,Not Tested,SvnRepoDiff.cpp:726 blame,New
+SVN-110,Subversion,Subversion - Blame,Blame a locally modified file,"1. Edit two lines of a committed file without committing.
+2. Open blame.",The edited lines show no revision (local change); other lines show their revisions.,Medium,Not Tested,SvnRepo.h:349 commit empty for local lines; Edge case,New
+SVN-111,Subversion,Subversion - Blame,Blame a binary or newly added file,1. Open blame for a PNG with svn:mime-type set and for a file only scheduled for add.,"Blame does not crash; the file's error message is shown instead of lines (e.g. binary type).
+Other files in the same request are still blamed.",Low,Not Tested,SvnRepoDiff.cpp:808 per-file errorMessage; Edge case,New
+SVN-112,Subversion,Subversion - Patches,Create patch from a revision and apply it to another working copy,"1. History > Create patch from commit on rN of branch b1.
+2. In a trunk working copy, History > Apply patch and choose the file.","The patch uses Git headers (diff --git a/... b/...) relative to the branch root.
+Applying changes the files; they appear as unstaged changes.",High,Not Tested,SvnRepoDiff.cpp:594 createPatchFromCommit; SvnRepoWorkingCopy.cpp:1215 applyPatch,New
+SVN-113,Subversion,Subversion - Patches,Apply a patch with rejected hunks,1. Apply a patch whose context no longer matches a.txt.,"Error toast 'The patch could not be applied to: a.txt'.
+a.txt.svnpatch.rej is listed as a new file so the rejected hunks can be read.",Medium,Not Tested,SvnRepoWorkingCopy.cpp:1281; SvnRepo.cpp:694; Edge case,New
+SVN-114,Subversion,Subversion - Patches,"Apply an already applied, empty or garbage patch","1. Apply the same patch twice.
+2. Apply an empty file and a text file that is not a patch.","Second application: 'The patch changes nothing.'
+Empty file: 'The patch is empty.'
+Garbage: 'The patch changes nothing.' (no change on disk).",Medium,Not Tested,"SvnRepoWorkingCopy.cpp:1219, 1288; Edge case",New
+SVN-115,Subversion,Subversion - Shelves,Stash creates a shelf and reverts the changes,"1. Edit a.txt, add new.txt (staged) and delete b.txt.
+2. Click Stash, enter note 'wip login', submit.","Shelves lists 'On trunk: wip login'.
+The working copy is clean for those files; 'svn x-shelf-list' style storage exists under .svn.
+Unversioned files stay on disk.",High,Not Tested,SvnRepoShelves.cpp:200 stash,New
+SVN-116,Subversion,Subversion - Shelves,Stash without a note and with nothing to stash,"1. Stash an edit with an empty note.
+2. With a clean working copy (only unversioned files), click Stash.","The first shelf is listed as 'WIP on trunk'.
+The second attempt shows an error toast 'There are no local changes to stash'.",Medium,Not Tested,"SvnRepoShelves.cpp:215, 244; Edge case",New
+SVN-117,Subversion,Subversion - Shelves,Apply a shelf keeps it; Pop removes it,"1. Create a shelf.
+2. Select it and click Apply; discard the changes.
+3. Click Pop.","Apply restores the changes and the shelf stays in the list.
+Pop restores the changes and removes the shelf.",High,Not Tested,"RepoContainer.cpp:10195 popStash; SvnRepoShelves.cpp:327, 396",New
+SVN-118,Subversion,Subversion - Shelves,Shelf with an added folder,"1. Create newdir\x.txt and stage it.
+2. Stash, then check the disk; then apply the shelf.","After stashing, newdir is gone (the empty added folder goes with the shelf).
+After applying, newdir and x.txt are back and added.",Medium,Not Tested,"SvnRepoShelves.cpp:276-288, 369-384; docs B19h; Edge case",New
+SVN-119,Subversion,Subversion - Shelves,Applying a shelf over an unversioned file in the way,"1. Shelve an added file new.txt.
+2. Create an unversioned new.txt by hand.
+3. Apply the shelf.","Error toast: 'Files of the stash are in the way: new.txt'.
+The hand-made new.txt is not overwritten.",Medium,Not Tested,SvnRepoShelves.cpp:354; docs B58; Edge case,New
+SVN-120,Subversion,Subversion - Shelves,Applying a shelf that conflicts,"1. Shelve an edit of line 1 of a.txt.
+2. Commit a different edit of line 1, then Pop the shelf.","Either Subversion refuses the apply with an error toast, or the toast 'Stash applied with conflicts. Resolve conflicts to continue.' appears.
+With conflicts after Pop, the shelf is deleted; verify a.txt still holds both sides so nothing is lost.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:636; RepoContainer.cpp:10195 deletes after apply; Edge case,New
+SVN-121,Subversion,Subversion - Shelves,Shelf details and file diff,"1. Select a shelf in the Shelves section.
+2. Click one of its files.","The info panel title says 'Shelf' and shows date and message; no author email, parent or SHA rows.
+The file diff shows only the shelved change (no all-lines change for CRLF files).",Medium,Not Tested,"RepoContainer.cpp:166-178; SvnRepoManagerBridgeImpl.cpp:1893, 2008; docs B20h",New
+SVN-122,Subversion,Subversion - Shelves,Delete one shelf and delete all,"1. Create three shelves.
+2. Delete the middle one; then delete all.","Only the chosen shelf disappears; order (newest first) is kept.
+Delete all removes the rest and shows 'All stashes deleted successfully.'",Medium,Not Tested,"SvnRepoShelves.cpp:396, 420; SvnRepoManagerBridgeImpl.cpp:1506",New
+SVN-123,Subversion,Subversion - Externals,Externals section lists definitions with status,1. Open a working copy with svn:externals 'https://host/svn/lib/trunk lib' and '-r5 https://host/svn/tools tools'.,"The section is titled 'Externals' and lists 'lib' and 'tools'.
+'tools' shows revision 5; an external with local edits or newer upstream revisions is marked outdated.",High,Not Tested,SvnRepoRemotes.cpp:408 listSubmodulesWithStatus; RepoContainer.cpp:657,New
+SVN-124,Subversion,Subversion - Externals,Add an external,"1. In Externals use Add; the name field placeholder reads 'Enter external name'.
+2. Enter URL https://host/svn/lib/trunk and name 'vendor lib'.","svn:externals of the root gets the line with the target quoted (""vendor lib"").
+Only the new external is checked out; the rest of the working copy keeps its revision.
+The root is listed as modified (property change) and can be committed.",High,Not Tested,SvnRepoRemotes.cpp:488 addSubmodule; RepoContainer.cpp:7229,New
+SVN-125,Subversion,Subversion - Externals,Add an external with a relative URL,"1. Add external URL '^/branches/b1' name 'b1copy'.
+2. Add external URL '../lib' name 'sib'.","'^/branches/b1' is resolved against the repository root and checked out.
+'../lib' is resolved against the defining folder's URL; record whether the '..' URL works on your server.",Medium,Not Tested,SvnRepoRemotes.cpp:601 (../ appended without normalising); Edge case,New
+SVN-126,Subversion,Subversion - Externals,External pointing to a missing URL,"1. Set svn:externals to a URL that does not exist and commit.
+2. Update; open the Externals section; use Update on that external.","The outer update finishes; the broken external is listed as outdated.
+Updating the external shows an error toast quoting Subversion's message.
+The outer working copy stays usable.",Medium,Not Tested,SvnRepoRemotes.cpp:438 missing folder -> Outdated; 709 updateSubmodule; Edge case,New
+SVN-127,Subversion,Subversion - Externals,Update an external,"1. Commit a change in the external's source repository.
+2. Right-click the external > Update.","The external is updated to HEAD (or its pinned revision).
+Toast 'External updated successfully.'",Medium,Not Tested,SvnRepoManagerBridgeImpl.cpp:5941; SvnRepoRemotes.cpp:709,New
+SVN-128,Subversion,Subversion - Externals,Delete an external,"1. Make an uncommitted edit inside external 'lib'.
+2. Right-click 'lib' > Delete and confirm.","The confirmation still says 'delete submodule'.
+The definition line is removed (other externals and comments kept) and the 'lib' folder is deleted from disk, including the uncommitted edit; verify the user understands this data loss.",High,Not Tested,"RepoContainer.cpp:7891 wording; SvnRepoRemotes.cpp:629 deleteSubmodule, 700 removeRecursively; Edge case",New
+SVN-129,Subversion,Subversion - Externals,Open an external,1. Right-click an external > Open.,"Expected: the external opens in a new Subversion tab.
+Observe: the Svn bridge emits openRepoRequested, which MainWindow opens as a Git container; record whether the tab fails or shows the error page.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:1884; MainWindow.cpp:674 onOpenRepo uses ContainerType::GitRepo; Edge case,New
+SVN-130,Subversion,Subversion - Authentication and Certificates,"Wrong password, then the right one","1. Check out an svn:// or https:// repository requiring auth.
+2. Enter a wrong password.
+3. Enter the right password when asked again.","After the wrong answer the overlay reports the credentials as invalid and asks again.
+After the right answer the overlay closes and checkout completes.",High,Not Tested,SvnRepo.cpp:263 GetCredentialsInvalid; docs B65; Edge case,New
+SVN-131,Subversion,Subversion - Authentication and Certificates,Cancel the credentials prompt,"1. Start a checkout that needs credentials.
+2. Click Cancel in the overlay.","The checkout stops; the error reason is 'Cancelled' (not a generic checkout failure).
+No directory remains that Sourcerer offers to open.",High,Not Tested,SvnRepo.cpp:293 Cancelled; SvnRepo.cpp:1053 reportError maps cancel; Edge case,New
+SVN-132,Subversion,Subversion - Authentication and Certificates,Remember credentials,"1. Check 'remember' in the credentials overlay and authenticate.
+2. Close and reopen the working copy and click Update.","The second operation does not prompt.
+No password is written to %APPDATA%\Subversion\auth; credentials are kept in Sourcerer's own credential storage.",High,Not Tested,SvnRepo.cpp:342 storeCredentials; SvnRepo.cpp:330 confirmFirstCredentials stores nothing in svn auth,New
+SVN-133,Subversion,Subversion - Authentication and Certificates,Stored credentials become wrong,"1. Remember credentials, then change the password on the server.
+2. Click Update.","The stored credentials are tried once; then a prompt appears (no silent loop).
+After entering the new password, Update succeeds.",High,Not Tested,SvnRepo.cpp:248 usedStored; docs B21; Edge case,New
+SVN-134,Subversion,Subversion - Authentication and Certificates,Self-signed certificate is trusted on first use and pinned,"1. Use an https:// server with a self-signed certificate.
+2. Check out from it.
+3. Replace the server certificate with another self-signed one and click Update.","The first connection is accepted without a dialog and the certificate is pinned for the host.
+After the change the connection is refused with an error naming the host; the Credentials manager's 'trust the new one' then allows it.",High,Not Tested,SvnRepo.cpp:483 GitRepo::checkUnverifiedServerCertificate; Edge case,New
+SVN-135,Subversion,Subversion - Authentication and Certificates,"Expired, not-yet-valid and wrong-host certificates are rejected","1. Use https:// servers with an expired certificate, a not-yet-valid one, and one issued for another host.","Each checkout fails with 'The TLS certificate of <host> is not trusted: it has expired' / 'it is not valid yet' / 'it was issued for another host'.
+No trust is stored.",High,Not Tested,"SvnRepo.cpp:421 certificateFailures, 474 rejection; docs B20; Edge case",New
+SVN-136,Subversion,Subversion - Authentication and Certificates,Server that requires a client certificate,1. Check out from an https:// server that requires TLS client certificates.,The checkout fails with Subversion's handshake error; no client-certificate prompt exists.,Low,Not Tested,SvnRepo.cpp:500 createAuthBaton (no ssl_client_cert provider); Edge case,New
+SVN-137,Subversion,Subversion - Locks,File locked by another user blocks the commit,"1. In working copy B run 'svn lock a.txt'.
+2. In Sourcerer edit a.txt, stage and commit.","The commit fails with an error toast quoting the lock owner message.
+a.txt stays staged; Sourcerer has no lock, unlock, steal or break command (use the CLI).",Medium,Not Tested,SvnRepo.cpp:1028 error propagation; no svn_client_lock in lib/SvnRepo; Edge case,New
+SVN-138,Subversion,Subversion - Locks,svn:needs-lock files are read-only,"1. Commit a file with svn:needs-lock set; update Sourcerer's working copy.
+2. Try to edit and discard it in Sourcerer.","The file is read-only on disk and not listed as changed.
+After 'svn lock' with the CLI it becomes writable, an edit is listed and commits; the commit releases the lock (keep_locks FALSE).",Low,Not Tested,SvnRepo.cpp:1493 commitPaths keep_locks FALSE; Edge case,New
+SVN-139,Subversion,Subversion - Robustness,Server goes down during a commit,"1. Stage several large files.
+2. Commit and stop the server during the transfer.","An error toast quotes the connection error.
+The files stay staged; after the server returns, the commit succeeds (run 'svn cleanup' if Subversion asks).",Medium,Not Tested,SvnRepoWorkingCopy.cpp:1185; Edge case,New
+SVN-140,Subversion,Subversion - Robustness,Branch listing when the server is unreachable,1. Open a working copy while the server is down.,"Branch and tag lists show an error toast instead of an empty list that looks valid.
+Local status still works.",Medium,Not Tested,SvnRepoBranches.cpp:22 readRootEntries; docs B25h; Edge case,New

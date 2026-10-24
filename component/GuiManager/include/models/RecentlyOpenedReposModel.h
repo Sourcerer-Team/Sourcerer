@@ -45,6 +45,7 @@ private:
   mutable QColor _iconColor;
   mutable QIcon _gitIcon;
   mutable QIcon _svnIcon;
+  mutable QIcon _hgIcon;
 };
 
 } // namespace GuiManager::Models

@@ -48,6 +48,12 @@ function(addGitRepoTest name)
     xdiff
     ZLIB::ZLIB
     ${ADDITIONAL_LIBRARIES})
+
+  # zlib is a DLL in the build tree. Release finds a copy next to the
+  # application; the Debug one (zd.dll) is only in its own folder.
+  add_custom_command(TARGET ${name} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:ZLIB::ZLIB> $<TARGET_FILE_DIR:${name}>)
 endfunction()
 
 addGitRepoTest(gitrepo_test tst_gitrepo.cpp)
