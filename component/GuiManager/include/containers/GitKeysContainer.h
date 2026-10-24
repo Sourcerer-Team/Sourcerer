@@ -41,6 +41,9 @@ private slots:
 
 private:
   void loadKeyPairs();
+  // Offers to add the SSH host key of host to known_hosts when it isn't
+  // there: Mercurial's ssh refuses unknown hosts.
+  void offerToTrustHost(const QString &host);
 
 private:
   Ui::GitKeysContainer *ui;

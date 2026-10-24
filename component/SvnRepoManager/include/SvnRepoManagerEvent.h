@@ -13,7 +13,6 @@ enum class EventType : int {
   AddRemote,
   AddSubmodule,
   AddTarget,
-  Amend,
   Blame,
   ApplyPatch,
   ApplyStash,

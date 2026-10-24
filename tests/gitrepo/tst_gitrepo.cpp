@@ -95,6 +95,7 @@ private slots:
   void discardModifiedAndDeletedFiles();
   void discardStagedChanges();
   void discardStagedNewFileKeepsIt();
+  void discardUntrackedFileKeepsIt();
   void discardUnusualPaths();
   void resetTypes_data();
   void resetTypes();
@@ -1552,6 +1553,20 @@ void GitRepoTest::discardStagedNewFileKeepsIt() {
   QCOMPARE(readFile(file("new.txt")), QByteArray("precious\n"));
   QVERIFY(status().newStagedFiles.isEmpty());
   QCOMPARE(status().newFiles, QStringList{QStringLiteral("new.txt")});
+}
+
+void GitRepoTest::discardUntrackedFileKeepsIt() {
+  QVERIFY(writeFile(file("new.txt"), "precious\n"));
+  QVERIFY(writeFile(file("dir/inner.txt"), "inner\n"));
+  GitRepo::discardFiles(_repo.get(), {QStringLiteral("new.txt"),
+                                      QStringLiteral("dir/inner.txt")});
+
+  // Discard only undoes changes to tracked content. Untracked files stay on
+  // disk; SvnRepo is held to the same rule (SVN_TEST_PLAN 3.5).
+  QCOMPARE(readFile(file("new.txt")), QByteArray("precious\n"));
+  QCOMPARE(readFile(file("dir/inner.txt")), QByteArray("inner\n"));
+  QCOMPARE(status().newFiles, (QStringList{QStringLiteral("dir/inner.txt"),
+                                           QStringLiteral("new.txt")}));
 }
 
 void GitRepoTest::discardUnusualPaths() {

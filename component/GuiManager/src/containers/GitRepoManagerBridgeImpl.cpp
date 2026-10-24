@@ -77,12 +77,33 @@
 #define MAX_COMMIT_SHA_LENGTH 7
 
 #define GIT_IGNORE_FILENAME ".gitignore"
+#define GIT_ATTRIBUTES_FILENAME ".gitattributes"
 #define GIT_SUBDIR ".git"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
 namespace GuiManager::Containers {
+
+static QString lfsAttributesPatternForFile(const QString &filePath) {
+  const QFileInfo fileInfo(filePath);
+  const QString suffix = fileInfo.completeSuffix();
+  return suffix.isEmpty() ? fileInfo.fileName() : QStringLiteral("*.") + suffix;
+}
+
+static QString lfsAttributesEntryForPattern(const QString &pattern) {
+  return pattern + QStringLiteral(" filter=lfs diff=lfs merge=lfs -text");
+}
+
+static QString lfsAttributesEntryForFile(const QString &filePath) {
+  return lfsAttributesEntryForPattern(lfsAttributesPatternForFile(filePath));
+}
+
+static bool lfsAttributesLineMatchesPattern(const QString &line,
+                                            const QString &pattern) {
+  return line == lfsAttributesEntryForPattern(pattern) ||
+         line.startsWith(pattern + QStringLiteral(" "));
+}
 
 enum class MainViewPanes {
   Unknown = -1,
@@ -203,11 +224,14 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::LocalBranchesContextMenuUpstream |
          RepoFeatures::TagsContextMenuPushToRemote |
          RepoFeatures::TagsContextMenuDeleteFromRemote |
-         RepoFeatures::ExternalsAddDialogPlaceholderSubmoduleName;
+         RepoFeatures::ExternalsAddDialogPlaceholderSubmoduleName |
+         RepoFeatures::PullMenu | RepoFeatures::PushMenu |
+         RepoFeatures::AllBranchesItem;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
-                                     const QStringList &files) {
+                                     const QStringList &files,
+                                     const QString & /*commit*/) {
   LOG_PERF(0, "Enter");
 
   if (files.isEmpty()) {
@@ -3272,6 +3296,16 @@ void GitRepoManagerBridgeImpl::discardFiles(
 bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
     const QWeakPointer<RepoContainer> &guard, const int branchType) {
   LOG_PERF(0, "Enter");
+
+  if (branchType == static_cast<int>(GitRepo::BranchType::Remote)) {
+    // Git reports the upstream of the checked out branch for the remote type.
+    // The checked out branch is selected in the local list, so reporting the
+    // upstream would move the selection to the remote list.
+    _container.releaseHistoryRefreshSemaphore();
+
+    LOG_PERF(0, "Exit")
+    return true;
+  }
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -6807,6 +6841,183 @@ qint64 GitRepoManagerBridgeImpl::getFileSizeFromCommit(const QString &filePath,
 
   LOG_PERF(0, "Exit");
   return fileSizeResult.fileSize;
+}
+
+void GitRepoManagerBridgeImpl::addFilesToLfs(
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QStringList entriesToAdd;
+  QSet<QString> seenEntries;
+  for (const QString &filePath : files) {
+    const QString fullPath = QDir(_container._path).filePath(filePath);
+    if (!QFileInfo(fullPath).isFile()) {
+      continue;
+    }
+
+    const QString entry = lfsAttributesEntryForFile(filePath);
+    if (seenEntries.contains(entry)) {
+      continue;
+    }
+
+    seenEntries.insert(entry);
+    entriesToAdd += entry;
+  }
+
+  if (entriesToAdd.isEmpty()) {
+    refreshStatus(guard);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [this]() { _container.simulateClickOnFirstHistoryRow(); });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString attributesFilePath = QDir::toNativeSeparators(
+      _container._path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+
+  QSet<QString> existingEntries;
+  QFile readFile(attributesFilePath);
+  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QTextStream in(&readFile);
+    in.setEncoding(QStringConverter::Utf8);
+    while (!in.atEnd()) {
+      const QString line = in.readLine().trimmed();
+      if (!line.isEmpty() && !line.startsWith('#')) {
+        existingEntries.insert(line);
+      }
+    }
+    readFile.close();
+  }
+
+  QFile file(attributesFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(
+          QString(_container.tr("Failed to open %1 for writing."))
+              .arg(GIT_ATTRIBUTES_FILENAME),
+          _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QTextStream out(&file);
+  out.setEncoding(QStringConverter::Utf8);
+
+  bool wroteEntry = false;
+  for (const QString &entry : entriesToAdd) {
+    if (existingEntries.contains(entry)) {
+      continue;
+    }
+
+    if (!wroteEntry && file.size() > 0) {
+      out << Qt::endl;
+    }
+
+    out << entry << Qt::endl;
+    wroteEntry = true;
+  }
+
+  out.flush();
+  file.close();
+
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [this]() { _container.simulateClickOnFirstHistoryRow(); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoManagerBridgeImpl::removeFilesFromLfs(
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QSet<QString> patternsToRemove;
+  for (const QString &filePath : files) {
+    const QString fullPath = QDir(_container._path).filePath(filePath);
+    if (!QFileInfo(fullPath).isFile()) {
+      continue;
+    }
+
+    patternsToRemove.insert(lfsAttributesPatternForFile(filePath));
+  }
+
+  if (patternsToRemove.isEmpty()) {
+    refreshStatus(guard);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [this]() { _container.simulateClickOnFirstHistoryRow(); });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString attributesFilePath = QDir::toNativeSeparators(
+      _container._path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+
+  QStringList keptLines;
+  QFile readFile(attributesFilePath);
+  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QTextStream in(&readFile);
+    in.setEncoding(QStringConverter::Utf8);
+    while (!in.atEnd()) {
+      keptLines += in.readLine();
+    }
+    readFile.close();
+  } else if (QFile::exists(attributesFilePath)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(
+          QString(_container.tr("Failed to open %1 for reading."))
+              .arg(GIT_ATTRIBUTES_FILENAME),
+          _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList filteredLines;
+  filteredLines.reserve(keptLines.size());
+  for (const QString &line : keptLines) {
+    const QString trimmedLine = line.trimmed();
+    bool removeLine = false;
+    for (const QString &pattern : patternsToRemove) {
+      if (lfsAttributesLineMatchesPattern(trimmedLine, pattern)) {
+        removeLine = true;
+        break;
+      }
+    }
+
+    if (!removeLine) {
+      filteredLines += line;
+    }
+  }
+
+  QFile file(attributesFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                 QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(
+          QString(_container.tr("Failed to open %1 for writing."))
+              .arg(GIT_ATTRIBUTES_FILENAME),
+          _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QTextStream out(&file);
+  out.setEncoding(QStringConverter::Utf8);
+  for (const QString &line : filteredLines) {
+    out << line << Qt::endl;
+  }
+  out.flush();
+  file.close();
+
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [this]() { _container.simulateClickOnFirstHistoryRow(); });
+
+  LOG_PERF(0, "Exit")
 }
 
 } // namespace GuiManager::Containers

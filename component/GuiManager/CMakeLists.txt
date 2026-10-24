@@ -76,6 +76,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/RepoContainer.h
         include/containers/RepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
+        include/containers/HgRepoManagerBridgeImpl.h
         include/containers/SvnRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h
         include/containers/InitRepoContainer.h
@@ -192,6 +193,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitKeysContainer.cpp
         src/containers/RepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
+        src/containers/HgRepoManagerBridgeImpl.cpp
         src/containers/SvnRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitRepoContainer.cpp
@@ -290,11 +292,14 @@ include(../../cmake/helpers.cmake)
 includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
 includeComponent(GuiManager GitRepoManager)
+includeComponent(GuiManager HgRepoManager)
 includeComponent(GuiManager NewsTracker)
+includeComponent(GuiManager SvnRepoManager)
 includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
+includeLib(GuiManager HgRepo)
 includeLib(GuiManager IssueTrackers)
 includeLib(GuiManager Log)
 includeLib(GuiManager SvnRepo)

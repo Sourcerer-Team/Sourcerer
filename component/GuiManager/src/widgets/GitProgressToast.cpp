@@ -1,6 +1,7 @@
 #include "widgets/GitProgressToast.h"
 
 #include "GitRepoManagerStructs.h"
+#include "HgRepoManagerStructs.h"
 
 #include <Dispatcher.h>
 #include <Log.h>
@@ -65,6 +66,10 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -83,6 +88,10 @@ GitProgressToast::~GitProgressToast() {
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::HgRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -104,20 +113,33 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepoError:
-  case EventManager::EventType::SvnRepoManagerCloneRepoError: {
+  case EventManager::EventType::SvnRepoManagerCloneRepoError:
+  case EventManager::EventType::HgRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
                                            [=]() { emit finished(); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress:
-  case EventManager::EventType::SvnRepoManagerCloneRepoProgress: {
-    const GitRepoManager::Structs::GitRepoResult commandResult =
-        event.data<GitRepoManager::Structs::GitRepoResult>();
-    if (commandResult.uuid != _data.uuid) {
+  case EventManager::EventType::SvnRepoManagerCloneRepoProgress:
+  case EventManager::EventType::HgRepoManagerCloneRepoProgress: {
+    QString resultUuid;
+    QVariant resultValue;
+    if (eventType == EventManager::EventType::HgRepoManagerCloneRepoProgress) {
+      const auto commandResult =
+          event.data<HgRepoManager::Structs::HgRepoResult>();
+      resultUuid = commandResult.uuid;
+      resultValue = commandResult.value;
+    } else {
+      const GitRepoManager::Structs::GitRepoResult commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      resultUuid = commandResult.uuid;
+      resultValue = commandResult.value;
+    }
+    if (resultUuid != _data.uuid) {
       break;
     }
 
-    const CloneProgress data = commandResult.value.value<CloneProgress>();
+    const CloneProgress data = resultValue.value<CloneProgress>();
     if (data.uuid != _data.uuid)
       break;
 

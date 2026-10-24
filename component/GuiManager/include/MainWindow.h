@@ -74,11 +74,14 @@ private slots:
   void onOpen();
   void onClone();
   void onCloneSubversion();
+  void onCloneMercurial();
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitSubversion();
+  void onInitMercurial();
   void onInitFinished(ContainerWidget *sender);
   void onOpenRepo(const QString &path);
+  void onOpenRepoWithType(const QString &path, RepositoryType type);
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
   void onConnectToGitHubIssueTracker();
@@ -113,10 +116,13 @@ private slots:
 private:
   void
   addCloneContainer(Containers::CloneType type = Containers::CloneType::Git);
-  void addGitRepoContainer(const QString &path);
-  void addSvnRepoContainer(const QString &path);
+  void addRepoContainer(Widgets::ContainerType type, const QString &path);
+  // Opens path in a container of the given type. Mercurial needs hg, an
+  // error toast tells when it isn't found.
+  void openRepository(const QString &path, RepositoryType type);
   void openRepositoryByType(const QString &path, const QString &sourceLabel);
-  void promptOpenClonedRepository(const QString &path, bool isSvn);
+  void promptOpenClonedRepository(const QString &path, RepositoryType type);
+  bool checkMercurial();
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
                                 const QString &repositoryName,

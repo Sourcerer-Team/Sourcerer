@@ -30,6 +30,9 @@ enum class RepoFeatures : unsigned long long {
   HistoryColumnRevision = 1 << 9,
   HistoryContextMenuCopyToClipboard = 1 << 10,
   HistoryContextMenuReset = 1 << 11,
+  // The Pull button has the Pull / Pull with rebase / Fetch All menu. Git
+  // containers always have it.
+  PullMenu = 1 << 12,
   HistoryColumnEmail = 1 << 13,
   SearchBarSha = 1 << 14,
   SearchBarRevision = 1 << 15,
@@ -54,12 +57,34 @@ enum class RepoFeatures : unsigned long long {
   TagsContextMenuDeleteFromRemote = 1ULL << 34,
   ExternalsAddDialogPlaceholderSubmoduleName = 1ULL << 35,
   ExternalsAddDialogPlaceholderExternalName = 1ULL << 36,
+  // The Push button has the Push / Force push menu. Git containers always
+  // have it.
+  PushMenu = 1ULL << 37,
+  // Local branches start with the item that selects every branch. Git
+  // containers always have it.
+  AllBranchesItem = 1ULL << 38,
+  // History context menu item that strips a commit and its descendants.
+  HistoryContextMenuStrip = 1ULL << 39,
+  // Branches are bookmarks or named branches: creating one asks which, and
+  // Local branches shows them in sections.
+  BranchKinds = 1ULL << 40,
+  // Submodules are called subrepos.
+  SubmodulesTitleSubrepos = 1ULL << 41,
+  // Subrepos can be Mercurial, Git or Subversion repositories.
+  SubrepoKinds = 1ULL << 42,
+  // History shows the phase of commits as badges.
+  HistoryPhaseBadges = 1ULL << 43,
 };
 
+// Kind of branch to create, for bridges with RepoFeatures::BranchKinds.
+enum class BranchKind { Default = 0, Bookmark, NamedBranch };
+
+// Kind of subrepo to add, for bridges with RepoFeatures::SubrepoKinds.
+enum class SubrepoKind { Default = 0, Mercurial, Git, Subversion };
+
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
-  return static_cast<RepoFeatures>(
-      static_cast<unsigned long long>(lhs) |
-      static_cast<unsigned long long>(rhs));
+  return static_cast<RepoFeatures>(static_cast<unsigned long long>(lhs) |
+                                   static_cast<unsigned long long>(rhs));
 }
 
 inline bool hasFeature(RepoFeatures features, RepoFeatures feature) {
@@ -74,7 +99,7 @@ public:
   virtual RepoFeatures features() const = 0;
 
   virtual void blame(const QWeakPointer<RepoContainer> &guard,
-                     const QStringList &files) = 0;
+                     const QStringList &files, const QString &commit) = 0;
 
   virtual void
   setUpstream(const QWeakPointer<RepoContainer> &guard,
@@ -310,6 +335,69 @@ public:
                                const QString &submoduleName) = 0;
   virtual qint64 getFileSizeFromCommit(const QString &filePath,
                                        const QString &commit) = 0;
+
+  // The following have defaults, so bridges only override what they support.
+
+  // createBranchFromCommit of a kind. The default ignores the kind.
+  virtual void createBranchFromCommitOfKind(
+      const QWeakPointer<RepoContainer> &guard, const QString &commit,
+      const QString &branchName, BranchKind kind,
+      const std::function<void(const QWeakPointer<RepoContainer> &,
+                               const QString &)> &onSuccess = nullptr) {
+    Q_UNUSED(kind);
+    createBranchFromCommit(guard, commit, branchName, onSuccess);
+  }
+  // For RepoFeatures::BranchKinds: kind of the branches that workflows start,
+  // as read with getWorkflowType.
+  virtual BranchKind flowBranchKind() const { return BranchKind::Default; }
+  // Stores the kind of the branches that workflows start.
+  virtual void setFlowBranchKind(const QWeakPointer<RepoContainer> &guard,
+                                 BranchKind kind) {
+    Q_UNUSED(guard);
+    Q_UNUSED(kind);
+  }
+  // addWorktree creating a branch of a kind. The default ignores the kind.
+  virtual void addWorktreeOfKind(const QWeakPointer<RepoContainer> &guard,
+                                 const QString &path, const QString &branch,
+                                 bool createBranch, const QString &baseBranch,
+                                 BranchKind kind) {
+    Q_UNUSED(kind);
+    addWorktree(guard, path, branch, createBranch, baseBranch);
+  }
+  // addSubmodule of a kind. The default ignores the kind.
+  virtual void addSubmoduleOfKind(const QWeakPointer<RepoContainer> &guard,
+                                  const QString &url, const QString &name,
+                                  const QString &branch, SubrepoKind kind) {
+    Q_UNUSED(kind);
+    addSubmodule(guard, url, name, branch);
+  }
+  // Ends a branch that can't be deleted, e.g. a Mercurial named branch. The
+  // default deletes it.
+  virtual void closeBranch(const QWeakPointer<RepoContainer> &guard,
+                           const QString &branchName) {
+    deleteBranch(guard, branchName);
+  }
+  // For RepoFeatures::HistoryContextMenuStrip: removes commit and its
+  // descendants.
+  virtual void strip(const QWeakPointer<RepoContainer> &guard,
+                     const QString &commit, bool keepWorkingCopy, bool backup) {
+    Q_UNUSED(guard);
+    Q_UNUSED(commit);
+    Q_UNUSED(keepWorkingCopy);
+    Q_UNUSED(backup);
+  }
+  // For RepoFeatures::GitLFS: tracks or untracks files with LFS and refreshes
+  // the status.
+  virtual void addFilesToLfs(const QWeakPointer<RepoContainer> &guard,
+                             const QStringList &files) {
+    Q_UNUSED(guard);
+    Q_UNUSED(files);
+  }
+  virtual void removeFilesFromLfs(const QWeakPointer<RepoContainer> &guard,
+                                  const QStringList &files) {
+    Q_UNUSED(guard);
+    Q_UNUSED(files);
+  }
 };
 
 } // namespace GuiManager::Containers

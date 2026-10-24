@@ -9,6 +9,20 @@ namespace SvnRepo {
 
 using namespace Private;
 
+// Subversion revisions are immutable: changes can't be added to the last
+// revision, and only an administrator's pre-revprop-change hook could let its
+// message be changed.
+bool amend(const QString &, const QString &, const QString &, const QString &,
+           const QString &, bool, bool) {
+  return setUnsupported("Amending a revision");
+}
+
+// A branch can't be moved back to an older revision. checkoutCommit updates
+// the working copy to one instead.
+bool resetToCommit(const QString &, const QString &, ResetType) {
+  return setUnsupported("Resetting to a revision");
+}
+
 GitRepo::Lfs::StorageStatus getLfsStorageStatus(const QString &path) {
   GitRepo::Lfs::StorageStatus status;
   status.repositoryPath = normalizedPath(path);
@@ -116,7 +130,7 @@ bool readGitFlowNextConfig(const QString &,
   if (config) {
     *config = GitRepo::GitFlowNextConfig();
   }
-  return false;
+  return setUnsupported("Git flow");
 }
 
 bool initGitFlowNext(const QString &, const QString &, const QString &) {

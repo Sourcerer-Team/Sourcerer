@@ -52,8 +52,10 @@ public:
 signals:
   void clone();
   void cloneSubversion();
+  void cloneMercurial();
   void init() override;
   void initSubversion();
+  void initMercurial();
   void open();
   void issueTrackerClicked(const QString &serviceType, const QString &name);
   void issueTrackerRightClicked(const QString &serviceType, const QString &name,
@@ -71,6 +73,7 @@ private slots:
   void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
   void onCloneSubversionClicked();
+  void onCloneMercurialClicked();
   void onGitHubIssueTrackerConnectClicked();
   void onGitLabIssueTrackerConnectClicked();
   void onAzureIssueTrackerConnectClicked();
@@ -78,6 +81,7 @@ private slots:
   void onCustomIssueTrackerConnectClicked();
   void onInitClicked();
   void onInitSubversionClicked();
+  void onInitMercurialClicked();
   void onOpenClicked(bool checked = false);
   void onIssueTrackerRightClicked(const QString &serviceType,
                                   const QString &name, const QPoint &pos);

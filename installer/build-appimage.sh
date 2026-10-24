@@ -59,6 +59,28 @@ echo "Copying QtWebEngineProcess files..."
 cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$APPDIR/usr/bin"
 cp $QT_DIR/$QT_VER/gcc_64/resources/* "$APPDIR/usr/bin/resources"
 
+echo "Bundling portable git..."
+GIT_SRC="$SCRIPT_DIR/3rdparty/git"
+if [ ! -x "$GIT_SRC/bin/git" ]; then
+    "$SCRIPT_DIR/3rdparty/build-git-linux.sh"
+fi
+mkdir -p "$APPDIR/usr/bin/3rdparty"
+cp -a "$GIT_SRC" "$APPDIR/usr/bin/3rdparty/git"
+
+echo "Bundling portable svn..."
+SVN_SRC="$SCRIPT_DIR/3rdparty/svn"
+if [ ! -x "$SVN_SRC/bin/svn" ]; then
+    "$SCRIPT_DIR/3rdparty/build-svn-linux.sh"
+fi
+cp -a "$SVN_SRC" "$APPDIR/usr/bin/3rdparty/svn"
+
+echo "Bundling portable hg..."
+HG_SRC="$SCRIPT_DIR/3rdparty/hg"
+if [ ! -x "$HG_SRC/bin/hg" ]; then
+    "$SCRIPT_DIR/3rdparty/fetch-hg-unix.sh" "$HG_SRC" linux
+fi
+cp -a "$HG_SRC" "$APPDIR/usr/bin/3rdparty/hg"
+
 echo "Copying libraries..."
 # Function to copy a library and its dependencies
 copy_lib_dependencies() {
@@ -527,9 +549,11 @@ cd "$OUTPUT_DIR"
 # Check if we're in a Docker container or FUSE is unavailable
 if [ -f /.dockerenv ] || ! command -v fusermount &> /dev/null || ! [ -c /dev/fuse ]; then
     echo "FUSE not available (Docker environment detected), extracting appimagetool..."
-    # Extract appimagetool and run it directly
-    if [ ! -d "$SCRIPT_DIR/appimagetool-extracted" ]; then
-        "$APPIMAGETOOL" --appimage-extract > /dev/null 2>&1
+    # Extract appimagetool and run it directly. A folder left by an interrupted
+    # extraction has no AppRun, so it is extracted again.
+    if [ ! -x "$SCRIPT_DIR/appimagetool-extracted/AppRun" ]; then
+        rm -rf "$SCRIPT_DIR/appimagetool-extracted" squashfs-root
+        "$APPIMAGETOOL" --appimage-extract > /dev/null
         mv squashfs-root "$SCRIPT_DIR/appimagetool-extracted"
     fi
     ARCH=x86_64 "$SCRIPT_DIR/appimagetool-extracted/AppRun" --no-appstream "$APPDIR" "Sourcerer-Installer.AppImage"

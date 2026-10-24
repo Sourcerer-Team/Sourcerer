@@ -59,10 +59,10 @@ QString SvnRepoManagerFsm::eventName(int event) const {
     return "AddSubmodule";
   case EventType::AddTarget:
     return "AddTarget";
-  case EventType::Amend:
-    return "Amend";
   case EventType::ApplyPatch:
     return "ApplyPatch";
+  case EventType::Blame:
+    return "Blame";
   case EventType::ApplyStash:
     return "ApplyStash";
   case EventType::CheckoutBranch:
@@ -153,6 +153,8 @@ QString SvnRepoManagerFsm::eventName(int event) const {
     return "ListSubmodulesWithStatus";
   case EventType::ListTags:
     return "ListTags";
+  case EventType::ListRemoteTags:
+    return "ListRemoteTags";
   case EventType::Merge:
     return "Merge";
   case EventType::Rebase:

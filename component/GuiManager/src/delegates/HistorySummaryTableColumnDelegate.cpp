@@ -137,51 +137,84 @@ void HistorySummaryTableColumnDelegate::paintDefault(
   opt.features &= ~QStyleOptionViewItem::WrapText;
   opt.textElideMode = Qt::ElideRight;
 
-  QString badgeLabel;
+  // Badges are laid out from the right edge: the bisect mark, then the phase
+  // of a draft or secret Mercurial commit. Badges of one kind share the width
+  // of their widest label so they line up.
+  struct Badge {
+    QString label;
+    QColor color;
+    QStringList labels;
+    QRect rect;
+  };
+  QVector<Badge> badges;
+
+  const QStringList bisectLabels = {
+      QCoreApplication::translate("HistorySummary", "GOOD"),
+      QCoreApplication::translate("HistorySummary", "BAD"),
+      QCoreApplication::translate("HistorySummary", "SKIP"),
+      QCoreApplication::translate("HistorySummary", "TEST")};
   const int mark = index.data(BisectMarkRole).toInt();
   switch (static_cast<GitRepo::BisectMark>(mark)) {
   case GitRepo::BisectMark::Good:
-    badgeLabel = QCoreApplication::translate("HistorySummary", "GOOD");
+    badges.append(
+        {bisectLabels.at(0), Models::bisectMarkColor(mark), bisectLabels, {}});
     break;
   case GitRepo::BisectMark::Bad:
-    badgeLabel = QCoreApplication::translate("HistorySummary", "BAD");
+    badges.append(
+        {bisectLabels.at(1), Models::bisectMarkColor(mark), bisectLabels, {}});
     break;
   case GitRepo::BisectMark::Skip:
-    badgeLabel = QCoreApplication::translate("HistorySummary", "SKIP");
+    badges.append(
+        {bisectLabels.at(2), Models::bisectMarkColor(mark), bisectLabels, {}});
     break;
   case GitRepo::BisectMark::Current:
-    badgeLabel = QCoreApplication::translate("HistorySummary", "TEST");
+    badges.append(
+        {bisectLabels.at(3), Models::bisectMarkColor(mark), bisectLabels, {}});
     break;
   default:
     break;
   }
 
-  QRect badgeRect;
-  if (!badgeLabel.isEmpty()) {
+  const QStringList phaseLabels = {
+      QCoreApplication::translate("HistorySummary", "DRAFT"),
+      QCoreApplication::translate("HistorySummary", "SECRET")};
+  const int phase = index.data(PhaseRole).toInt();
+  switch (static_cast<GitRepo::CommitPhase>(phase)) {
+  case GitRepo::CommitPhase::Draft:
+    badges.append(
+        {phaseLabels.at(0), Models::phaseColor(phase), phaseLabels, {}});
+    break;
+  case GitRepo::CommitPhase::Secret:
+    badges.append(
+        {phaseLabels.at(1), Models::phaseColor(phase), phaseLabels, {}});
+    break;
+  default:
+    break;
+  }
+
+  if (!badges.isEmpty()) {
     constexpr int padding = 6;
     const QFontMetrics metrics(opt.font);
-
-    // All badges share the width of the widest label.
-    int widestLabel = 0;
-    for (const QString &label :
-         {QCoreApplication::translate("HistorySummary", "GOOD"),
-          QCoreApplication::translate("HistorySummary", "BAD"),
-          QCoreApplication::translate("HistorySummary", "SKIP"),
-          QCoreApplication::translate("HistorySummary", "TEST")}) {
-      widestLabel = qMax(widestLabel, metrics.horizontalAdvance(label));
-    }
-
-    const int badgeWidth = widestLabel + 2 * padding;
     const int badgeHeight = qMin(metrics.height() + 2, opt.rect.height() - 2);
 
-    badgeRect =
-        QRect(opt.rect.right() - padding - badgeWidth,
-              opt.rect.center().y() - badgeHeight / 2, badgeWidth, badgeHeight);
+    int right = opt.rect.right() - padding;
+    for (Badge &badge : badges) {
+      int widestLabel = 0;
+      for (const QString &label : badge.labels) {
+        widestLabel = qMax(widestLabel, metrics.horizontalAdvance(label));
+      }
 
-    // Keep the text clear of the badge.
-    opt.text = metrics.elidedText(
-        opt.text, Qt::ElideRight,
-        qMax(0, opt.rect.width() - badgeWidth - 4 * padding));
+      const int badgeWidth = widestLabel + 2 * padding;
+      badge.rect =
+          QRect(right - badgeWidth, opt.rect.center().y() - badgeHeight / 2,
+                badgeWidth, badgeHeight);
+      right = badge.rect.left() - padding;
+    }
+
+    // Keep the text clear of the badges.
+    opt.text =
+        metrics.elidedText(opt.text, Qt::ElideRight,
+                           qMax(0, right - opt.rect.left() - 2 * padding));
   }
 
   // Let the style engine handle selection, focus, etc.
@@ -192,15 +225,15 @@ void HistorySummaryTableColumnDelegate::paintDefault(
 
   style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
 
-  if (!badgeLabel.isEmpty()) {
+  for (const Badge &badge : badges) {
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(Qt::NoPen);
-    painter->setBrush(Models::bisectMarkColor(mark));
-    painter->drawRoundedRect(badgeRect, 3, 3);
+    painter->setBrush(badge.color);
+    painter->drawRoundedRect(badge.rect, 3, 3);
 
     painter->setFont(opt.font);
     painter->setPen(Qt::white);
-    painter->drawText(badgeRect, Qt::AlignCenter, badgeLabel);
+    painter->drawText(badge.rect, Qt::AlignCenter, badge.label);
   }
 
   painter->restore();
