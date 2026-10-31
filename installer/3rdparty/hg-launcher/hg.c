@@ -88,14 +88,21 @@ int main(void) {
   // launcher only waits for it and returns its exit code.
   SetConsoleCtrlHandler(NULL, TRUE);
 
+  // The launcher joins the job itself and the child inherits it, so the
+  // child is never created suspended. Without the job the child still runs;
+  // it is only not killed with us.
   HANDLE job = CreateJobObjectW(NULL, NULL);
   if (job != NULL) {
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
     ZeroMemory(&limits, sizeof(limits));
     limits.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits,
-                            sizeof(limits));
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                 &limits, sizeof(limits)) ||
+        !AssignProcessToJobObject(job, GetCurrentProcess())) {
+      CloseHandle(job);
+      job = NULL;
+    }
   }
 
   STARTUPINFOW startupInfo;
@@ -108,17 +115,11 @@ int main(void) {
 
   PROCESS_INFORMATION processInfo;
   if (!CreateProcessW(pythonPath, commandLine, NULL, NULL, TRUE,
-                      CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, NULL, NULL,
-                      &startupInfo, &processInfo)) {
+                      CREATE_UNICODE_ENVIRONMENT, NULL, NULL, &startupInfo,
+                      &processInfo)) {
     printError(L"cannot start the bundled Python", GetLastError());
     return LAUNCHER_FAILURE;
   }
-
-  // Without the job the child still runs; it is only not killed with us.
-  if (job != NULL) {
-    AssignProcessToJobObject(job, processInfo.hProcess);
-  }
-  ResumeThread(processInfo.hThread);
   CloseHandle(processInfo.hThread);
 
   WaitForSingleObject(processInfo.hProcess, INFINITE);

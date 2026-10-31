@@ -80,6 +80,8 @@ if [ ! -x "$HG_SRC/bin/hg" ]; then
     "$SCRIPT_DIR/3rdparty/fetch-hg-unix.sh" "$HG_SRC" linux
 fi
 cp -a "$HG_SRC" "$APPDIR/usr/bin/3rdparty/hg"
+cp "$SCRIPT_DIR/3rdparty/hg-config/sourcerer.rc" \
+    "$APPDIR"/usr/bin/3rdparty/hg/python/lib/python3.*/site-packages/mercurial/defaultrc/
 
 echo "Copying libraries..."
 # Function to copy a library and its dependencies

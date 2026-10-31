@@ -1,0 +1,11 @@
+# Defaults of the bundled Mercurial, copied into mercurial/defaultrc by the
+# package scripts. They have the lowest priority, so the user's own hgrc
+# still wins.
+#
+# The terminal in Sourcerer runs the bundled hg, which must accept the same
+# repositories as Sourcerer: Git and Subversion subrepos are off by default
+# since Mercurial 4.4. Git refuses the "ext::" transport by default, so a
+# .hgsub can't make it run commands.
+[subrepos]
+git:allowed = true
+svn:allowed = true

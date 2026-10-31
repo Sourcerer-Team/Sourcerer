@@ -4089,6 +4089,9 @@
       <Component Id="HgFile_a73cedf2122284e0b3e53f2cf8e3ed2b" Guid="2b30d213-fe4c-6cd9-beee-c16b44e1786b" Directory="HgDir_3d56ef544fcb76f8f6345301517aea21">
         <File Id="HgFile_a73cedf2122284e0b3e53f2cf8e3ed2b_f" Source="$(var.SourcererBinPath)\3rdparty\hg\python\Lib\site-packages\mercurial\defaultrc\mergetools.rc" KeyPath="yes" />
       </Component>
+      <Component Id="HgFile_da60b32ebdfe7130fd437165c90980d9" Guid="612a523e-d5a5-d0cc-bb87-bd26e90b5548" Directory="HgDir_3d56ef544fcb76f8f6345301517aea21">
+        <File Id="HgFile_da60b32ebdfe7130fd437165c90980d9_f" Source="$(var.SourcererBinPath)\3rdparty\hg\python\Lib\site-packages\mercurial\defaultrc\sourcerer.rc" KeyPath="yes" />
+      </Component>
       <Component Id="HgFile_3e18e47fadfbdf74ee8b1166fb704416" Guid="5d0c29d8-cb7f-5f7d-3798-aac43c7efadb" Directory="HgDir_3d56ef544fcb76f8f6345301517aea21">
         <File Id="HgFile_3e18e47fadfbdf74ee8b1166fb704416_f" Source="$(var.SourcererBinPath)\3rdparty\hg\python\Lib\site-packages\mercurial\defaultrc\__init__.py" KeyPath="yes" />
       </Component>

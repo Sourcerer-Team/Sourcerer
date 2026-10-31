@@ -301,6 +301,11 @@ if errorlevel 1 (
     exit /b 1
 )
 copy /Y "%BUILD_DIR%\hg.exe" "%BUILD_DIR%\3rdparty\hg\" >nul
+copy /Y "%INSTALLER_DIR%3rdparty\hg-config\sourcerer.rc" "%BUILD_DIR%\3rdparty\hg\python\Lib\site-packages\mercurial\defaultrc\" >nul
+if errorlevel 1 (
+    echo Error: Failed to copy the bundled hg configuration
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName hg -SourceDir "%BUILD_DIR%\3rdparty\hg" -OutFile "%INSTALLER_DIR%HgComponents.wxs"
 if errorlevel 1 (
     echo Error: Failed to generate HgComponents.wxs
