@@ -124,6 +124,8 @@ if [[ ! -x "$HG_SRC/bin/hg" ]]; then
     fi
 fi
 ditto "$HG_SRC" "$APP/Contents/MacOS/3rdparty/hg"
+cp "$REPO_ROOT/installer/3rdparty/hg-config/sourcerer.rc" \
+    "$APP"/Contents/MacOS/3rdparty/hg/python/lib/python3.*/site-packages/mercurial/defaultrc/
 
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")

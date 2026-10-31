@@ -33,7 +33,12 @@ if errorlevel 1 (
 )
 
 rem Relocatable hg.exe launcher that runs 3rdparty\hg\python\python.exe -m mercurial
-cl /nologo /O2 /MD /W3 /Fo:C:\buildtmp\ /Fe:C:\workspace\build\Release-Windows\hg.exe C:\workspace\installer\3rdparty\hg-launcher\hg.c
+rc /nologo /i C:\workspace\installer\3rdparty\hg-launcher /fo C:\buildtmp\hg.res C:\workspace\installer\3rdparty\hg-launcher\hg.rc
+if errorlevel 1 (
+    echo Error: Failed to compile hg.exe launcher resources
+    exit /b 1
+)
+cl /nologo /O2 /MD /W3 /Fo:C:\buildtmp\ /Fe:C:\workspace\build\Release-Windows\hg.exe C:\workspace\installer\3rdparty\hg-launcher\hg.c C:\buildtmp\hg.res /link /MANIFEST:NO
 if errorlevel 1 (
     echo Error: Failed to build hg.exe launcher
     exit /b 1
