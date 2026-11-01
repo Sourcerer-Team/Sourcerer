@@ -678,9 +678,6 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void HomeContainer::hoverEnter(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
   _itemDelegate->setHover(index);
 
   ui->tableViewRecent->viewport()->update();
@@ -688,14 +685,9 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
-
-  LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::hoverLeave(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
+void HomeContainer::hoverLeave(const QModelIndex &) {
   _itemDelegate->setHover(QModelIndex());
 
   ui->tableViewRecent->viewport()->update();
@@ -703,8 +695,6 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
-
-  LOG_PERF(0, "Exit");
 }
 
 void HomeContainer::onCloneClicked() {

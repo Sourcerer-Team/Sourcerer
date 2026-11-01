@@ -898,6 +898,8 @@ void SvnRepoManagerProcessingState::cloneRepoWorker(
       command.url, command.destinationDir, command.uuid);
   if (!success) {
     const auto lastError = SvnRepo::getLastError();
+    LOG_ERROR(Log::ErrorId::Gui, "Checkout of '{}' into '{}' failed: {}",
+              command.url, command.destinationDir, lastError.errorMessage);
     EventManager::Event errorEvent(
         EventManager::EventType::SvnRepoManagerCloneRepoError,
         command.syncUuid);
