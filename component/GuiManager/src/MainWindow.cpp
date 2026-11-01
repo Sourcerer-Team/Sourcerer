@@ -288,6 +288,8 @@ MainWindow::MainWindow(QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
@@ -317,6 +319,8 @@ MainWindow::~MainWindow() {
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -1792,6 +1796,16 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const QString repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
       promptOpenClonedRepository(repoPath, RepositoryType::Mercurial);
+    });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerCloneRepoError: {
+    const auto error = event.data<SvnRepoManager::Structs::SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showErrorToast(
+          tr("Unable to check out Subversion repository.\n%1")
+              .arg(error.message),
+          tr("Error"));
     });
     break;
   }
