@@ -78,6 +78,17 @@ rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 ditto "$BUILD_DIR/Sourcerer.app" "$APP"
 
+echo "== Bundling the shared libraries"
+# The shared third-party libraries of the build, under the names they are
+# referenced by (@rpath/<name>, found through @executable_path/../Frameworks).
+# macdeployqt then finds them in the bundle.
+mkdir -p "$APP/Contents/Frameworks"
+for lib in "$BUILD_DIR"/lib/*.dylib; do
+    [[ -L "$lib" ]] && continue
+    name="$(basename "$(otool -D "$lib" | tail -n 1)")"
+    cp "$lib" "$APP/Contents/Frameworks/$name"
+done
+
 echo "== Deploying Qt"
 # The launcher is a second executable inside the bundle; without -executable it
 # would keep pointing at the Qt installation of the build machine.

@@ -60,6 +60,12 @@ IF(NOT APR_BUILD_STATIC AND TEST_STATIC_LIBS)
   MESSAGE(FATAL_ERROR "APR_BUILD_STATIC has been disabled, but TEST_STATIC_LIBS is enabled")
 ENDIF()
 
+# Sourcerer: a shared only build keeps the apr-1 target name, which
+# Subversion, serf and apr-util link to; the DLL is still libapr-1.dll.
+IF(APR_BUILD_SHARED AND NOT APR_BUILD_STATIC)
+  SET(apr_libname ${apr_name})
+ENDIF()
+
 # create 1-or-0 representation of feature tests for apr.h
 
 SET(apr_have_ipv6_10 0)
@@ -314,6 +320,7 @@ ENDIF()
 # libapr-1 is shared, apr-1 is static
 IF (APR_BUILD_SHARED)
   ADD_LIBRARY(${apr_libname} SHARED ${APR_SOURCES} ${APR_PUBLIC_HEADERS_GENERATED} libapr.rc)
+  SET_TARGET_PROPERTIES(${apr_libname} PROPERTIES OUTPUT_NAME libapr-1)
   LIST(APPEND install_targets ${apr_libname})
   LIST(APPEND install_bin_pdb $<TARGET_PDB_FILE:${apr_libname}>)
   TARGET_LINK_LIBRARIES(${apr_libname}

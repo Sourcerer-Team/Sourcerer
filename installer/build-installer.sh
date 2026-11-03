@@ -86,6 +86,10 @@ else
     # Create lib directory
     mkdir -p "$DATA_DIR/lib"
 
+    # The shared third-party libraries of the build, before the system
+    # libraries below so these do not take their place.
+    cp -a "$RELEASE_DIR"/lib/*.so* "$DATA_DIR/lib/"
+
     # Copy all shared library dependencies
     echo "Deploying shared libraries..."
 

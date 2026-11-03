@@ -44,12 +44,7 @@ target_link_libraries(hgrepomanager_test PRIVATE
   Qt6::Network
   Qt6::Test
   libssh2
-  libgit2
-  llhttp
-  pcre2
-  reftable
-  util
-  xdiff
+  libgit2package
   ZLIB::ZLIB
   ${ADDITIONAL_LIBRARIES})
 

@@ -152,12 +152,7 @@ endif ()
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         libssh2
-        libgit2
-        llhttp
-        pcre2
-        reftable
-        util
-        xdiff
+        libgit2package
         cyrus-sasl
         serf
         apr-1
@@ -195,6 +190,17 @@ set_target_properties(Sourcerer PROPERTIES
 set_target_properties(SourcererLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE
 )
+
+# The shared third-party libraries (SOURCERER_SHARED_LIB_DIR) are next to the
+# executable on Windows. Elsewhere they are in lib/ of the build directory,
+# usr/lib of the AppImage and Contents/Frameworks of the macOS bundle.
+if (APPLE)
+  set_property(TARGET Sourcerer APPEND PROPERTY BUILD_RPATH
+          "@executable_path/../Frameworks")
+elseif (UNIX)
+  set_property(TARGET Sourcerer APPEND PROPERTY BUILD_RPATH
+          "$ORIGIN/lib" "$ORIGIN/../lib")
+endif ()
 
 if (APPLE)
   if (CMAKE_OSX_DEPLOYMENT_TARGET)

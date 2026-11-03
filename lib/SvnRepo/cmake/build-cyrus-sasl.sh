@@ -29,7 +29,7 @@ cd "$work_dir"
 autoreconf --force --install --verbose -Wno-portability
 
 cd "$build_dir"
-sh "$work_dir/configure" --disable-shared --enable-static --prefix="$install_dir"
+sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir"
 
 make -C include install prefix="$install_dir"
 make -C common

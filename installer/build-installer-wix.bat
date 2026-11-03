@@ -12,6 +12,8 @@ set "WXS_BURN_FILE=%INSTALLER_DIR%Burn.wxs"
 set "QT_VERSION=6.10.3"
 set "QT_DIR=C:\Qt"
 set "QT_MSVC_BIN_PATH=%QT_DIR%\%QT_VERSION%\msvc2022_64\bin"
+REM Shared libraries from lib/ that the bundled svn.exe loads (the build puts them next to Sourcerer.exe)
+set "SVN_DLLS=libsvn_client-1.dll libsvn_wc-1.dll libsvn_ra-1.dll libsvn_ra_local-1.dll libsvn_ra_svn-1.dll libsvn_ra_serf-1.dll libsvn_repos-1.dll libsvn_fs-1.dll libsvn_fs_fs-1.dll libsvn_fs_x-1.dll libsvn_fs_util-1.dll libsvn_delta-1.dll libsvn_diff-1.dll libsvn_subr-1.dll serf.dll libapr-1.dll libaprutil-1.dll sqlite3.dll libexpat.dll utf8proc.dll libsasl.dll"
 
 REM Normalize build directory path
 if not exist "%BUILD_DIR%" (
@@ -257,7 +259,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Stage the Subversion CLI built by the Docker container (svn.exe plus its OpenSSL runtime DLLs)
+REM Stage the Subversion CLI built by the Docker container (svn.exe plus the DLLs it loads:
+REM Subversion, APR, serf, SQLite, expat, utf8proc, zlib and OpenSSL)
 echo.
 echo Preparing bundled svn...
 if not exist "%BUILD_DIR%\SvnRepo\svn.exe" (
@@ -267,7 +270,7 @@ if not exist "%BUILD_DIR%\SvnRepo\svn.exe" (
 if exist "%BUILD_DIR%\3rdparty\svn" rmdir /s /q "%BUILD_DIR%\3rdparty\svn"
 mkdir "%BUILD_DIR%\3rdparty\svn\bin"
 copy /Y "%BUILD_DIR%\SvnRepo\svn.exe" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
-for %%D in (libssl-3-x64.dll libcrypto-3-x64.dll z.dll) do (
+for %%D in (libssl-3-x64.dll libcrypto-3-x64.dll z.dll %SVN_DLLS%) do (
     copy /Y "%BUILD_DIR%\%%D" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
     if errorlevel 1 (
         echo Error: Failed to copy %%D for svn

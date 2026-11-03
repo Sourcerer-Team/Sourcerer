@@ -31,6 +31,7 @@
             <ComponentRef Id="SourcererLauncherExecutable" />
             <ComponentRef Id="SourcererAskPassExecutable" />
             <ComponentRef Id="QtDependencies" />
+            <ComponentRef Id="ThirdPartyLibraries" />
             <ComponentRef Id="QtPlatformPlugins" />
             <ComponentRef Id="QtImageFormatPlugins" />
             <ComponentRef Id="QtStylePlugins" />
@@ -180,6 +181,45 @@
                 <RegistryKey Root="HKCU"
                              Key="Software\Sourcerer\InstalledComponents">
                     <RegistryValue Name="QtDependencies"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
+            </Component>
+
+            <!-- Shared third-party libraries from lib/ (zlib is listed above) -->
+            <Component Id="ThirdPartyLibraries" Guid="10349e2e-c55c-4f8e-a6be-06096f27c19d">
+                <File Id="LibGit2File" Source="$(var.SourcererBinPath)\git2.dll" />
+                <File Id="LibSsh2File" Source="$(var.SourcererBinPath)\libssh2.dll" />
+                <File Id="LibZipFile" Source="$(var.SourcererBinPath)\zip.dll" />
+                <File Id="QcaFile" Source="$(var.SourcererBinPath)\qca-qt6.dll" />
+                <File Id="QtKeychainFile" Source="$(var.SourcererBinPath)\qtkeychain.dll" />
+                <File Id="TreeSitterFile" Source="$(var.SourcererBinPath)\tree-sitter.dll" />
+                <File Id="SqliteFile" Source="$(var.SourcererBinPath)\sqlite3.dll" />
+                <File Id="ExpatFile" Source="$(var.SourcererBinPath)\libexpat.dll" />
+                <File Id="Utf8ProcFile" Source="$(var.SourcererBinPath)\utf8proc.dll" />
+                <File Id="AprFile" Source="$(var.SourcererBinPath)\libapr-1.dll" />
+                <File Id="AprUtilFile" Source="$(var.SourcererBinPath)\libaprutil-1.dll" />
+                <File Id="SerfFile" Source="$(var.SourcererBinPath)\serf.dll" />
+                <File Id="SaslFile" Source="$(var.SourcererBinPath)\libsasl.dll" />
+                <File Id="SvnSubrFile" Source="$(var.SourcererBinPath)\libsvn_subr-1.dll" />
+                <File Id="SvnDiffFile" Source="$(var.SourcererBinPath)\libsvn_diff-1.dll" />
+                <File Id="SvnDeltaFile" Source="$(var.SourcererBinPath)\libsvn_delta-1.dll" />
+                <File Id="SvnFsUtilFile" Source="$(var.SourcererBinPath)\libsvn_fs_util-1.dll" />
+                <File Id="SvnFsFsFile" Source="$(var.SourcererBinPath)\libsvn_fs_fs-1.dll" />
+                <File Id="SvnFsXFile" Source="$(var.SourcererBinPath)\libsvn_fs_x-1.dll" />
+                <File Id="SvnFsFile" Source="$(var.SourcererBinPath)\libsvn_fs-1.dll" />
+                <File Id="SvnRaLocalFile" Source="$(var.SourcererBinPath)\libsvn_ra_local-1.dll" />
+                <File Id="SvnRaSvnFile" Source="$(var.SourcererBinPath)\libsvn_ra_svn-1.dll" />
+                <File Id="SvnRaSerfFile" Source="$(var.SourcererBinPath)\libsvn_ra_serf-1.dll" />
+                <File Id="SvnRaFile" Source="$(var.SourcererBinPath)\libsvn_ra-1.dll" />
+                <File Id="SvnReposFile" Source="$(var.SourcererBinPath)\libsvn_repos-1.dll" />
+                <File Id="SvnWcFile" Source="$(var.SourcererBinPath)\libsvn_wc-1.dll" />
+                <File Id="SvnClientFile" Source="$(var.SourcererBinPath)\libsvn_client-1.dll" />
+                <File Id="SvnxxFile" Source="$(var.SourcererBinPath)\libsvnxx-1.dll" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="ThirdPartyLibraries"
                                    Type="integer"
                                    Value="1"
                                    KeyPath="yes" />

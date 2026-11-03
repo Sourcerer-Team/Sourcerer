@@ -53,7 +53,7 @@ includeLib(HgRepoManager Util)
 target_link_libraries(HgRepoManager PRIVATE
     Qt6::Core
     Qt6::Network
-    libgit2
+    libgit2package
 )
 
 target_include_directories(HgRepoManager PRIVATE

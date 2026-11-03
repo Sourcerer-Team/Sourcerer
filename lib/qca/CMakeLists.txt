@@ -71,7 +71,8 @@ endif()
 
 # QCA can be shared but plugins will be static
 # if Qt is static.
-if(NOT BUILD_SHARED_LIBS OR QT_IS_STATIC)
+option(QCA_STATIC_PLUGINS "Build static plugins also for a shared QCA" OFF)
+if(NOT BUILD_SHARED_LIBS OR QT_IS_STATIC OR QCA_STATIC_PLUGINS)
   set(STATIC_PLUGINS ON)
   add_definitions(-DQT_STATICPLUGIN)
   set(PLUGIN_TYPE "STATIC")
