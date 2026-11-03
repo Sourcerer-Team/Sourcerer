@@ -11,14 +11,77 @@
   </Fragment>
   <Fragment>
     <ComponentGroup Id="SvnFiles">
+      <Component Id="SvnFile_85e985c9296c63ea37fcb8371b3f2e7f" Guid="be7eb002-1577-4ff6-b260-a31a4c278a46" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_85e985c9296c63ea37fcb8371b3f2e7f_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libapr-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_7e680024baaa3370489add0a623b48fb" Guid="67d8c44b-ef06-cf3e-9063-3240cf6fb3f1" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_7e680024baaa3370489add0a623b48fb_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libaprutil-1.dll" KeyPath="yes" />
+      </Component>
       <Component Id="SvnFile_8a17733337e9ffab007deef7a02ef2f0" Guid="051d49c6-6e71-3d1d-2e32-f2b869188f6a" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
         <File Id="SvnFile_8a17733337e9ffab007deef7a02ef2f0_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libcrypto-3-x64.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_222c4f783752ef8ec7c326dc8b893383" Guid="8fa147ed-b813-58b8-d484-63da269cb9f8" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_222c4f783752ef8ec7c326dc8b893383_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libexpat.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_6256d3f8c5fa756bc77bccea234231a3" Guid="27f50c3c-5885-3cc6-57b4-057ef78c5ca6" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_6256d3f8c5fa756bc77bccea234231a3_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsasl.dll" KeyPath="yes" />
       </Component>
       <Component Id="SvnFile_1030702dcbabed3dd080cd0fbf7b921e" Guid="d1a14c7a-6f3a-9dd6-ea15-77c2f2418022" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
         <File Id="SvnFile_1030702dcbabed3dd080cd0fbf7b921e_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libssl-3-x64.dll" KeyPath="yes" />
       </Component>
+      <Component Id="SvnFile_a2bdc3bbf33578fbd200a7034ff1eb94" Guid="d745eece-31fa-0346-7af8-e50a43ed731b" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_a2bdc3bbf33578fbd200a7034ff1eb94_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_client-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_12f0c1521fa847c337705e5310fd5a1e" Guid="39a87d1c-f149-7931-08ca-d968d8bebef9" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_12f0c1521fa847c337705e5310fd5a1e_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_delta-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_f06e5a76e831406c5d6534ddfaac3e6f" Guid="03dd79be-fba9-d214-e04b-ccb4e7c54067" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_f06e5a76e831406c5d6534ddfaac3e6f_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_diff-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_6130adee8617cdea25823a4865409f35" Guid="9566fda5-79a0-2e79-131c-d09f572eacb9" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_6130adee8617cdea25823a4865409f35_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_fs-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_1782a11b5a91153d5aafd34f0fa8a49e" Guid="fe8315e3-a66c-0c81-e7be-27c09421d998" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_1782a11b5a91153d5aafd34f0fa8a49e_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_fs_fs-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_3304feaec090b7db3379ac69826c7ecc" Guid="694284c0-9619-bfc0-c5ce-278c2d46ebb2" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_3304feaec090b7db3379ac69826c7ecc_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_fs_util-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_fb1154fbc69bc47fbcee23c3ec496639" Guid="4ee47f06-a6a7-b112-24ed-d5fe8d6b771e" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_fb1154fbc69bc47fbcee23c3ec496639_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_fs_x-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_192fb19d5111bdc9a0cde1d65573fbec" Guid="18a35eca-7a10-e90a-0f2a-2e5f03e04db3" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_192fb19d5111bdc9a0cde1d65573fbec_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_ra-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_18fbaa6065fc37db309d3c757fad52cf" Guid="337aad9b-f6be-84c7-e4e7-66cd244bd12e" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_18fbaa6065fc37db309d3c757fad52cf_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_ra_local-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_4538ea47a0e474e2f409c3a1c27e7eaa" Guid="3eb22fe7-b523-f24a-801d-d5907dc0eab6" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_4538ea47a0e474e2f409c3a1c27e7eaa_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_ra_serf-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_85a390292f0fac37635fed6356787d6d" Guid="de2778c4-e6c7-9e15-599b-06676ed09055" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_85a390292f0fac37635fed6356787d6d_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_ra_svn-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_3cc7a479fe4a3d4b1d442f4e380c2ba2" Guid="5b521b20-dda2-d605-b89f-1d2e1ab716e7" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_3cc7a479fe4a3d4b1d442f4e380c2ba2_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_repos-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_79b3e7b715d596ce6f7460ce01124c0b" Guid="e3572a1d-f85f-f2e6-d158-4084b7d92df3" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_79b3e7b715d596ce6f7460ce01124c0b_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_subr-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_4d3d6db2eda367911f9b56aaf63787f7" Guid="c9563803-6ee5-9b9f-5679-07899bc63c96" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_4d3d6db2eda367911f9b56aaf63787f7_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\libsvn_wc-1.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_d960d3fb328f158c720cf2f85744e300" Guid="9d1a2297-ccf5-9a27-2d17-8485dc8f4773" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_d960d3fb328f158c720cf2f85744e300_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\serf.dll" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_a79b347714ae7c5b223ef0bfbe60fb0f" Guid="44312323-6edc-5ece-87a5-db1d66d0b31a" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_a79b347714ae7c5b223ef0bfbe60fb0f_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\sqlite3.dll" KeyPath="yes" />
+      </Component>
       <Component Id="SvnFile_ceb5d620c0eedc3ffcd40f1946965203" Guid="8b79f320-0105-514a-b9db-d45be0f8063e" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
         <File Id="SvnFile_ceb5d620c0eedc3ffcd40f1946965203_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\svn.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="SvnFile_2e9a5bb102da553e4a60ee8645b8e9e7" Guid="11adb024-4181-907a-6d7e-f51c608ed8fe" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
+        <File Id="SvnFile_2e9a5bb102da553e4a60ee8645b8e9e7_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\utf8proc.dll" KeyPath="yes" />
       </Component>
       <Component Id="SvnFile_3f24eda7428db3635c84024c7c4366c3" Guid="1c1c591b-31c1-bc9e-70ef-e85b8fa3c88d" Directory="SvnDir_3e6c4d72ca3ebf6ac9afeb17f89e9ed0">
         <File Id="SvnFile_3f24eda7428db3635c84024c7c4366c3_f" Source="$(var.SourcererBinPath)\3rdparty\svn\bin\z.dll" KeyPath="yes" />

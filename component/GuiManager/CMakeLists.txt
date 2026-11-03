@@ -314,8 +314,7 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Svg
         Qt6::Widgets
         Qt6::Network
-        libgit2
-        util
+        libgit2package
         libzip::zip
         apr-1
 )

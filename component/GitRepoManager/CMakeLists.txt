@@ -46,8 +46,7 @@ target_link_libraries(GitRepoManager PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    libgit2
-    util
+    libgit2package
     ${LIBSSH2_LIBRARY}
 )
 

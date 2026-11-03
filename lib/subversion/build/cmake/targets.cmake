@@ -30,6 +30,23 @@ function(svn_add_common_includes target_name)
   )
 endfunction()
 
+# Names a library like upstream does (libsvn_subr-1.dll, libsvn_subr-1.so).
+# On Windows the functions declared in the given headers (the msvc-export
+# lists of build.conf, relative to subversion/include) are exported.
+function(svn_library_exports target_name)
+  string(REGEX REPLACE "^lib" "" output_name "${target_name}")
+  set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${output_name}-1")
+  set(headers)
+  foreach(header ${ARGN})
+    list(APPEND headers "subversion/include/${header}")
+  endforeach()
+  target_exports(${target_name} ${headers})
+  if(WIN32)
+    # htonl() and friends, which the static libraries got from the executable.
+    target_link_libraries(${target_name} PRIVATE ws2_32)
+  endif()
+endfunction()
+
 
 
 file(MAKE_DIRECTORY
@@ -71,16 +88,45 @@ if(NOT TARGET libsvn_subr)
     ${SVN_SOURCE_DIR}/libsvn_subr/utf8proc/*.c
   )
   list(FILTER SVN_SUBR_SOURCES EXCLUDE REGEX ".*/utf8proc_data\.c$")
-  add_library(libsvn_subr STATIC
+  add_library(libsvn_subr
     ${SVN_SUBR_SOURCES}
     ${SVN_BINARY_DIR}/libsvn_subr/internal_statements.h
   )
   target_compile_definitions(libsvn_subr PRIVATE
     SVN_INTERNAL_LZ4
     SVN_INTERNAL_UTF8PROC
+    # The internal utf8proc is compiled into libsvn_subr, not imported.
+    UTF8PROC_STATIC
     SVN_CHECKSUM_BACKEND_APR
   )
   svn_add_common_includes(libsvn_subr)
+  svn_library_exports(libsvn_subr
+    svn_auth.h svn_base64.h svn_cache_config.h svn_checksum.h svn_cmdline.h
+    svn_compat.h svn_config.h svn_ctype.h svn_dirent_uri.h svn_dso.h
+    svn_error.h svn_hash.h svn_io.h svn_iter.h svn_md5.h svn_mergeinfo.h
+    svn_nls.h svn_opt.h svn_path.h svn_pools.h svn_props.h svn_quoprint.h
+    svn_sorts.h svn_string.h svn_subst.h svn_time.h svn_types.h svn_user.h
+    svn_utf.h svn_version.h svn_xml.h svn_x509.h
+    private/svn_atomic.h private/svn_cache.h private/svn_cmdline_private.h
+    private/svn_debug.h private/svn_error_private.h private/svn_fspath.h
+    private/svn_log.h private/svn_mergeinfo_private.h
+    private/svn_opt_private.h private/svn_skel.h private/svn_sqlite.h
+    private/svn_utf_private.h private/svn_eol_private.h
+    private/svn_token.h private/svn_adler32.h
+    private/svn_temp_serializer.h private/svn_io_private.h
+    private/svn_sorts_private.h private/svn_auth_private.h
+    private/svn_string_private.h private/svn_magic.h
+    private/svn_subr_private.h private/svn_mutex.h private/svn_task.h
+    private/svn_thread_cond.h private/svn_waitable_counter.h
+    private/svn_packed_data.h private/svn_object_pool.h private/svn_cert.h
+    private/svn_config_private.h private/svn_dirent_uri_private.h
+    private/svn_xml_private.h ../libsvn_subr/crypto.h
+  )
+  if(WIN32)
+    target_link_libraries(libsvn_subr PRIVATE
+      advapi32 shfolder ole32 crypt32 version
+    )
+  endif()
   target_include_directories(libsvn_subr PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_subr
     ${SVN_SOURCE_DIR}/libsvn_subr/lz4
@@ -93,7 +139,6 @@ if(NOT TARGET libsvn_subr)
     ZLIB::ZLIB
     expat::expat
     sqlite3
-    utf8proc
   )
 endif()
 
@@ -101,8 +146,11 @@ if(NOT TARGET libsvn_diff)
   file(GLOB SVN_DIFF_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_diff/*.c
   )
-  add_library(libsvn_diff STATIC ${SVN_DIFF_SOURCES})
+  add_library(libsvn_diff ${SVN_DIFF_SOURCES})
   svn_add_common_includes(libsvn_diff)
+  svn_library_exports(libsvn_diff
+    svn_diff.h private/svn_diff_private.h private/svn_diff_tree.h
+  )
   target_include_directories(libsvn_diff PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_diff
   )
@@ -118,8 +166,11 @@ if(NOT TARGET libsvn_delta)
   file(GLOB SVN_DELTA_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_delta/*.c
   )
-  add_library(libsvn_delta STATIC ${SVN_DELTA_SOURCES})
+  add_library(libsvn_delta ${SVN_DELTA_SOURCES})
   svn_add_common_includes(libsvn_delta)
+  svn_library_exports(libsvn_delta
+    svn_delta.h private/svn_editor.h private/svn_delta_private.h
+  )
   target_include_directories(libsvn_delta PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_delta
   )
@@ -136,8 +187,9 @@ if(NOT TARGET libsvn_fs_util)
   file(GLOB SVN_FS_UTIL_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_fs_util/*.c
   )
-  add_library(libsvn_fs_util STATIC ${SVN_FS_UTIL_SOURCES})
+  add_library(libsvn_fs_util ${SVN_FS_UTIL_SOURCES})
   svn_add_common_includes(libsvn_fs_util)
+  svn_library_exports(libsvn_fs_util private/svn_fs_util.h)
   target_include_directories(libsvn_fs_util PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_fs_util
   )
@@ -152,11 +204,19 @@ if(NOT TARGET libsvn_fs_fs)
   file(GLOB SVN_FS_FS_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_fs_fs/*.c
   )
-  add_library(libsvn_fs_fs STATIC
+  add_library(libsvn_fs_fs ${SVN_FS_BUILD_TYPE}
     ${SVN_FS_FS_SOURCES}
     ${SVN_BINARY_DIR}/libsvn_fs_fs/rep-cache-db.h
   )
   svn_add_common_includes(libsvn_fs_fs)
+  svn_library_exports(libsvn_fs_fs
+    private/svn_fs_fs_private.h ../libsvn_fs_fs/fs_init.h
+    ../libsvn_fs_fs/fs_fs.h ../libsvn_fs_fs/fs.h
+    ../libsvn_fs_fs/id.h ../libsvn_fs_fs/index.h
+    ../libsvn_fs_fs/low_level.h ../libsvn_fs_fs/pack.h
+    ../libsvn_fs_fs/rep-cache.h ../libsvn_fs_fs/rev_file.h
+    ../libsvn_fs_fs/util.h
+  )
   target_include_directories(libsvn_fs_fs PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_fs_fs
     ${SVN_BINARY_DIR}/libsvn_fs_fs
@@ -176,11 +236,16 @@ if(NOT TARGET libsvn_fs_x)
   file(GLOB SVN_FS_X_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_fs_x/*.c
   )
-  add_library(libsvn_fs_x STATIC
+  add_library(libsvn_fs_x ${SVN_FS_BUILD_TYPE}
     ${SVN_FS_X_SOURCES}
     ${SVN_BINARY_DIR}/libsvn_fs_x/rep-cache-db.h
   )
   svn_add_common_includes(libsvn_fs_x)
+  svn_library_exports(libsvn_fs_x
+    ../libsvn_fs_x/fs_init.h ../libsvn_fs_x/batch_fsync.h
+    ../libsvn_fs_x/fs_x.h ../libsvn_fs_x/fs.h
+    ../libsvn_fs_x/hotcopy.h ../libsvn_fs_x/reps.h ../libsvn_fs_x/string_table.h
+  )
   target_include_directories(libsvn_fs_x PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_fs_x
     ${SVN_BINARY_DIR}/libsvn_fs_x
@@ -200,8 +265,9 @@ if(NOT TARGET libsvn_fs)
   file(GLOB SVN_FS_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_fs/*.c
   )
-  add_library(libsvn_fs STATIC ${SVN_FS_SOURCES})
+  add_library(libsvn_fs ${SVN_FS_SOURCES})
   svn_add_common_includes(libsvn_fs)
+  svn_library_exports(libsvn_fs svn_fs.h private/svn_fs_private.h)
   target_include_directories(libsvn_fs PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_fs
   )
@@ -220,8 +286,11 @@ if(NOT TARGET libsvn_ra_local)
   file(GLOB SVN_RA_LOCAL_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_ra_local/*.c
   )
-  add_library(libsvn_ra_local STATIC ${SVN_RA_LOCAL_SOURCES})
+  add_library(libsvn_ra_local ${SVN_RA_BUILD_TYPE} ${SVN_RA_LOCAL_SOURCES})
   svn_add_common_includes(libsvn_ra_local)
+  svn_library_exports(libsvn_ra_local
+    ../libsvn_ra_local/ra_init.h ../libsvn_ra_local/ra_local.h
+  )
   target_include_directories(libsvn_ra_local PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_ra_local
   )
@@ -239,8 +308,11 @@ if(NOT TARGET libsvn_ra_svn)
   file(GLOB SVN_RA_SVN_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_ra_svn/*.c
   )
-  add_library(libsvn_ra_svn STATIC ${SVN_RA_SVN_SOURCES})
+  add_library(libsvn_ra_svn ${SVN_RA_BUILD_TYPE} ${SVN_RA_SVN_SOURCES})
   svn_add_common_includes(libsvn_ra_svn)
+  svn_library_exports(libsvn_ra_svn
+    ../libsvn_ra_svn/ra_init.h svn_ra_svn.h private/svn_ra_svn_private.h
+  )
   target_include_directories(libsvn_ra_svn PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_ra_svn
     ${CYRUS_SASL_SOURCE_DIR}/include
@@ -258,8 +330,11 @@ if(NOT TARGET libsvn_ra_serf)
   file(GLOB SVN_RA_SERF_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_ra_serf/*.c
   )
-  add_library(libsvn_ra_serf STATIC ${SVN_RA_SERF_SOURCES})
+  add_library(libsvn_ra_serf ${SVN_RA_BUILD_TYPE} ${SVN_RA_SERF_SOURCES})
   svn_add_common_includes(libsvn_ra_serf)
+  svn_library_exports(libsvn_ra_serf
+    ../libsvn_ra_serf/ra_init.h ../libsvn_ra_serf/ra_serf.h
+  )
   target_include_directories(libsvn_ra_serf PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_ra_serf
     ${SERF_SOURCE_DIR}
@@ -269,10 +344,6 @@ if(NOT TARGET libsvn_ra_serf)
   )
   target_include_directories(libsvn_ra_serf SYSTEM PRIVATE
     ${SERF_SOURCE_DIR}
-  )
-  target_compile_definitions(libsvn_ra_serf PRIVATE
-    APR_DECLARE_STATIC
-    APU_DECLARE_STATIC
   )
   target_link_libraries(libsvn_ra_serf PRIVATE
     libsvn_delta
@@ -288,8 +359,9 @@ if(NOT TARGET libsvn_ra)
   file(GLOB SVN_RA_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_ra/*.c
   )
-  add_library(libsvn_ra STATIC ${SVN_RA_SOURCES})
+  add_library(libsvn_ra ${SVN_RA_SOURCES})
   svn_add_common_includes(libsvn_ra)
+  svn_library_exports(libsvn_ra svn_ra.h private/svn_ra_private.h)
   target_include_directories(libsvn_ra PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_ra
   )
@@ -308,8 +380,11 @@ if(NOT TARGET libsvn_repos)
   file(GLOB SVN_REPOS_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_repos/*.c
   )
-  add_library(libsvn_repos STATIC ${SVN_REPOS_SOURCES})
+  add_library(libsvn_repos ${SVN_REPOS_SOURCES})
   svn_add_common_includes(libsvn_repos)
+  svn_library_exports(libsvn_repos
+    svn_repos.h private/svn_repos_private.h ../libsvn_repos/authz.h
+  )
   target_include_directories(libsvn_repos PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_repos
   )
@@ -326,13 +401,20 @@ if(NOT TARGET libsvn_wc)
   file(GLOB SVN_WC_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_wc/*.c
   )
-  add_library(libsvn_wc STATIC
+  add_library(libsvn_wc
     ${SVN_WC_SOURCES}
     ${SVN_BINARY_DIR}/libsvn_wc/wc-queries.h
     ${SVN_BINARY_DIR}/libsvn_wc/wc-metadata.h
     ${SVN_BINARY_DIR}/libsvn_wc/wc-checks.h
   )
   svn_add_common_includes(libsvn_wc)
+  # wc-queries.h of the msvc-export list is generated and has no functions.
+  svn_library_exports(libsvn_wc
+    svn_wc.h private/svn_wc_private.h ../libsvn_wc/conflicts.h
+    ../libsvn_wc/lock.h ../libsvn_wc/token-map.h
+    ../libsvn_wc/tree_conflicts.h ../libsvn_wc/wc_db_private.h
+    ../libsvn_wc/wc_db.h ../libsvn_wc/wc.h ../libsvn_wc/workqueue.h
+  )
   target_include_directories(libsvn_wc PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_wc
     ${SVN_BINARY_DIR}/libsvn_wc
@@ -351,8 +433,13 @@ if(NOT TARGET libsvn_client)
   file(GLOB SVN_CLIENT_SOURCES CONFIGURE_DEPENDS
     ${SVN_SOURCE_DIR}/libsvn_client/*.c
   )
-  add_library(libsvn_client STATIC ${SVN_CLIENT_SOURCES})
+  add_library(libsvn_client ${SVN_CLIENT_SOURCES})
   svn_add_common_includes(libsvn_client)
+  svn_library_exports(libsvn_client
+    svn_client.h private/svn_client_mtcc.h private/svn_client_private.h
+    private/svn_client_shelf.h private/svn_client_shelf2.h
+    ../libsvn_client/mergeinfo.h ../libsvn_client/client.h
+  )
   target_include_directories(libsvn_client PRIVATE
     ${SVN_SOURCE_DIR}/libsvn_client
   )
@@ -372,7 +459,12 @@ if(NOT TARGET libsvnxx)
     ${SVN_SOURCE_DIR}/bindings/cxx/src/*.cpp
     ${SVN_SOURCE_DIR}/bindings/cxx/src/aprwrap/*.cpp
   )
-  add_library(libsvnxx STATIC ${SVNXX_SOURCES})
+  add_library(libsvnxx ${SVNXX_SOURCES})
+  # The C++ bindings have no export lists, they export everything.
+  set_target_properties(libsvnxx PROPERTIES
+    OUTPUT_NAME svnxx-1
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+  )
   target_include_directories(libsvnxx PUBLIC
     ${SVN_SOURCE_DIR}/bindings/cxx/include
   )

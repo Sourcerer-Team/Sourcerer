@@ -128,7 +128,7 @@ set_source_files_properties(
   PROPERTIES GENERATED TRUE
 )
 
-add_library(sqlite3 STATIC
+add_library(sqlite3
   ${SQLITE3_SOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/ctime.c
   ${SQLITE3_KEYWORDHASH_H}
@@ -155,6 +155,10 @@ target_include_directories(sqlite3 PUBLIC
 )
 
 target_link_libraries(sqlite3 PUBLIC Threads::Threads)
+
+# The generated sqlite3.h has no SQLITE_API export markers (only the
+# amalgamation adds them). apr-util and Subversion use only the functions.
+set_target_properties(sqlite3 PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 if(NOT WIN32 AND CMAKE_DL_LIBS)
   target_link_libraries(sqlite3 PUBLIC ${CMAKE_DL_LIBS})

@@ -84,6 +84,14 @@ cp "$SCRIPT_DIR/3rdparty/hg-config/sourcerer.rc" \
     "$APPDIR"/usr/bin/3rdparty/hg/python/lib/python3.*/site-packages/mercurial/defaultrc/
 
 echo "Copying libraries..."
+# The shared third-party libraries of the build come first, so the copies
+# below do not replace them with system libraries of the same name.
+if [ ! -d "$BUILD_DIR/lib" ]; then
+    echo "Error: shared libraries not found at $BUILD_DIR/lib"
+    exit 1
+fi
+cp -a "$BUILD_DIR"/lib/*.so* "$APPDIR/usr/lib/"
+
 # Function to copy a library and its dependencies
 copy_lib_dependencies() {
     local lib_path="$1"

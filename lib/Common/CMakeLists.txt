@@ -34,8 +34,7 @@ target_link_libraries(Common PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    libgit2
-    util
+    libgit2package
 )
 
 target_include_directories(Common PRIVATE

@@ -64,6 +64,8 @@ Notable GUI subareas include:
 
 The `lib/` tree contains shared code used across components, including utilities and UI helpers. These are included from the top-level CMake files through shared helper functions in `cmake/helpers.cmake`.
 
+The Sourcerer libraries in `lib/` (Common, GitRepo, SvnRepo, ...) are static. The third-party libraries vendored there (apr, apr-util, cyrus-sasl, expat, libgit2, libssh2, libzip, qca, qtkeychain, serf, sqlite, subversion, tree-sitter, utf8proc and zlib) are shared libraries. They are all built into one folder (`SOURCERER_SHARED_LIB_DIR`): next to `Sourcerer.exe` on Windows, and `lib/` of the build directory on Linux and macOS, which the executable finds through its RPATH. The packages ship them next to the executable (Windows), in `usr/lib` (AppImage) and in `Contents/Frameworks` (macOS). The bundled `svn` client gets its own copies in `3rdparty/svn`.
+
 ## Build prerequisites
 
 Sourcerer uses:
