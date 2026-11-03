@@ -2,8 +2,9 @@
 # python-build-standalone in installer\3rdparty\hg\python, with the Mercurial
 # wheel unpacked into its Lib\site-packages. The hg.exe launcher
 # (hg-launcher\hg.c) is built by Docker and copied next to python\ by
-# build-installer-wix.bat. fetch-hg-unix.sh bundles the same versions for
-# Linux and macOS.
+# build-installer-wix.bat, which then makes UTF-8 the code page of
+# python\python.exe with set-python-utf8-codepage.ps1. fetch-hg-unix.sh
+# bundles the same versions for Linux and macOS.
 #
 # Downloads are checked against pinned SHA-256 sums and cached next to this
 # script. Windows PowerShell 5.1 runs it, and tar.exe (Windows 10 and later)

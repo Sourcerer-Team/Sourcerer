@@ -290,6 +290,12 @@ if not exist "%INSTALLER_DIR%3rdparty\hg\python\python.exe" (
         exit /b 1
     )
 )
+REM Also for a python.exe fetched before this step existed
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\set-python-utf8-codepage.ps1" -PythonExe "%INSTALLER_DIR%3rdparty\hg\python\python.exe"
+if errorlevel 1 (
+    echo Error: Failed to set the UTF-8 code page of the bundled Python
+    exit /b 1
+)
 if not exist "%BUILD_DIR%\hg.exe" (
     echo Error: hg.exe launcher was not built
     exit /b 1
