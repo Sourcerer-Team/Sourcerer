@@ -261,6 +261,7 @@ private slots:
   void twoBranchRevision();
   void revertCommitCases_data();
   void revertCommitCases();
+  void revertCommitOfAddedDirectory();
   void operationStateSurvivesReopen();
   void authorOfPickedRevision();
 
@@ -2635,6 +2636,7 @@ void SvnRepoTest::commitStagedDeletedDirectory() {
   QVERIFY(writeFile(file("dir/a.txt"), "a\n"));
   QVERIFY(writeFile(file("dir/sub/b.txt"), "b\n"));
   QVERIFY(commitAll(_wc, QStringLiteral("Base")));
+  const QString base = head();
   bool ok = false;
   svnIn(_wc, {QStringLiteral("update")}, &ok);
   svnIn(_wc, {QStringLiteral("delete"), QStringLiteral("dir")}, &ok);
@@ -2648,6 +2650,36 @@ void SvnRepoTest::commitStagedDeletedDirectory() {
   QVERIFY2(committed, qPrintable(lastErrorMessage()));
   QCOMPARE(changedPaths(_repoDir, head()),
            QStringList{QStringLiteral("D trunk/dir")});
+
+  // The staged files below the deleted directory leave no changelist behind:
+  // bringing the directory back would read it as "Corrupt data".
+  const QString output =
+      svnIn(_wc, {QStringLiteral("update"), QStringLiteral("-r"), base}, &ok);
+  QVERIFY2(ok, qPrintable(output));
+  QCOMPARE(readFile(file("dir/sub/b.txt")), QByteArray("b\n"));
+}
+
+void SvnRepoTest::revertCommitOfAddedDirectory() {
+  QVERIFY(writeFile(file("dir/a.txt"), "a\n"));
+  QVERIFY(writeFile(file("dir/sub/b.txt"), "b\n"));
+  QVERIFY(commitAll(_wc, QStringLiteral("Add dir")));
+  const QString added = head();
+  bool ok = false;
+  svnIn(_wc, {QStringLiteral("update")}, &ok);
+  QVERIFY(ok);
+
+  // The revert stages and commits the deletion of dir.
+  resetLastError();
+  QVERIFY2(SvnRepo::revertCommit(_wc, added, kAuthor, kEmail, QString()),
+           qPrintable(lastErrorMessage()));
+  QCOMPARE(changedPaths(_repoDir, head()),
+           QStringList{QStringLiteral("D trunk/dir")});
+  QVERIFY(!QFile::exists(file("dir")));
+
+  const QString output =
+      svnIn(_wc, {QStringLiteral("update"), QStringLiteral("-r"), added}, &ok);
+  QVERIFY2(ok, qPrintable(output));
+  QCOMPARE(readFile(file("dir/sub/b.txt")), QByteArray("b\n"));
 }
 
 void SvnRepoTest::commitStagedReplacedDirectory() {
