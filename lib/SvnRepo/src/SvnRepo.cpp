@@ -1481,8 +1481,56 @@ LogMessageScope::~LogMessageScope() {
   _ctx->log_msg_baton3 = nullptr;
 }
 
+static svn_error_t *deletedDirectoryCallback(void *baton, const char *,
+                                             const svn_client_status_t *status,
+                                             apr_pool_t *) {
+  auto *directories = static_cast<QStringList *>(baton);
+  if (directories && status && status->kind == svn_node_dir &&
+      status->node_status == svn_wc_status_deleted) {
+    const QString path = QString::fromUtf8(status->local_abspath);
+    // The status walk visits a directory before its children, and removing
+    // the changelists of a directory reaches everything below it.
+    if (directories->isEmpty() ||
+        !path.startsWith(directories->last() + QLatin1Char('/'))) {
+      directories->append(path);
+    }
+  }
+  return SVN_NO_ERROR;
+}
+
+// Committing the deletion of a directory removes the nodes below it from
+// wc.db, but leaves their ACTUAL_NODE rows that only hold a changelist (a
+// staged file). Such an actual-only row without a conflict makes every later
+// read of the path, by a switch or an update, fail with "Corrupt data". The
+// changelists below the directories that targets delete, down to depth, are
+// removed first; the commit would clear them anyway.
+static svn_error_t *removeChangelistsBelowDeletions(const QStringList &targets,
+                                                    svn_depth_t depth,
+                                                    svn_client_ctx_t *ctx,
+                                                    apr_pool_t *pool) {
+  QStringList directories;
+  const svn_opt_revision_t revision = revisionWorking();
+  for (const QString &target : targets) {
+    const QByteArray pathBytes = normalizedPath(target).toUtf8();
+    svn_revnum_t youngest = SVN_INVALID_REVNUM;
+    SVN_ERR(svn_client_status6(&youngest, ctx, pathBytes.constData(), &revision,
+                               depth, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE,
+                               nullptr, deletedDirectoryCallback, &directories,
+                               pool));
+  }
+  if (directories.isEmpty()) {
+    return SVN_NO_ERROR;
+  }
+
+  const PathArray paths = makePathArray(pool, directories);
+  return svn_client_remove_from_changelists(paths.array, svn_depth_infinity,
+                                            nullptr, ctx, pool);
+}
+
 svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
                                svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  SVN_ERR(removeChangelistsBelowDeletions({wcPath}, svn_depth_infinity, ctx,
+                                          pool));
   const PathArray targets = makePathArray(pool, {normalizedPath(wcPath)});
   const LogMessageScope logMessage(ctx, message);
   return svn_client_commit6(targets.array, svn_depth_infinity, FALSE, FALSE,
@@ -1492,6 +1540,7 @@ svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
 
 svn_error_t *commitPaths(const QStringList &paths, const QString &message,
                          svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  SVN_ERR(removeChangelistsBelowDeletions(paths, svn_depth_empty, ctx, pool));
   const PathArray targets = makePathArray(pool, paths);
   const LogMessageScope logMessage(ctx, message);
   return svn_client_commit6(targets.array, svn_depth_empty, FALSE, FALSE, TRUE,
