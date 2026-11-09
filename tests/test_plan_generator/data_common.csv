@@ -1,0 +1,554 @@
+Test ID,Category,Feature Area,Test Case,Test Steps,Expected Result,Priority,Status,Notes,Origin
+CMN-001,Common,Common - Installation,Windows Installation,"1. Download Sourcerer-0.0.1-Installer.exe
+2. Run the installer
+3. Follow installation wizard
+4. Complete installation","Application installs successfully in Program Files
+Desktop/Start menu shortcuts created
+Application launches without errors",High,Not Tested,,Existing TC-001
+CMN-002,Common,Common - Installation,Linux Installation,"1. Download Sourcerer-0.0.1-Linux-Installer.run
+2. Make file executable: chmod +x Sourcerer-0.0.1-Linux-Installer.run
+3. Run: ./Sourcerer-0.0.1-Linux-Installer.run
+4. Follow installation wizard","Application installs successfully
+Application launches without errors",High,Not Tested,,Existing TC-002
+CMN-003,Common,Common - Installation,Update Existing Installation,"1. Install older version of Sourcerer
+2. Run newer installer
+3. Choose upgrade option","Application upgrades successfully
+Existing settings/preferences preserved
+Application launches with new version",Medium,Not Tested,,Existing TC-003
+CMN-004,Common,Common - Installation,Windows per-user install with non-ASCII user name,"1. Log in as a Windows user named 'Željko Ćirić'
+2. Install with the Burn installer without admin rights
+3. Start Sourcerer and use the bundled git, svn and hg from a Git, an SVN and an Hg repository","Install needs no UAC (per-user, LocalAppData). All three bundled tools run and the logs folder is created.",High,Not Tested,installer/Sourcerer.wxs Scope=perUser LocalAppDataFolder; main.cpp prependBundledToolsToPath(); extends TC-001,New
+CMN-005,Common,Common - Installation,Windows installer with and without VC++ runtime,"1. Install on a clean Windows VM without the VC++ 2015-2022 runtime
+2. Install on a machine that has it",The runtime is installed only when missing. Sourcerer starts in both cases.,Medium,Not Tested,installer/Burn.wxs vc_redist DetectCondition,New
+CMN-006,Common,Common - Installation,Windows downgrade with an older installer,"1. Install version N+1
+2. Run the installer of version N",The installer shows 'A newer version of Sourcerer is already installed' and does not change the installation.,Medium,Not Tested,installer/Sourcerer.wxs MajorUpgrade AllowDowngrades=no; extends TC-003,New
+CMN-007,Common,Common - Installation,Uninstall leaves settings and data,"1. Use Sourcerer with recent repos, workspaces and issue trackers
+2. Uninstall (Windows Apps, AppImage --unintegrate and delete, macOS move to Trash)
+3. Check HKCU\Software\Sourcerer, %APPDATA%\Sourcerer, ~/.config/Sourcerer, ~/.local/share/Sourcerer, ~/Library
+4. Reinstall","Remaining data matches the documented behavior. On reinstall, old settings either come back or are clean, as documented. Tokens and credentials are not left readable.",Medium,Not Tested,ConfigManager.cpp QSettings native store; TokensStorage issue_tracker_tokens.dat; extends TC-147/TC-149,New
+CMN-008,Common,Common - Installation,AppImage desktop integration prompt,"1. Run the AppImage first with zenity, then with only kdialog, then with neither, then with APPIMAGE_SILENT_INSTALL=1
+2. Accept or decline the prompt
+3. Run with --unintegrate",The prompt shows once. Accept adds a menu entry and icon; decline does not ask again. --unintegrate removes the entry and flag.,Medium,Not Tested,installer/build-appimage.sh AppRun integration; extends TC-002/TC-148,New
+CMN-009,Common,Common - Installation,AppImage keys symlinks after the AppImage exits,"1. Run the AppImage from a writable folder and close it
+2. Check ~/keys, ~/.local/share/sourcerer/keys and ./keys
+3. Run it again and sign in to the cloud account","No dangling symlinks remain in the home or current folder. Suspected bug: AppRun links to the temporary mount path; after exit the links dangle, and '[ ! -e ]' is true but 'ln -s' fails, so the stale link stays.",Medium,Not Tested,installer/build-appimage.sh AppRun ln -s $APPDIR/keys $HOME/keys and $PWD/keys,New
+CMN-010,Common,Common - Installation,macOS DMG first launch and Gatekeeper,"1. Open the DMG of a notarized build and drag Sourcerer to Applications
+2. Start it from Launchpad
+3. Repeat with an ad-hoc signed build from the workflow without signing secrets",The notarized build starts without a warning. The ad-hoc build shows the Gatekeeper warning and starts after approval. hdiutil verify passes.,High,Not Tested,.github/workflows/macos-dmg-release.yml; installer/macos/build-macos.sh notarytool/stapler,New
+CMN-011,Common,Common - Installation,macOS start from Finder finds Homebrew tools,"1. Install git-lfs with Homebrew
+2. Start Sourcerer from the Dock and use LFS in a Git repository and the console","git-lfs is found. Bundled git, svn and hg are used before system ones.",Medium,Not Tested,"main.cpp extendPathForGuiLaunch(), prependBundledToolsToPath()",New
+CMN-012,Common,Common - Launch,First Launch,"1. Launch Sourcerer for the first time
+2. Observe initial setup/welcome screen","Application launches successfully
+Welcome screen or home screen appears
+No crashes or errors",High,Not Tested,,Existing TC-004
+CMN-013,Common,Common - Launch,Subsequent Launch,"1. Close Sourcerer
+2. Launch again","Application launches successfully
+Previous session state restored (if applicable)
+No crashes or errors",High,Not Tested,,Existing TC-005
+CMN-014,Common,Common - Launch,Launch with Command Line Args,"1. Launch Sourcerer with repository path argument
+2. Launch with invalid arguments","Valid path: Opens specified repository
+Invalid args: Shows error or help message",Medium,Not Tested,,Existing TC-006
+CMN-015,Common,Common - Launch,Multiple Instances,"1. Launch Sourcerer
+2. Attempt to launch second instance","Behavior is defined (single instance or multiple allowed)
+No conflicts or data corruption",Medium,Not Tested,,Existing TC-007
+CMN-016,Common,Common - Console,Open Integrated Console,"1. Click Console/Terminal button
+2. Console panel opens","Console opens in application
+Shows bash or configured shell
+Current directory is repository root",High,Not Tested,,Existing TC-099
+CMN-017,Common,Common - Console,Execute Git Command,"1. Open console
+2. Type git command (e.g. git status)
+3. Execute","Command executes in repository
+Output displayed in console
+Can execute any git command",High,Not Tested,,Existing TC-100
+CMN-018,Common,Common - Console,Execute Non-Git Command,"1. Open console
+2. Execute shell commands (ls/dir/cd)","Shell commands work
+Can navigate filesystem
+Full shell functionality available",Medium,Not Tested,,Existing TC-101
+CMN-019,Common,Common - Console,Console Output Formatting,"1. Execute commands with colored output
+2. Observe formatting","Colors and formatting preserved
+Output readable
+ANSI codes handled properly",Medium,Not Tested,,Existing TC-102
+CMN-020,Common,Common - Console,Console History,"1. Execute multiple commands
+2. Use up/down arrows
+3. Navigate history","Command history accessible
+Can recall previous commands
+History persists across sessions",Low,Not Tested,,Existing TC-103
+CMN-021,Common,Common - Console,Copy from Console,"1. Select text in console output
+2. Copy to clipboard","Text copied successfully
+Formatting preserved reasonably
+Can paste elsewhere",Low,Not Tested,,Existing TC-104
+CMN-022,Common,Common - Console,Clear Console,"1. Have console output
+2. Clear console command or button","Console cleared
+Previous output removed
+Ready for new commands",Low,Not Tested,,Existing TC-105
+CMN-023,Common,Common - Console,Console with very long output,"1. Open the console
+2. Run a command with 2 million output lines (for example a large git log, or a loop printing lines)
+3. Scroll and type after it ends","The UI stays responsive and memory stays bounded. Suspected: QVTLayout has no scrollback limit, so memory grows without end.",High,Not Tested,lib/QVTerminal/src/qvtlayout.cpp appendLine() no limit; Edge case; extends TC-102,New
+CMN-024,Common,Common - Console,Shell exits inside the console,"1. Open the console and type exit
+2. Hide and show the console from the menu","The console shows that the shell ended and offers a restart, or restarts it. Suspected: init() starts the shell only once, so the console stays dead.",High,Not Tested,PowerShellWidget.cpp:323 / BashShellWidget.cpp:268 init() _initialized guard; Edge case,New
+CMN-025,Common,Common - Console,Console working folder after switching repository,"1. Open repositories A (Git) and B (SVN)
+2. Show the console in A, then hide it
+3. Select tab B and show the console","The console is in B's folder, or the user can see clearly it is still in A. Today the folder is set only before the first start.",Medium,Not Tested,MainWindow.cpp:918 onTerminal(); PowerShellWidget.cpp:605 setWorkingDirectory() only stores path,New
+CMN-026,Common,Common - Console,Windows console shell selection,"1. Test with PowerShell 7 in C:\Program Files\PowerShell\7, with PowerShell 7 from Microsoft Store/winget only, and on a machine where Windows is on D:\
+2. Open the console","A working shell starts in each case. Suspected: the paths are hard-coded, so pwsh from another folder is not used and Windows on D:\ gives no shell.",Medium,Not Tested,PowerShellWidget.cpp:439-446 hard-coded pwsh.exe and C:\Windows path; Edge case,New
+CMN-027,Common,Common - Console,Console with different Unix shells,"1. Set SHELL to /bin/zsh, /usr/bin/fish, and a path that does not exist
+2. Open the console on Linux and macOS","zsh and fish start interactive (macOS as login shell). A missing shell gives an error in the console, not a frozen panel.",Medium,Not Tested,"BashShellWidget.cpp:341 getenv(SHELL), execl -l -i; Edge case",New
+CMN-028,Common,Common - Console,"Console with Unicode, colors and full-screen programs","1. Print Unicode text and emoji, 256-color and truecolor output
+2. Run vim or less, resize the window, press Ctrl+C on a running command",Text and colors render correctly. Full-screen programs redraw after resize. Ctrl+C stops the command and not Sourcerer.,Medium,Not Tested,lib/QVTerminal; BashShellWidget.cpp TERM=xterm-256color; extends TC-102,New
+CMN-029,Common,Common - Settings,Open Settings,"1. Click Settings/Preferences
+2. Settings dialog opens","Settings panel opens
+All categories accessible
+Current values displayed",High,Not Tested,,Existing TC-106
+CMN-030,Common,Common - Settings,Configure Default Editor,"1. Open settings
+2. Set external editor preference
+3. Select editor executable
+4. Save","Editor configured
+Opens when editing commit messages or files
+Falls back to internal editor if unavailable",Medium,Not Tested,,Existing TC-108
+CMN-031,Common,Common - Settings,Configure Diff Tool,"1. Open settings
+2. Set external diff tool
+3. Configure tool path
+4. Save","Diff tool configured
+Opens for diff operations
+Falls back to internal viewer if unavailable",Medium,Not Tested,,Existing TC-109
+CMN-032,Common,Common - Settings,Configure Merge Tool,"1. Open settings
+2. Set external merge tool
+3. Configure tool path
+4. Save","Merge tool configured
+Opens for conflict resolution
+Falls back to manual resolution if unavailable",Medium,Not Tested,,Existing TC-110
+CMN-033,Common,Common - Settings,Theme Selection,"1. Open settings
+2. Navigate to appearance
+3. Select theme (light/dark/auto)
+4. Apply","Theme changes immediately
+All UI elements updated
+Preference saved",Medium,Not Tested,,Existing TC-111
+CMN-034,Common,Common - Settings,Configure Auto-fetch,"1. Open settings
+2. Enable/disable auto-fetch
+3. Set interval if enabled
+4. Save","Auto-fetch behavior configured
+Fetches occur at specified interval
+Can be disabled",Low,Not Tested,,Existing TC-112
+CMN-035,Common,Common - Settings,Export Settings,"1. Open settings
+2. Select Export
+3. Choose save location","Settings exported to file (JSON/config)
+All preferences included
+Can be used for backup or transfer",Low,Not Tested,,Existing TC-113
+CMN-036,Common,Common - Settings,Import Settings,"1. Open settings
+2. Select Import
+3. Choose settings file
+4. Confirm","Settings imported from file
+Preferences applied
+Validation of file format",Low,Not Tested,,Existing TC-114
+CMN-037,Common,Common - Settings,Reset to Defaults,"1. Open settings
+2. Select Reset to Defaults
+3. Confirm","All settings reset to default values
+Custom configurations cleared
+Confirmation warning shown",Low,Not Tested,,Existing TC-115
+CMN-038,Common,Common - Settings,Corrupted configuration store,"1. Close Sourcerer
+2. Linux: write random bytes into ~/.config/Sourcerer/Sourcerer.conf; macOS: corrupt ~/Library/Preferences/com.sourcerer.Sourcerer.plist; Windows: set HKCU\Software\Sourcerer\Sourcerer\window\geometry to a DWORD
+3. Start Sourcerer",Sourcerer starts with defaults for unreadable values and does not crash. Settings changed afterwards are saved.,High,Not Tested,"ConfigManager.cpp QSettings(ORGANIZATION_NAME, APPLICATION_NAME) native format; Edge case; extends TC-142",New
+CMN-039,Common,Common - Settings,Configuration store not writable,"1. Linux/macOS: chmod 444 the config file; Windows: deny write on HKCU\Software\Sourcerer
+2. Start Sourcerer, change the theme and the monospace font, open a repository
+3. Restart","The app works for the session. A warning tells that settings cannot be saved. Note: ConfigManager::save() ignores QSettings::status(), so no warning appears today.",Medium,Not Tested,ConfigManager.cpp save() sync() without status check; Edge case,New
+CMN-040,Common,Common - Settings,Application data folder not writable,"1. Make the AppData folder read-only (Windows %APPDATA%\Sourcerer, Linux ~/.local/share/Sourcerer, macOS ~/Library/Application Support/Sourcerer)
+2. Start Sourcerer","The app starts or shows a clear error. Suspected: the single-instance lock cannot be created, the guard waits 10 s and the process exits with code 1 and no message.",High,Not Tested,SingleInstanceGuard.cpp acquire() tryLock; main.cpp:200-206 return 1; ConfigManager.cpp Logs mkpath; Edge case,New
+CMN-041,Common,Common - Settings,Monospace font size out of range,"1. Open Settings > UI > monospace
+2. Set font size to 0, then -5, then 2000 in the spin box
+3. Open a diff in a Git, an SVN and an Hg repository",Invalid sizes are rejected or clamped to a sane range. Diff views stay readable. Today the spin box accepts INT_MIN..INT_MAX.,High,Not Tested,"SettingsPaneLongWidget.cpp setRange(INT_MIN, INT_MAX); ConfigKey GitRepoMonospaceFontSize; Edge case",New
+CMN-042,Common,Common - Settings,Numeric values out of range in the configuration store,"1. Close Sourcerer
+2. Set window/minimumWidth=100000, window/titleBarHeight=0, window/toasts/toastWidth=0, window/toasts/infoToastDisplayTime=-1, git/historyPageSize=0, network/httpClient/timeout=0
+3. Start Sourcerer and use it","Each value is clamped or replaced by its default. The window fits on screen, toasts are visible and disappear, history loads.",Medium,Not Tested,ConfigManager.cpp getLong() no range checks; Edge case,New
+CMN-043,Common,Common - Settings,Non-numeric value for a numeric key,"1. Set window/titleBarMaxTabWidth=abc and network/newsTracker/pollInterval=abc in the store
+2. Start Sourcerer","The defaults (285 and 180000) are used. Note: toLongLong() returns 0, so the tab width and poll interval become 0 today.",Medium,Not Tested,ConfigManager.cpp getLong() toLongLong() without ok check; Edge case,New
+CMN-044,Common,Common - Settings,News poll interval 0 or negative,"1. Set network/newsTracker/pollInterval to 0, then -1
+2. Start Sourcerer and watch network traffic for 5 minutes",The app does not poll the news server in a busy loop. A minimum interval is enforced.,Medium,Not Tested,NewsTracker.cpp start() _timer.setInterval(pollInterval); Edge case,New
+CMN-045,Common,Common - Settings,Theme change with all view types open,"1. Open Git, SVN and Hg tabs, a side-by-side diff, a merge view, the console, an issue tracker and several toasts
+2. Switch through all 9 themes","Every open view, lexer, console and toast changes color at once. No view keeps the old theme until restart.",Medium,Not Tested,MainWindow.cpp:1095 onThemeChanged(); StylesheetManager.cpp; extends TC-111,New
+CMN-046,Common,Common - Settings,Shared Git-named settings apply to SVN and Hg,"1. Set diff view to side-by-side and Max diff file size to a small value
+2. Open diffs in a Git, an SVN and an Hg repository",All three use side-by-side view and the same size limit message.,Medium,Not Tested,"ConfigManager.cpp git/diffViewType, git/maxDiffFileSize used by all bridges",New
+CMN-047,Common,Common - UI - General,Window Resize,"1. Resize main window
+2. Maximize/restore
+3. Minimize","Window resizes smoothly
+Layout adapts to size
+Size preference saved",Medium,Not Tested,,Existing TC-116
+CMN-048,Common,Common - UI - General,Panel Collapse/Expand,"1. Collapse side panels
+2. Expand panels
+3. Resize panel widths","Panels collapse/expand smoothly
+More space for main content
+Panel state persists",Medium,Not Tested,,Existing TC-117
+CMN-049,Common,Common - UI - General,Keyboard Shortcuts,"1. Use keyboard shortcuts for common actions
+2. Test multiple shortcuts","Shortcuts work as expected
+Actions trigger correctly
+Shortcuts listed in help or menu",Medium,Not Tested,,Existing TC-118
+CMN-050,Common,Common - UI - General,Context Menus,"1. Right-click various items
+2. Select context menu actions","Context menus appear
+Relevant actions available
+Actions execute correctly",Medium,Not Tested,,Existing TC-119
+CMN-051,Common,Common - UI - General,Tooltips,"1. Hover over buttons and UI elements
+2. Wait for tooltips","Tooltips appear
+Descriptions are helpful
+Not intrusive",Low,Not Tested,,Existing TC-120
+CMN-052,Common,Common - UI - General,Status Bar,"1. Observe status bar
+2. Perform various operations","Status bar shows current state
+Repository info displayed
+Progress indicators for operations",Medium,Not Tested,,Existing TC-121
+CMN-053,Common,Common - UI - General,Notifications,"1. Perform operations that trigger notifications
+2. Observe notification behavior","Notifications appear for important events
+Not too intrusive
+Can be dismissed",Medium,Not Tested,,Existing TC-122
+CMN-054,Common,Common - UI - General,Drag and Drop,"1. Attempt to drag files into application
+2. Drag within application","Drag and drop works where applicable
+Visual feedback provided
+Operations complete correctly",Low,Not Tested,,Existing TC-123
+CMN-055,Common,Common - UI - General,Multi-select,"1. Select multiple files/commits
+2. Perform bulk operations","Multi-select works in lists
+Bulk operations available
+Selection indication clear",Medium,Not Tested,,Existing TC-124
+CMN-056,Common,Common - UI - General,Loading Indicators,"1. Perform slow operations
+2. Observe loading state","Loading/progress indicators shown
+User knows operation is in progress
+Can cancel if appropriate",Medium,Not Tested,,Existing TC-125
+CMN-057,Common,Common - UI - General,Single Instance Activation,"1. Start Sourcerer
+2. Minimize the main window
+3. Start Sourcerer again from the Start menu, Dock or a terminal","No second window or process is started
+The running window is restored and brought to the front
+On Windows the window gets focus instead of only flashing in the taskbar",High,Not Tested,"Applies to Windows, macOS and Linux (AppImage)",Existing TC-186
+CMN-058,Common,Common - UI - General,Single Instance After Crash,"1. Start Sourcerer
+2. End the Sourcerer process from the task manager
+3. Start Sourcerer again","Sourcerer starts normally, the stale instance lock is ignored",High,Not Tested,,Existing TC-187
+CMN-059,Common,Common - UI - General,Single Instance With Staged Update,"1. Let Sourcerer download an update
+2. With Sourcerer still running, start it a second time","The running window is brought to the front
+The update is not applied until the running instance is closed and started again",Medium,Not Tested,,Existing TC-188
+CMN-060,Common,Common - Search/Filter,Search Commit History,"1. Open commit history
+2. Enter search term
+3. Search","Matching commits highlighted/filtered
+Search is fast
+Can clear search",Medium,Not Tested,,Existing TC-126
+CMN-061,Common,Common - Search/Filter,Filter Branches,"1. View branches list
+2. Enter filter text","Matching branches shown
+Filter updates as typing
+Can clear filter",Medium,Not Tested,,Existing TC-127
+CMN-062,Common,Common - Search/Filter,Filter Files in Changes,"1. Have many changed files
+2. Enter filter text in changes panel","Matching files shown
+Easy to find specific files
+Filter updates dynamically",Medium,Not Tested,,Existing TC-128
+CMN-063,Common,Common - Search/Filter,Search in File Content,"1. Use file content search
+2. Enter search term
+3. Execute","Files containing term listed
+Can navigate to matches
+Shows context around matches",Low,Not Tested,,Existing TC-129
+CMN-064,Common,Common - Performance,Large Repository,"1. Open repository with 10000+ commits
+2. Perform common operations","Operations remain responsive
+History loads efficiently
+No excessive memory usage",High,Not Tested,,Existing TC-130
+CMN-065,Common,Common - Performance,Many Changed Files,"1. Have 100+ changed files
+2. View changes and stage/unstage","UI remains responsive
+File list displays efficiently
+Operations don't lag",Medium,Not Tested,,Existing TC-131
+CMN-066,Common,Common - Performance,Large File Diff,"1. View diff of large file (>10MB)
+2. Scroll through diff","Diff displays without freezing
+Scrolling is smooth
+Memory usage reasonable",Medium,Not Tested,,Existing TC-132
+CMN-067,Common,Common - Performance,Multiple Repositories,"1. Open 5+ repositories
+2. Switch between them
+3. Perform operations","Application remains responsive
+Memory usage acceptable
+No slowdown over time",Medium,Not Tested,,Existing TC-133
+CMN-068,Common,Common - Integration,External Tool Integration,"1. Open file in external editor from Sourcerer
+2. Open diff/merge tool
+3. Verify integration","External tools launch correctly
+Changes sync back to Sourcerer
+File paths passed correctly",Medium,Not Tested,,Existing TC-134
+CMN-069,Common,Common - Integration,File Manager Integration,"1. Right-click file/folder
+2. Select 'Show in File Manager'","File manager opens
+Correct file/folder highlighted
+Works across platforms",Low,Not Tested,,Existing TC-135
+CMN-070,Common,Common - Integration,Browser Integration,"1. Click web links (repository URL/issue tracker)
+2. Verify browser opens","Browser opens to correct URL
+Links work from various contexts
+User's default browser used",Low,Not Tested,,Existing TC-136
+CMN-071,Common,Common - Integration,Copy Path to Clipboard,"1. Right-click file
+2. Select 'Copy Path'
+3. Paste elsewhere","Full file path copied
+Path format appropriate for OS
+Can be used in other applications",Low,Not Tested,,Existing TC-137
+CMN-072,Common,Common - Integration,Debug Build Next To Installed Release,"1. Start the installed Sourcerer
+2. Start a Debug build
+3. Open the same GitHub issue tracker in both","Both run at the same time
+The Debug build stores WebEngine data in webengine-debug and issue-trackers/webengine-debug
+No ""database is locked"" messages in the Debug output",Low,Not Tested,Development only,Existing TC-189
+CMN-073,Common,Common - Error Handling,Network Error During Clone,"1. Start clone operation
+2. Disconnect network mid-operation","Error message displayed clearly
+Partial clone cleaned up
+Can retry operation",High,Not Tested,,Existing TC-138
+CMN-074,Common,Common - Error Handling,Insufficient Permissions,"1. Attempt operation requiring write access
+2. Use read-only repository or folder","Permission error shown
+Explains what's needed
+Doesn't corrupt repository",Medium,Not Tested,,Existing TC-139
+CMN-075,Common,Common - Error Handling,Disk Full During Operation,"1. Perform operation when disk nearly full
+2. Disk fills during operation","Error handled gracefully
+Repository state consistent
+User informed of issue",Low,Not Tested,,Existing TC-140
+CMN-076,Common,Common - Error Handling,Application Crash Recovery,"1. Force quit or crash application
+2. Restart application","Application restarts successfully
+Recovers previous state if possible
+No repository corruption",High,Not Tested,,Existing TC-142
+CMN-077,Common,Common - Bug Reports,Open Bug Report Dialog,"1. Click Help > Report Bug
+2. Bug report dialog opens","Dialog opens with form
+Can enter description
+Pre-filled system information visible",Medium,Not Tested,,Existing TC-144
+CMN-078,Common,Common - Bug Reports,Submit Bug Report,"1. Fill out bug report
+2. Submit","Report submitted successfully (if online)
+Confirmation shown
+Copy of report saved locally",Low,Not Tested,,Existing TC-145
+CMN-079,Common,Common - About,View About Dialog,"1. Click Help > About
+2. About dialog opens","Version information displayed
+Copyright and license info shown
+Credits/acknowledgments available",Low,Not Tested,,Existing TC-146
+CMN-080,Common,Common - Uninstall,Windows Uninstall,"1. Use Windows 'Add or Remove Programs'
+2. Uninstall Sourcerer
+3. Complete uninstall","Application uninstalled
+Files removed from Program Files
+Registry entries cleaned
+User data handling per choice",High,Not Tested,,Existing TC-147
+CMN-081,Common,Common - Uninstall,Linux Uninstall,"1. Run uninstaller or use package manager
+2. Uninstall Sourcerer","Application uninstalled
+Files removed from installation directory
+User data handling per choice",High,Not Tested,,Existing TC-148
+CMN-082,Common,Common - Uninstall,Uninstall with Data Removal,"1. During uninstall select remove user data
+2. Complete uninstall","Application uninstalled
+User configuration/data removed
+Repositories themselves preserved",Medium,Not Tested,,Existing TC-149
+CMN-083,Common,Common - Accessibility,Keyboard Navigation,"1. Use application with keyboard only
+2. Navigate through all features","All features accessible via keyboard
+Tab order logical
+Focus indicators visible",Medium,Not Tested,,Existing TC-150
+CMN-084,Common,Common - Accessibility,Screen Reader Support,"1. Use with screen reader
+2. Navigate application","UI elements have proper labels
+Screen reader announces content
+Navigation structure clear",Low,Not Tested,,Existing TC-151
+CMN-085,Common,Common - Accessibility,High Contrast Mode,"1. Enable OS high contrast mode
+2. Use application","UI remains usable
+Text readable
+Important elements distinguishable",Low,Not Tested,,Existing TC-152
+CMN-086,Common,Common - Localization,Multiple Languages,"1. Change application language in settings
+2. Switch between languages","UI translates to selected language
+All text translates (not just some)
+No layout breaking",Low,Not Tested,,Existing TC-153
+CMN-087,Common,Common - Security,Credential Storage Security,"1. Save credentials
+2. Verify storage mechanism
+3. Check encryption","Credentials stored securely
+Encrypted or using OS credential manager
+Not plain text in config files",High,Not Tested,,Existing TC-154
+CMN-088,Common,Common - Security,SSH Key Protection,"1. Configure SSH keys
+2. Verify key file permissions
+3. Check handling of passphrases","Private keys not exposed
+Proper file permissions set
+Passphrase handling secure",High,Not Tested,,Existing TC-155
+CMN-089,Common,Common - Regression,Previous Bug Fixes,"1. Test scenarios from previously reported bugs
+2. Verify fixes still work","Previous bugs don't reappear
+Fixes remain effective
+No regressions introduced",Medium,Not Tested,,Existing TC-156
+CMN-090,Common,Common - Cross-Platform,Windows-Specific Features,"1. Test on Windows 10/11
+2. Verify all features work","All features functional on Windows
+File paths handled correctly
+Native look and feel",High,Not Tested,,Existing TC-157
+CMN-091,Common,Common - Cross-Platform,Linux-Specific Features,"1. Test on Linux (Ubuntu/Fedora/etc)
+2. Verify all features work","All features functional on Linux
+File paths handled correctly
+Desktop integration works",High,Not Tested,,Existing TC-158
+CMN-092,Common,Common - Cross-Platform,macOS-Specific Features,"1. Test on macOS
+2. Verify all features work","All features functional on macOS
+File paths handled correctly
+Native look and feel",High,Not Tested,,Existing TC-159
+CMN-093,Common,Common - Cross-Platform,Cross-Platform Repository Sharing,"1. Create repository on one OS
+2. Open same repository on different OS","Repository works across platforms
+No line ending issues (if .gitattributes proper)
+Configuration portable",Medium,Not Tested,,Existing TC-160
+CMN-094,Common,Common - Repository Type Detection,Open folder that is both a Git and an SVN working copy,"1. Create an SVN checkout, then run git init in the same folder (folder has .git and .svn)
+2. Home > Open repository and select the folder
+3. Check the tab, the toolbar and the Recent list entry","The folder opens as a Git repository (precedence .git > .hg > .svn). The tab shows Git actions (Push, Remotes). The Recent entry shows the Git icon. No crash and no second tab.",High,Not Tested,RepositoryType.h:16 repositoryTypeOf(); Edge case; extends TC-012,New
+CMN-095,Common,Common - Repository Type Detection,Open folder that is both a Mercurial and an SVN working copy,"1. Create an SVN checkout and run hg init in the same folder
+2. Open the folder from Home > Open repository","The folder opens as a Mercurial repository (Hg container with Shelves, Strip, phase badges). The Recent entry shows the Hg icon.",Medium,Not Tested,RepositoryType.h:16 repositoryTypeOf(); Edge case,New
+CMN-096,Common,Common - Repository Type Detection,Open a subfolder of a working copy (no admin directory in it),"1. Open Home > Open repository
+2. Select <gitRepo>/src (a subfolder, not the root)
+3. Repeat with a subfolder of an SVN 1.7+ working copy and of a Mercurial repository",The user gets a visible message that the folder is not a repository root (or the root is opened). Nothing happens silently. Actual code only writes a log warning and returns.,High,Not Tested,MainWindow.cpp:559 openRepositoryByType() + isRepository() at MainWindow.cpp:66 only LOG_WARN; Edge case; extends TC-013,New
+CMN-097,Common,Common - Repository Type Detection,Open a bare Git repository,"1. Create a bare repository with git init --bare
+2. Open it with Home > Open repository",A clear message says bare repositories are not supported (no .git folder found). The app does not hang and opens no empty tab.,Medium,Not Tested,MainWindow.cpp:66 isRepository(); Edge case; extends TC-013,New
+CMN-098,Common,Common - Repository Type Detection,Open Git worktree or submodule folder where .git is a file,"1. Create a linked worktree with git worktree add ../wt
+2. Open ../wt from Home > Open repository
+3. Open a submodule folder directly the same way","Both folders open as Git repositories. The branch, history and status match the worktree or submodule, not the main repository.",Medium,Not Tested,RepositoryType.h:19 QDir::exists('.git') accepts a file; Edge case,New
+CMN-099,Common,Common - Repository Type Detection,Open Mercurial repository when hg is not installed,"1. Remove hg from PATH and from 3rdparty/hg
+2. Open a Mercurial repository from Home, from Recent and from a workspace
+3. Read the error toast",An error toast says Mercurial was not found. No Hg tab opens. The toast must not point to a Settings option that does not exist: no hg path key exists in ConfigManager (suspected wrong message).,High,Not Tested,MainWindow.cpp:528-549 checkMercurial(); ConfigManager.cpp KEY_NAMES has no hg path; Edge case,New
+CMN-100,Common,Common - Repository Type Detection,Open Mercurial repository with too old hg version,"1. Put an hg older than the minimum version first on PATH (remove bundled hg)
+2. Open a Mercurial repository",The toast says 'Mercurial X.Y or newer is required' with the found version. No Hg tab opens.,Medium,Not Tested,MainWindow.cpp:539 MercurialTooOld; HgRepo.cpp:989 checkExecutable(); Edge case,New
+CMN-101,Common,Common - Repository Type Detection,Nested repositories of different types,"1. Inside a Git repository, check out an SVN repository into sub/svn and init an Hg repository into sub/hg
+2. Open the outer Git repository and both inner repositories in separate tabs
+3. Change a file in each inner repository",Each tab shows only its own changes with the correct backend. The Git tab shows sub/svn and sub/hg as untracked (or ignored) folders and does not list their internal files as its own changes.,High,Not Tested,RepositoryType.h; Edge case,New
+CMN-102,Common,Common - Repository Type Detection,Open Mercurial subrepos of Git and SVN kind,"1. Open an Hg repository with a Git subrepo and an SVN subrepo (.hgsub)
+2. Open each subrepo from the Subrepos panel","The Git subrepo opens in a Git tab and the SVN subrepo in an SVN tab, each with its own icon and toolbar.",Medium,Not Tested,HgRepoManagerBridgeImpl.cpp:2580 openRepoWithTypeRequested,New
+CMN-103,Common,Common - Repository Type Detection,Open an SVN external from the Externals panel,"1. Open an SVN working copy with a directory external (svn:externals)
+2. Open the external from the Externals panel","The external opens in an SVN tab. Suspected bug: SVN bridge emits openRepoRequested, which MainWindow::onOpenRepo always opens as a Git container, so the external fails to open or shows an error page.",High,Not Tested,SvnRepoManagerBridgeImpl.cpp:1884 emits openRepoRequested -> MainWindow.cpp:671 onOpenRepo hardcodes ContainerType::GitRepo; Edge case,New
+CMN-104,Common,Common - Clone and Init,Clone target folder name from URL with dots,"1. Open Clone Git, Clone Mercurial and Checkout Subversion in turn
+2. Enter URL https://host/org/my.project.git (Hg: https://host/my.project, SVN: https://host/svn/my.lib/trunk)
+3. Pick a destination and look at the proposed full folder name","The proposed folder is 'my.project' (Git without .git suffix). Suspected bug: QFileInfo::baseName() cuts at the first dot, giving 'my'.",Medium,Not Tested,CloneRepoContainer.cpp onTextChanged() uses fi.baseName(); Edge case; extends TC-008,New
+CMN-105,Common,Common - Clone and Init,Clone with scp-like SSH URL and with trailing slash,"1. Open Clone Git and enter git@github.com:user/repo.git
+2. Pick a destination and check the proposed folder
+3. Change URL to https://host/user/repo/ (trailing slash) and to https://host/svn/proj/trunk in SVN checkout","Each URL proposes a non-empty folder name (repo, repo, trunk or proj). The clone never writes directly into the selected parent folder.",High,Not Tested,CloneRepoContainer.cpp onTextChanged() QUrl(...).fileName(); Edge case; extends TC-009,New
+CMN-106,Common,Common - Clone and Init,Clone or checkout into a non-empty existing folder for each VCS,"1. Create folder target/repo with a file in it
+2. Clone Git, clone Hg and checkout SVN into target/repo",All three backends show an error toast that names the problem. Existing files are not deleted. The behavior is the same for the three types.,Medium,Not Tested,CloneRepoContainer.cpp onCloneClicked(); Edge case,New
+CMN-107,Common,Common - Clone and Init,Clone tab closes before clone ends; quit during clone,"1. Start a large clone of each type
+2. Confirm the Clone tab closes and progress shows in a toast
+3. Quit Sourcerer while the clone is in progress, then start again","Progress toast shows until the end, then 'Repository cloned' prompt. On quit, the app exits within 30 s per component and the partial folder is reported or removed. The next start works.",Medium,Not Tested,CloneRepoContainer.cpp onCloneClicked() emit finished(); ComponentManager.cpp waitForComponentToStop 30000 ms; Edge case,New
+CMN-108,Common,Common - Clone and Init,Init with empty or invalid name and folder,"1. Open Init Git, Init Subversion and Init Mercurial in turn
+2. Click Init with an empty name, then with an empty parent folder, then with a name containing / : * ?",The form shows a validation message and sends no command. No folder is created in the current working directory.,Medium,Not Tested,InitRepoContainer.cpp onInitClicked() has no input validation; Edge case; extends TC-011,New
+CMN-109,Common,Common - Clone and Init,Clone and init with Unicode and spaces in path,"1. Use destination C:\Users\Željko\Проекты\my repo (macOS/Linux: ~/Проекты/my repo)
+2. Clone Git, clone Hg, checkout SVN and init each type there
+3. Open each result from Recent after a restart","All operations succeed. Tab titles, Recent list and file lists show the Unicode names correctly.",High,Not Tested,CloneRepoContainer.cpp; InitRepoContainer.cpp; RecentlyOpenedReposModel.cpp; Edge case,New
+CMN-110,Common,Common - Tabs,"Switch tabs between Git, SVN and Mercurial repositories","1. Open one Git, one SVN and one Hg repository
+2. Switch between the tabs several times
+3. Compare toolbar, Pull/Push menus, Remotes, Worktrees, Stash/Shelve panels and history columns","Each tab shows only the features its backend has: Git has Push menu, Remotes, Worktrees, LFS; SVN has Externals, Shelves, revision column and no Push; Hg has Shelves, Strip, phase badges, subrepos. No action of one tab leaks into another.",High,Not Tested,RepoManagerBridge.h RepoFeatures; GitRepoManagerBridgeImpl/SvnRepoManagerBridgeImpl/HgRepoManagerBridgeImpl::features(),New
+CMN-111,Common,Common - Tabs,History context menu per backend,"1. Right-click a commit in the history of a Git, an SVN and an Hg repository","Git: Checkout commit, Copy SHA, Reset menu, Bisect. SVN: Copy revision, no Reset, no Bisect, no Checkout commit. Hg: Copy SHA, Strip, Bisect, no Reset. Every item shown runs without error.",High,Not Tested,RepoContainer.cpp:4085-4120 hasFeature() menu gating,New
+CMN-112,Common,Common - Tabs,Layouts persist separately per VCS,"1. Resize the splitters and history columns and hide a column in a Git tab
+2. Open an SVN and an Hg tab and check their layouts
+3. Restart Sourcerer","SVN and Hg layouts are not changed by the Git changes. After restart each VCS restores its own layout (window/git, window/svn, window/hg keys).",Medium,Not Tested,ConfigManager.cpp KEY_NAMES window/git|svn|hg/*,New
+CMN-113,Common,Common - Tabs,Same repository opened in two tabs,"1. Open a repository from Recent
+2. Open the same folder again from Home > Open repository
+3. Commit in one tab and look at the other","Either the existing tab is selected, or both tabs refresh to the same state. Today a second tab is always added; verify no conflicting writes or stale status.",Medium,Not Tested,MainWindow.cpp:1300 addRepoContainer() has no duplicate check; Edge case,New
+CMN-114,Common,Common - Tabs,Very many tabs open,"1. Open 40 repositories of mixed types
+2. Scroll the tab bar, hover tabs, close tabs from the middle
+3. Watch memory and CPU in the task manager","Tabs shrink to fit or the bar scrolls, titles elide, tooltips show the full path. The selected tab always matches the shown content. The UI stays responsive.",Medium,Not Tested,TitleBarTabBar.cpp sizeHint() TitleBarMaxTabWidth=285; Edge case; extends TC-133,New
+CMN-115,Common,Common - Tabs,Reorder tabs then close tabs,"1. Open 5 repositories
+2. Drag tab 5 to position 2, then close the selected tab and a tab left of it
+3. Try to drag a repository tab in front of the pinned Home tab","After each move and close, the shown content matches the selected tab. Home stays first and cannot be passed.",Medium,Not Tested,MainWindow.cpp:1136 onMovedTab(); TitleBarTabBar.cpp mouseMoveEvent pinned clamp,New
+CMN-116,Common,Common - Tabs,Repository folder deleted or renamed while its tab is open,"1. Open a Git, an SVN and an Hg repository
+2. Rename or delete each folder in the file manager
+3. Click into each tab and press Refresh","Each tab shows an error page or toast that the folder is gone. No crash, and other tabs keep working.",High,Not Tested,RepoContainer.cpp prepareWatcher(); Edge case,New
+CMN-117,Common,Common - Tabs,Repository on network drive that disconnects,"1. Open a repository on a mapped network drive or NFS/SMB mount
+2. Disconnect the network share
+3. Switch to that tab and refresh","The tab shows an error and does not freeze the UI. After reconnect, Refresh restores it.",Medium,Not Tested,RepoContainer.cpp dir watcher; Edge case,New
+CMN-118,Common,Common - Recent Repositories,Recent entry whose folder was deleted,"1. Open a repository so it is in Recent
+2. Close Sourcerer and delete the folder
+3. Start Sourcerer and click the entry","A message says the folder does not exist and offers to remove the entry. Actual code only logs a warning, so nothing happens on click (suspected gap).",High,Not Tested,MainWindow.cpp:688 onRecentClicked -> openRepositoryByType LOG_WARN only; Edge case,New
+CMN-119,Common,Common - Recent Repositories,Recent list limit and order,"1. Open 11 different repositories one after another
+2. Open the 3rd one again
+3. Look at the Recent list order","The list holds 10 entries, the oldest is dropped. Check whether reopening an existing entry moves it to the top: code returns early and keeps the old position (confirm against the spec).",Medium,Not Tested,"RepoContainer.cpp:8302-8327 saveRepoInRecentList() max 10, no MRU move",New
+CMN-120,Common,Common - Recent Repositories,Recent list shows correct type icon,"1. Open one Git, one SVN and one Hg repository
+2. Restart Sourcerer and look at the Recent list
+3. Switch the theme","Each entry shows its Git, SVN or Hg icon. After a theme change the icons are recolored.",Medium,Not Tested,RecentlyOpenedReposModel.cpp repositoryTypeIcon(),New
+CMN-121,Common,Common - Recent Repositories,Recent entries from an old version without type,"1. Edit the config: set workspace/recentlyOpened to 'C:/r/git1;C:/r/svn1' (no |type suffix)
+2. Start Sourcerer",Types are detected from disk and icons are correct. Opening each works.,Medium,Not Tested,RecentlyOpenedReposModel.cpp parseRecentEntry() legacy branch,New
+CMN-122,Common,Common - Recent Repositories,Recent entry type out of date,"1. Open a Git repository so it is in Recent with type git
+2. Delete .git and do an SVN checkout into the same folder
+3. Click the Recent entry",The folder opens as SVN (detected). The icon in Recent should update; note if it keeps showing Git.,Low,Not Tested,RepoContainer.cpp:8311 entry not updated if path exists; Edge case,New
+CMN-123,Common,Common - Recent Repositories,Path with ; or | characters,"1. On Linux or macOS create a repository at ~/repos/a;b|c
+2. Open it, restart, and look at the Recent list","The entry shows and opens correctly. Suspected issue: ';' and '|' are the list separators, so the entry splits into broken entries.",Medium,Not Tested,RecentlyOpenedReposModel.cpp makeRecentEntry/parseRecentEntry; RepoContainer.cpp:8309 split(';'); Edge case,New
+CMN-124,Common,Common - Recent Repositories,Remove entry from Recent,"1. Right-click a Recent entry and choose Remove
+2. Restart Sourcerer",Only that entry is removed and it stays removed after restart. Other entries keep their types.,Medium,Not Tested,HomeContainer.cpp:1854 onRecentRightClicked(),New
+CMN-125,Common,Common - Workspaces,Save and restore workspace with mixed repository types,"1. Open one Git, one SVN, one Hg repository and one issue tracker tab
+2. Save the workspace as 'mixed'
+3. Close all tabs, restart, and click 'mixed' on Home",All four tabs reopen; each repository opens in its own type of container. The issue tracker opens for the same service and repository.,High,Not Tested,"MainWindow.cpp:834 onSubmitWorkspace(), 961 onWorkspaceClicked()",New
+CMN-126,Common,Common - Workspaces,Restore workspace with a missing repository,"1. Save a workspace with three repositories
+2. Delete one of the folders
+3. Restore the workspace",The other two repositories open. The missing one gives one clear error. No empty broken tab stays without explanation.,High,Not Tested,MainWindow.cpp:1044 addRepoContainer() without existence check; Edge case,New
+CMN-127,Common,Common - Workspaces,Workspace name with invalid file name characters,"1. Save a workspace named a/b, then x:y, then CON (Windows), then .. 
+2. Look at the Home workspace list","Invalid names are rejected with a message, or sanitized. Today a failed save only writes a log line, and the user sees nothing.",High,Not Tested,"MainWindow.cpp:844-857 name used as file name, error only logged; Edge case",New
+CMN-128,Common,Common - Workspaces,Save workspace with an existing name,"1. Save workspace 'w1' with repositories A and B
+2. Open repository C only and save again as 'w1'",The user is asked before the workspace is overwritten. Note if it is replaced silently.,Medium,Not Tested,MainWindow.cpp:850 QIODevice::Truncate; Edge case,New
+CMN-129,Common,Common - Workspaces,Corrupted workspace file,"1. Open two repositories
+2. Edit <AppData>/workspaces/<name>.workspace to invalid JSON
+3. Click the workspace and confirm 'close existing repositories'",A message says the workspace cannot be read. The open tabs stay. Today nothing happens and there is no message.,Medium,Not Tested,MainWindow.cpp:1003-1011 returns silently on parse error; Edge case,New
+CMN-130,Common,Common - Window and Display,Window off-screen after monitor removed,"1. Move Sourcerer to the second monitor and close it
+2. Disconnect the second monitor
+3. Start Sourcerer",The window opens fully on the remaining monitor and can be moved and resized.,High,Not Tested,"MainWindow.cpp:439 closeEvent saveGeometry, 450 showEvent restoreGeometry; Edge case",New
+CMN-131,Common,Common - Window and Display,Move window between monitors with different scaling,"1. Use monitors at 100% and 150% (or 200%) scaling
+2. Drag the window between them and resize it from each edge
+3. Click small items: tab close buttons, toast buttons, splitter handles",The window rescales. Resize edges and clicks hit the right place on both monitors.,High,Not Tested,MousePositionCorrection.cpp; HitDetector.cpp; WindowResize.cpp,New
+CMN-132,Common,Common - Window and Display,HiDPI rendering,"1. Run on a 4K display at 200% scaling (Windows, macOS Retina, Linux with QT_SCALE_FACTOR=2)
+2. Look at icons, Recent type icons, tab bar, toasts, diff views and console","Icons are sharp, text is not cut, title bar height and toast sizes scale.",Medium,Not Tested,"StylesheetManager renderSvgToPixmap; ConfigKey TitleBarHeight, ToastWidth",New
+CMN-133,Common,Common - Window and Display,Minimize and restore keeps the current geometry,"1. Start Sourcerer, move and resize the window (do not close it)
+2. Minimize and restore it; also hide and show it via a second launch","The window comes back at its current position and size. Suspected: showEvent restores the geometry saved at the last close on every show, so the window jumps back.",Medium,Not Tested,MainWindow.cpp:450-460 showEvent() restoreGeometry on each show; Edge case,New
+CMN-134,Common,Common - Window and Display,Maximized window with auto-hide taskbar (Windows),"1. Enable taskbar auto-hide, at bottom and then at the left
+2. Maximize Sourcerer and move the mouse to the taskbar edge",The taskbar appears. The window content is not cut off at any edge.,Medium,Not Tested,MainWindow.cpp:466 nativeEvent WM_NCCALCSIZE ABM_GETAUTOHIDEBAREX,New
+CMN-135,Common,Common - Window and Display,Window snapping and frameless title bar,"1. Windows: use Win+Arrow and Snap Layouts; macOS: full screen; Linux X11 and Wayland: drag title bar and edges
+2. Double-click the title bar","Snapping, maximizing and dragging work like a native window on each platform.",Medium,Not Tested,MainWindow.cpp nativeEvent; HitDetector.cpp; GuiManager beginInteractiveResize,New
+CMN-136,Common,Common - Window and Display,Many toasts and toasts while minimized,"1. Cause 15 error toasts quickly (for example fetch with no network in several tabs)
+2. Minimize and restore the window
+3. Make the window as small as allowed",Toasts stack without covering the whole window. They hide when minimized and come back on restore. They stay inside the window.,Medium,Not Tested,MainWindow.cpp:421 changeEvent hideAllToasts/showAllToasts; ToastHostWidget.cpp,New
+CMN-137,Common,Common - Single Instance,Second launch with a repository path argument,"1. Start Sourcerer
+2. From a terminal run Sourcerer <path-to-svn-working-copy>","The running window comes to the front and opens the given repository. Suspected gap: activateFromAnotherInstance() only logs the arguments, so the path is ignored.",High,Not Tested,MainWindow.cpp:356 activateFromAnotherInstance(); SingleInstanceGuard.cpp; extends TC-006/TC-186,New
+CMN-138,Common,Common - Single Instance,Two OS users on the same machine,"1. User A starts Sourcerer
+2. Switch user (fast user switching or a second RDP session) and user B starts Sourcerer",Both users get their own instance. Neither activates the other's window.,Medium,Not Tested,SingleInstanceGuard.cpp serverNameFor() uses data dir + USERNAME; Edge case; extends TC-007,New
+CMN-139,Common,Common - Single Instance,Running instance does not answer,"1. Start Sourcerer and block its UI (for example a modal dialog plus a long operation, or pause the process in a debugger)
+2. Start Sourcerer again",After at most 10 s the second launch shows a message that Sourcerer is already running. Today it exits with code 1 without a message.,Medium,Not Tested,SingleInstanceGuard.cpp kStartupWaitMs=10000; main.cpp:205 return 1; Edge case,New
+CMN-140,Common,Common - Single Instance,Relaunch immediately after quitting during a long operation,"1. Start a large clone or let an update download run
+2. Quit Sourcerer and start it again within 2 seconds","The new launch shows a window once the old process ends. Suspected: the exiting process still holds the lock and listens, acknowledges the activation and then exits, so no window appears.",High,Not Tested,GuiManager.cpp:183 setActivationHandler(nullptr) after exec; ComponentManager.cpp stopAll 30 s per component; SingleInstanceGuard.cpp; Edge case; extends TC-187,New
+CMN-141,Common,Common - Updates,Offline start and network that returns later,"1. Disconnect the network and start Sourcerer
+2. Use the app for 5 minutes
+3. Reconnect the network and wait for the next poll (3 min)","No error toast or delay at start while offline. After reconnect, pending news appears.",High,Not Tested,TrackingState.cpp pollOnce() returns on error; NewsTracker.cpp poll interval 180000,New
+CMN-142,Common,Common - Updates,News server returns invalid data,"1. Point network/newsTracker/url to a server returning HTTP 500, then HTML (captive portal), then JSON without 'news', then items without id or with unknown type",No crash and no toast. Valid items in the same response still show.,Medium,Not Tested,"TrackingState.cpp pollOnce(), parseNewsItem(); Edge case",New
+CMN-143,Common,Common - Updates,Update news with non-numeric or empty version,"1. Publish update news with version 'v1.2.3', then with an empty version, then with the current version",Only a real newer version triggers a download. Suspected: 'v1.2.3' fails QVersionNumber parsing and the string compare makes it always newer; an empty version is treated as newer.,Medium,Not Tested,"TrackingState.cpp isNewerVersion() string fallback, pollOnce() empty version accepted; Edge case",New
+CMN-144,Common,Common - Updates,Update download interrupted,"1. Publish an update with a large installer
+2. Disconnect the network during the download","The download is retried up to 5 times, 3 s apart. No partial file is staged. The update is tried again on the next poll and the 'restart to finish' toast shows only after a complete download.",High,Not Tested,UpdatingState.cpp downloadUpdate() DOWNLOAD_RETRY_COUNT=5; Edge case; extends TC-003,New
+CMN-145,Common,Common - Updates,Update download returns wrong content (bad signature),"1. On Windows and Linux, let the download URL return an HTML error page with HTTP 200, then a modified installer
+2. Restart Sourcerer","The staged file is rejected because its signature or hash does not match. Suspected security gap: Windows and Linux only check for size > 0, so the file is staged and run by the launcher.",High,Not Tested,UpdatingState.cpp downloadUpdate() and stageDownloadedUpdate() no signature check; launcher.cpp runUpdate(); Edge case,New
+CMN-146,Common,Common - Updates,macOS update from another publisher or not https,"1. Publish a macOS update with an http URL, then a DMG signed by another team, then an ad-hoc signed DMG
+2. Restart Sourcerer",http and non-.dmg URLs are refused. A different publisher gives a warning and the update is removed. The installed app stays unchanged.,High,Not Tested,UpdatingState.cpp macOS https/.dmg check; MacUpdater.cpp:143 checkSamePublisher(),New
+CMN-147,Common,Common - Updates,macOS update when app runs from DMG or translocated location,"1. Run Sourcerer directly from the mounted DMG, then from Downloads (App Translocation)
+2. Let an update stage and restart",A message says to move the app to /Applications first. The read-only copy is not changed.,Medium,Not Tested,UpdateStaging.h macosSelfUpdateBlockedReason(),New
+CMN-148,Common,Common - Updates,macOS cancel the administrator password prompt,"1. Install Sourcerer in /Applications owned by root
+2. Let an update stage, restart and cancel the password prompt
+3. Restart again",The current version starts. The update is offered again on the next start.,Medium,Not Tested,launcher.cpp keepStagedUpdate for MacUpdater::Status::Cancelled,New
+CMN-149,Common,Common - Updates,Windows staged installer fails,"1. Stage an update installer that exits with an error (for example a corrupt .exe)
+2. Restart Sourcerer, then restart once more",The current version starts with --skip-update. The behavior on the next start is defined: the failing installer is not run on every start without a message.,Medium,Not Tested,launcher.cpp removeStagedUpdate=updateApplied on Windows/Linux; main.cpp:213 skipUpdate; Edge case,New
+CMN-150,Common,Common - Updates,AppImage renamed without .AppImage suffix,"1. Rename Sourcerer.AppImage to sourcerer
+2. Let an update stage and restart","The update is applied, or a log line explains why not. Suspected: main.cpp finds the AppImage only through ARGV0 with the .AppImage suffix, so the staged file is never applied.",Medium,Not Tested,main.cpp:23 resolveRunningAppImagePath() suffix check; launcher.cpp mountinfo fallback; Edge case,New
+CMN-151,Common,Common - Updates,AppImage replacement fails,"1. Put the AppImage in a folder where delete works but the staged file cannot be renamed or copied (for example a full disk after staging)
+2. Restart to apply the update","The old AppImage is kept when the new one cannot be put in place. Suspected bug: the launcher deletes the running AppImage before rename/copy, so a failure leaves no application.",High,Not Tested,launcher.cpp runUpdate() Linux branch QFile::remove before rename/copy; Edge case,New
+CMN-152,Common,Common - Updates,AppImage folder not writable,"1. Put the AppImage in /opt/sourcerer owned by root and run it as a normal user
+2. Publish an update",The user is told the update cannot be installed in this folder. Today staging fails and only a log warning is written.,Medium,Not Tested,UpdatingState.cpp stageDownloadedUpdate() into AppImage folder; Edge case,New
+CMN-153,Common,Common - Updates,Two updates published before restart,"1. Let update 1.1 stage and do not restart
+2. Publish 1.2 and wait for it to stage
+3. Restart",Only one staged file remains and 1.2 is installed.,Medium,Not Tested,UpdatingState.cpp stageDownloadedUpdate() removes other Sourcerer-Update*,New
+CMN-154,Common,Common - Updates,"What's new after update, downgrade and fresh install","1. Update from version N to N+1 and start
+2. Start again
+3. Install version N over N+1 manually (if allowed), and also do a fresh install with no settings
+4. Use Help > Release notes","What's new opens once after the update only. It does not open on downgrade or fresh install. Release notes shows notes, or a 'No release notes available' toast.",Medium,Not Tested,"MainWindow.cpp:1529 showReleaseNotesIfUpdated(), app/lastRunVersion; 1514 onReleaseNotes()",New
+CMN-155,Common,Common - Updates,CA certificate file missing,"1. Delete or rename ca-certificates.crt next to the executable
+2. Start Sourcerer, wait for a news poll, send a bug report, open an issue tracker",HTTPS requests either use the system store or fail with a clear message. No crash.,Medium,Not Tested,ConfigManager.cpp HttpClientCaCertFile default 'ca-certificates.crt' (relative); Edge case,New
+CMN-156,Common,Common - Issue Trackers,Issue tracker token expired,"1. Connect a GitHub, Azure DevOps and Bitbucket tracker
+2. Wait for the token to expire (or change the system clock past expiry)
+3. Open each tracker tab and reload","Sourcerer asks to sign in again. Suspected: TokensStorage::getToken() does not check expiresAt, so the expired token is used and the page fails.",High,Not Tested,TokensStorage.cpp getToken() no expiry check; IssueTrackerContainer.cpp:403 Bitbucket auth; Edge case,New
+CMN-157,Common,Common - Issue Trackers,Keychain not available,"1. Linux: run without a Secret Service (no gnome-keyring/kwallet); macOS: lock the login keychain; Windows: deny Credential Manager
+2. Connect an issue tracker and restart",The user is warned that tokens cannot be stored securely. Suspected security issue: the master key falls back to plain text in the settings key git/credentialsMasterKey.,High,Not Tested,TokensStorage.cpp saveMasterKeyToWindowsStore()/readMasterKeyFromWindowsStore() fallback to ConfigKey::GitRepoCredentialsMasterKey,New
+CMN-158,Common,Common - Issue Trackers,Corrupted token storage file,"1. Close Sourcerer and corrupt issue_tracker_tokens.dat (random bytes, or version 99)
+2. Start Sourcerer and reconnect a tracker",No crash. The tracker list is empty or shows a message. A new connection works and replaces the file.,Medium,Not Tested,TokensStorage.cpp:357 version check; Edge case,New
+CMN-159,Common,Common - Issue Trackers,Issue tracker tab while offline,"1. Disconnect the network and open an issue tracker tab
+2. Reconnect and press Reload","An error page shows and Reload loads the page. If the web renderer crashes, the tracker opens in the external browser and the tab closes.",Medium,Not Tested,IssueTrackerContainer.cpp renderProcessTerminated -> openIssueTrackerExternallyAndClose(),New
+CMN-160,Common,Common - Bug Report,Bug report without network,"1. Disconnect the network
+2. Open Report bug, fill in title and description, Submit
+3. Look in the temp folder for bug-report-*.zip",An error toast shows and the form is enabled again. Suspected: the temp zip is not removed on this failure path.,High,Not Tested,BugReportContainer.cpp onZipCreationFinished() upload error branch does not remove _tempZipFilePath; extends TC-145,New
+CMN-161,Common,Common - Bug Report,Bug report with no log files,"1. Close Sourcerer and empty the Logs folder (or delete it)
+2. Start with logging off if possible, open Report bug and Submit","The report is sent without logs, as docs/BUG_REPORT_IMPLEMENTATION.md says. Suspected bug: 'Failed to create log archive' shows and the form stays disabled, including Cancel.",High,Not Tested,BugReportContainer.cpp onZipCreationFinished() empty zipPath returns without restoreSubmissionUi(); Edge case,New
+CMN-162,Common,Common - Bug Report,Bug report file name with special user names,"1. Sign in with an account whose name has Unicode, spaces or '/'
+2. Submit a bug report",The upload succeeds. The archive name does not break the temp path.,Medium,Not Tested,BugReportContainer.cpp createLogsZipFile() filename from JWT claims; Edge case,New
+CMN-163,Common,Common - Bug Report,Bug report with large logs and closing the tab,"1. Make the Logs folder 500 MB
+2. Submit a report and watch the progress text
+3. Close the Report bug tab during upload",Progress updates during the upload. Closing the tab does not crash and the temp file is removed.,Medium,Not Tested,BugReportContainer.cpp updateProgressLabel(0) only; guard weak pointer; Edge case,New
+CMN-164,Common,Common - Cloud Sign-in,JWT public key missing or replaced,"1. Delete keys/cloud_jwt_public_key.pem from the install folder (or replace it with another key)
+2. Sign in to the Sourcerer cloud account","Sign-in is refused when the key is missing or does not match. Suspected security gap: without a key, isValidJwtFormat() checks only the format and accepts any token.",High,Not Tested,JWTDecoder.cpp isValidJwtFormat() returns true when publicKeyPem is empty; resolvePublicKeyPath(); ProfileBoardWidget.cpp:775,New
+CMN-165,Common,Common - Shutdown,Quit during operations in all backends,"1. Start a fetch in a Git tab, an update in an SVN tab and a pull in an Hg tab
+2. Quit Sourcerer","The window closes quickly and the process ends within the component timeout. Repositories are not left locked (no stale index.lock, wc.db lock or .hg/wlock).",High,Not Tested,ComponentManager.cpp stopAll() waitForComponentToStop 30000 ms; main.cpp; Edge case,New
+CMN-166,Common,Common - SSH Askpass,Mercurial over SSH with key passphrase,"1. Clone an Hg repository over ssh with a passphrase-protected key
+2. Enter the passphrase in the Sourcerer prompt; repeat and cancel; repeat with a Unicode passphrase
+3. Run the askpass binary by hand without environment variables","Correct passphrase works, Cancel stops the clone with an error, the Unicode passphrase works. The askpass binary alone exits with code 1.",Medium,Not Tested,src/askpass.cpp SOURCERER_ASKPASS_SOCKET/TOKEN protocol,New
+CMN-167,Common,Common - Unicode and User Profiles,OS user name and home with Unicode and spaces,"1. Use an OS account named 'José Müller' (home path with spaces and accents)
+2. Start Sourcerer, connect an issue tracker, save a workspace, open repositories of all three types, send a bug report","All features work. Single instance works, the token store opens again after restart.",High,Not Tested,SingleInstanceGuard.cpp userName(); TokensStorage.cpp getLoggedInUser(); ConfigManager getWritableDir(); Edge case,New
+CMN-168,Common,Common - Diff Views,Syntax highlighting is the same in all VCS,"1. Change Makefile, Dockerfile, a .d.ts, an UPPER.CPP and a file with no extension in a Git, an SVN and an Hg repository
+2. Open each diff in unified and side-by-side view",The same lexer is used for the same file in all three VCS. Files with no known type show plain text.,Medium,Not Tested,QScintillaLexerFactory.cpp:86-233 file name and suffix mapping; SideBySideDiffView.cpp,New
+CMN-169,Common,Common - Diff Views,"Diff with mixed line endings, long lines and binary","1. In each VCS change a file with CRLF and LF lines, one with a 100k character line and a binary file
+2. Open the diffs in side-by-side and merge views","Line endings show consistently, the long line does not freeze the UI, binary files show a 'binary' notice.",Medium,Not Tested,SideBySideDiffView.cpp; MergeDiffView.cpp; Edge case; extends TC-132,New
+CMN-170,Common,Common - Custom Workflows,Corrupted custom workflow file,"1. Close Sourcerer and corrupt gitflow-next-workflows.json in the data folder
+2. Start, open the custom workflow list, then save a new workflow","A warning says the file cannot be read. The old file is kept (backup) before it is replaced. Suspected: the list is empty and saving overwrites the file, so all old workflows are lost.",Medium,Not Tested,"CustomWorkflowStore.cpp reloadIfChanged() parse failure -> empty, write() overwrites; Edge case; extends TC-203/TC-205",New

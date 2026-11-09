@@ -1,0 +1,541 @@
+Test ID,Category,Feature Area,Test Case,Test Steps,Expected Result,Priority,Status,Notes,Origin
+HG-001,Mercurial,Mercurial - Installation & Detection,Open a Mercurial repository with hg 5.0+ on PATH,"1. Install Mercurial 6.x and make sure 'hg version' works in a terminal
+2. Start Sourcerer
+3. Click Open Repository and select a folder that contains .hg
+4. Close the tab, then reopen the repository from the Home recent list","A repository tab opens and shows the history of the repository
+The recent list entry shows the Mercurial (hg) icon
+Reopening from the recent list opens it again in a Mercurial tab",High,Not Tested,component/GuiManager/src/MainWindow.cpp:528-557 checkMercurial/openRepository; lib/HgRepo/src/HgRepo.cpp:989-1008 checkExecutable; models/RecentlyOpenedReposModel.cpp:125-133,New
+HG-002,Mercurial,Mercurial - Installation & Detection,hg executable missing,"1. Remove hg from PATH and make sure it is not in %ProgramFiles%\Mercurial or %ProgramFiles%\TortoiseHg
+2. Start Sourcerer
+3. Open a folder that contains .hg (Open Repository and from the recent list)","An error toast says: Mercurial wasn't found. Install Mercurial or set the path of hg in Settings.
+No repository tab opens
+The app does not hang or crash",High,Not Tested,component/GuiManager/src/MainWindow.cpp:528-557; lib/HgRepo/src/HgRepo.cpp:943-976 findExecutable; Edge case,New
+HG-003,Mercurial,Mercurial - Installation & Detection,hg older than the minimum version 5.0,"1. Put Mercurial 4.9 first on PATH
+2. Open a Mercurial repository","An error toast says Mercurial 5.0 or newer is required and includes: Mercurial 4.9 is too old, version 5.0 or newer is required.
+No repository tab opens",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:989-1008 checkExecutable; lib/HgRepo/include/HgRepo.h:28-29 kMinimum*Version; Edge case,New
+HG-004,Mercurial,Mercurial - Installation & Detection,hg found only in the TortoiseHg install folder (Windows),"1. Install TortoiseHg to %ProgramFiles%\TortoiseHg and remove every hg from PATH
+2. Start Sourcerer and open a Mercurial repository","The repository opens normally
+Commands run with %ProgramFiles%\TortoiseHg\hg.exe (visible in Task Manager)",Medium,Not Tested,"lib/HgRepo/src/HgRepo.cpp:957-973 (ProgramFiles and ProgramW6432, Mercurial then TortoiseHg); Edge case",New
+HG-005,Mercurial,Mercurial - Installation & Detection,Mercurial clone and init menu entries follow hg availability,"1. Start Sourcerer without hg installed
+2. Open the Home Clone menu and the Init menu
+3. Hover the Mercurial entries
+4. Install hg (without restarting Sourcerer) and open the menus again","Without hg, 'Mercurial clone' and 'Mercurial init' are disabled with the tooltip 'Install Mercurial or set its path in Settings'
+After hg is installed, both entries are enabled when the menu is opened again",Medium,Not Tested,component/GuiManager/src/containers/HomeContainer.cpp:422-456 updateMercurialActions on aboutToShow,New
+HG-006,Mercurial,Mercurial - Installation & Detection,Folder that contains both .git and .hg,"1. Create a folder that is both a Git repository and a Mercurial repository (git init and hg init in the same folder)
+2. Open it with Open Repository","It opens as a Git repository (Git tab, Git features, no Mercurial phase row)
+No Mercurial command server process is started for it",Low,Not Tested,component/GuiManager/include/RepositoryType.h repositoryTypeOf checks .git before .hg; Edge case,New
+HG-007,Mercurial,Mercurial - Installation & Detection,Workspace restore and recent list keep the Mercurial type,"1. Open two Mercurial repositories and one Git repository
+2. Close Sourcerer and start it again","All three tabs are restored; the Mercurial tabs open as Mercurial (phase row visible in commit details, 'Shelves' page title)
+The recent list still shows the hg icon for the Mercurial entries",Medium,Not Tested,component/GuiManager/src/MainWindow.cpp:1040-1066 workspace restore (ContainerType::HgRepo); RepositoryType.h repositoryTypeKey 'hg',New
+HG-008,Mercurial,Mercurial - Installation & Detection,hg removed after Sourcerer already found it,"1. Open a Mercurial repository so the hg check succeeds
+2. Close the tab, then uninstall hg or remove it from PATH
+3. Open a Mercurial repository again","The cached check passes, but the repository tab shows the error page instead of the history
+Sourcerer stays responsive; no orphan hg process remains",Low,Not Tested,component/GuiManager/src/MainWindow.cpp:530 static 'found' cache; component/HgRepoManager/src/HgRepoManagerWorkers.cpp run(OpenRepo) calls checkExecutable; Edge case,New
+HG-009,Mercurial,Mercurial - Clone & Init,Clone a public repository over HTTPS with progress,"1. Home > Clone > Mercurial clone
+2. Enter a public https:// Mercurial URL and choose an empty destination folder
+3. Start the clone and watch the progress toast
+4. Answer Yes to 'The repository was cloned successfully. Do you want to open it?'","The progress toast shows the fetch stages with numbers, then the checkout ('updating') stage, and reaches 100%
+After success a question asks to open the cloned repository, with its path
+Yes opens it in a Mercurial tab with the default branch checked out",High,Not Tested,"lib/HgRepo/src/HgRepo.cpp:785-936 cloneRepository (progress.assume-tty, 'updating' => Checkout stage); component/GuiManager/src/MainWindow.cpp:1770-1830",New
+HG-010,Mercurial,Mercurial - Clone & Init,Clone from a local path and a file:// URL,"1. Clone using a local folder path of another Mercurial repository as the URL
+2. Clone again using file:///<path>","Both clones succeed and open as Mercurial repositories
+The new repository's default path (Remotes page) points to the source",Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:785-936,New
+HG-011,Mercurial,Mercurial - Clone & Init,Clone into a destination that is not empty,"1. Create a folder with one file in it
+2. Mercurial clone a valid URL into that folder","An error toast says 'Unable to clone Mercurial repository.' followed by hg's message that the destination is not empty
+The existing file in the folder is untouched",Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:906-918 error text without progress lines; component/GuiManager/src/MainWindow.cpp:1779-1786; Edge case,New
+HG-012,Mercurial,Mercurial - Clone & Init,Clone with an unreachable host or a broken network,"1. Mercurial clone https://does-not-exist.invalid/repo
+2. Start a clone of a large repository and disconnect the network halfway","Both clones end with an error toast 'Unable to clone Mercurial repository.' and hg's error text (no progress garbage such as '\r' lines)
+No half-cloned repository is offered for opening",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:900-918; Edge case,New
+HG-013,Mercurial,Mercurial - Clone & Init,Clone a repository that needs HTTP authentication,"1. Mercurial clone an https URL that answers 401
+2. Enter a valid user and password in the credentials overlay and tick remember
+3. Delete the clone and clone again into the same destination path","The credentials overlay appears for the URL; after submit the clone finishes
+The second clone into the same destination does not ask again (credentials are stored per destination path)",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:921-926 runAuthenticated with destination as repoPath; component/HgRepoManager/src/HgRepoManagerCredentials.cpp:28-49,New
+HG-014,Mercurial,Mercurial - Clone & Init,Cancel the credentials prompt during a clone,"1. Mercurial clone an https URL that needs authentication
+2. Click Cancel in the credentials overlay","The clone stops with an error toast containing 'Authorization for <url> was cancelled.'
+The overlay closes and no repository is created",High,Not Tested,lib/HgRepo/src/HgRepoAuth.cpp:279-285; Edge case,New
+HG-015,Mercurial,Mercurial - Clone & Init,Credentials appear on the hg command line during clone,"1. Start a clone of an https URL that needs authentication and submit credentials
+2. While the retried clone runs, inspect the hg.exe process command line (Process Explorer or 'ps -ef')","Expected (security): the password is not visible on any process command line
+Report a defect if --config auth.sourcerer0.password=... is visible (one-shot clone passes config as process arguments)",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:822-841 cloneOnce puts configArgs in QProcess arguments; lib/HgRepo/src/HgRepoAuth.cpp:167-180 authConfigArgs; Edge case,New
+HG-016,Mercurial,Mercurial - Clone & Init,"Clone a repository with Git subrepos, including a blocked transport","1. Clone a Mercurial repository whose .hgsub has a [git]https://... subrepo
+2. Clone a Mercurial repository whose .hgsub has a [git]ext::sh -c ... subrepo","The first clone checks out the Git subrepo (git subrepos are allowed)
+The second clone fails with a git transport error; the ext:: command is never run (GIT_ALLOW_PROTOCOL=file:git:http:https:ssh)",Medium,Not Tested,lib/HgRepo/src/HgCommandServer.cpp:58-64 GIT_ALLOW_PROTOCOL; lib/HgRepo/src/HgRepo.cpp:829-832 subrepos.git:allowed; Edge case,New
+HG-017,Mercurial,Mercurial - Clone & Init,Close Sourcerer during a clone,"1. Start a Mercurial clone of a large repository
+2. Close Sourcerer while the progress toast is running","Sourcerer exits within a few seconds
+No hg.exe process remains running",Medium,Not Tested,component/HgRepoManager/src/HgRepoManagerProcessingState.cpp:159-178 retireAll sets _quitTasks; lib/HgRepo/src/HgRepo.cpp:863-870 kill on quit; Edge case,New
+HG-018,Mercurial,Mercurial - Clone & Init,Mercurial init with author and email,"1. Set author and email in the user profile
+2. Home > Init > Mercurial init; enter a name and a parent folder
+3. Create; then commit one file in the new repository","The new repository opens in a Mercurial tab
+.hg/hgrc contains '[ui]' and 'username = Name <email>'
+The first commit is on branch 'default' and has that author",High,Not Tested,"lib/HgRepo/src/HgRepo.cpp:1064-1102 initRepository (defaultBranch ignored, writes [ui] username)",New
+HG-019,Mercurial,Mercurial - Clone & Init,Mercurial init in a read-only folder or over an existing repository,"1. Mercurial init into a parent folder without write permission
+2. Mercurial init using the name of a folder that already is a Mercurial repository","Each attempt shows an error toast with hg's message (permission denied / repository already exists)
+No tab opens; the existing repository is unchanged",Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:1079-1084 runOneShot(InitFailed); Edge case,New
+HG-020,Mercurial,Mercurial - Command Server Lifecycle,"One command server per tab, ended on close","1. Open two different Mercurial repositories in two tabs
+2. Check running processes for 'hg serve --cmdserver pipe'
+3. Close one tab","Two hg command server processes run, one per tab
+After closing a tab its process exits within about 3 seconds; the other tab keeps working",High,Not Tested,lib/HgRepo/src/HgCommandServer.cpp:105-191 start/stop (kStopTimeoutMs=3000); component/HgRepoManager/src/HgRepoManagerProcessingState.cpp:105-122 closeContext,New
+HG-021,Mercurial,Mercurial - Command Server Lifecycle,Command server killed while idle,"1. Open a Mercurial repository
+2. Kill the 'hg serve --cmdserver pipe' process with Task Manager
+3. Refresh the history, then stage a file","The history refresh succeeds without an error (a new server is started)
+Staging also works; a new hg serve process is visible",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:123-159 startServer; lib/HgRepo/src/HgRepo.cpp:224-255 retry of read-only commands; Edge case,New
+HG-022,Mercurial,Mercurial - Command Server Lifecycle,Command server killed during a write command,"1. Start a push to a slow remote
+2. Kill the hg serve process while the push runs","The push ends with an error toast (for example 'The Mercurial command server exited.' or hg's stderr)
+The write command is not retried automatically
+The next action starts a new server and works",Medium,Not Tested,"lib/HgRepo/src/HgRepo.cpp:244-254 ServerDied, no retry when !readOnly; lib/HgRepo/src/HgCommandServer.cpp:309-319; Edge case",New
+HG-023,Mercurial,Mercurial - Command Server Lifecycle,hg command hangs (unresponsive remote),"1. Add a remote whose host accepts the TCP connection but never answers
+2. Pull from it; wait until the spinner has shown for over a minute
+3. Close the repository tab","The spinner keeps showing while hg waits (there is no timeout)
+Closing the tab ends the hg process and closes the tab promptly
+Other open repository tabs stay responsive during the hang",High,Not Tested,lib/HgRepo/src/HgCommandServer.cpp:295-327 readExactly polls the quit flag every 100 ms; component/HgRepoManager/src/HgRepoManagerProcessingState.cpp:105-122; EventManager DEFAULT_WAIT_TIMEOUT is infinite; Edge case,New
+HG-024,Mercurial,Mercurial - Command Server Lifecycle,.hg/hgrc edited outside Sourcerer,"1. Open a Mercurial repository
+2. In a text editor add 'extra = https://example.org/repo' to [paths] of .hg/hgrc and save
+3. Open the Remotes page / refresh",The remote 'extra' appears without reopening the repository (the server restarts because hgrc changed),Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:103-131 serverStamps compare .hg/hgrc and logexchange files,New
+HG-025,Mercurial,Mercurial - Command Server Lifecycle,Corrupted .hg directory,"1. Make a copy of a repository and delete .hg/store/00changelog.i (or truncate it)
+2. Open the copy
+3. In another copy add a line 'fakerequirement' to .hg/requires and open it
+4. In a third copy put an invalid line such as '[paths' (missing bracket) into .hg/hgrc and open it","Each copy shows the error page; hg's abort or parse error is reported (for example 'repository requires features unknown')
+No crash or hang; the tab can be closed normally",Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:1010-1047 openRepository runs 'hg root'; lib/HgRepo/src/HgRepo.cpp:146-157 ServerStartFailed; Edge case,New
+HG-026,Mercurial,Mercurial - Command Server Lifecycle,Locked repository (.hg/wlock held),"1. In a terminal run a command that keeps the working directory lock (for example 'hg commit' with an interactive editor left open), or create a .hg/wlock owned by another host
+2. In Sourcerer stage a file and try to commit","Sourcerer shows the spinner while hg waits for the lock
+When the lock is released the operation completes; if hg times out, an error toast shows hg's 'timed out waiting for lock' message
+Closing the tab while waiting ends the hg process",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:224-264 runCommandOnce (no own timeout); lib/HgRepo/src/HgCommandServer.cpp:295-327; Edge case,New
+HG-027,Mercurial,Mercurial - Command Server Lifecycle,File names that are not valid UTF-8 (Linux),"1. On Linux create a file whose name is Latin-1 encoded (for example printf 'x' > $'caf\xe9.txt') and 'hg add' it in a terminal
+2. Refresh the status in Sourcerer","Sourcerer shows an error toast with hg's encoding error instead of showing a garbled name (HGENCODINGMODE=strict)
+The tab stays usable after the file is renamed",Low,Not Tested,"lib/HgRepo/src/HgCommandServer.cpp:52-56 HGENCODING=UTF-8, HGENCODINGMODE=strict; Edge case",New
+HG-028,Mercurial,Mercurial - Status & Staging,"Modified, new and missing files in the working tree","1. Modify a tracked file, create a new file, delete a tracked file in Explorer
+2. Refresh the working tree view","Modified file is listed as modified, new file as new, deleted file as deleted, all in the unstaged list
+Nothing is in the staged list",High,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:136-209 getStatus (-mardu),New
+HG-029,Mercurial,Mercurial - Status & Staging,Stage new and missing files,"1. Stage the new file and the deleted file from the previous case
+2. Run 'hg status' in a terminal","Both move to the staged list
+hg status shows 'A' for the new file and 'R' for the deleted file
+.hg/sourcerer/staged lists both paths",High,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:216-302 stageFiles (hg add / hg remove --after),New
+HG-030,Mercurial,Mercurial - Status & Staging,Unstage a newly added file,"1. Stage a new (untracked) file
+2. Unstage it
+3. Run 'hg status' in a terminal","The file moves back to the unstaged list as a new file
+hg status still shows it as 'A' (unstaging only edits the staged set; it does not run hg forget)",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:304-339 unstageFiles (doc section 1.4 says forget); Edge case,New
+HG-031,Mercurial,Mercurial - Status & Staging,Stage and unstage a whole folder,"1. Change three files below folder src/ (one modified, one new, one deleted)
+2. Stage the folder src from the tree view
+3. Unstage the folder","All three files are staged with one action
+Unstaging the folder unstages all files below it",Medium,Not Tested,"lib/HgRepo/src/HgRepoWorkingCopy.cpp:225-258, 331-336 isBelow",New
+HG-032,Mercurial,Mercurial - Status & Staging,Staged set forgets changes reverted outside Sourcerer,"1. Stage a modified file
+2. In a terminal run 'hg revert <file>'
+3. Refresh in Sourcerer","The file is no longer listed, neither staged nor unstaged
+.hg/sourcerer/staged no longer contains it",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:201-205; Edge case,New
+HG-033,Mercurial,Mercurial - Status & Staging,"Unicode, spaces and special characters in file names","1. Create 'dir with space/ünïcødé ✓.txt', 'glob*.txt', '[a].txt', 're;x.txt' and '-dash.txt'
+2. Stage, diff and commit each file","Every file is listed with its exact name
+Stage, diff and commit work on exactly that file (names are passed as path: patterns after '--')",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:488-499 pathPattern; lib/HgRepo/src/HgRepoWorkingCopy.cpp:263-275; Edge case,New
+HG-034,Mercurial,Mercurial - Status & Staging,Empty repository without revisions,"1. Mercurial init a new repository and open it
+2. Look at history, Local branches and the working tree
+3. Add a file, stage and commit it","History is empty without an error
+Named branches shows 'default (new)'
+The first commit appears in history and 'default' is then shown without '(new)'",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:366-384 isNew branch; lib/HgRepo/src/HgRepoHistory.cpp:134-136 null node; Edge case,New
+HG-035,Mercurial,Mercurial - Status & Staging,Rename recorded with hg mv,"1. In a terminal run 'hg mv old.txt new.txt'
+2. Refresh, then stage only new.txt and commit","The working tree shows new.txt as renamed (old.txt is not listed separately)
+Staging new.txt also stages the removal of old.txt
+The commit details show new.txt as renamed",Medium,Not Tested,"lib/HgRepo/src/HgRepoWorkingCopy.cpp:42-58 renameSources, 250-253; lib/HgRepo/src/HgRepoHistory.cpp:319-352; Edge case",New
+HG-036,Mercurial,Mercurial - Status & Staging,Rename done in the file manager,"1. Rename a tracked file in Explorer (no hg mv)
+2. Refresh, stage both entries and commit","Before staging: old name as deleted, new name as new
+The commit records a removal and an addition, not a rename",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:245-258; Edge case,New
+HG-037,Mercurial,Mercurial - Status & Staging,Discard a modified file,"1. Modify a tracked file
+2. Discard it from the working tree context menu","The file content is restored to the working directory parent
+No '.orig' backup file is created",High,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:396-404 revert --no-backup,New
+HG-038,Mercurial,Mercurial - Status & Staging,Discard an added file,"1. Create a file and stage it (hg add)
+2. Discard it","The file is no longer tracked (hg status shows '?')
+The file stays on disk and appears as an untracked new file",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:374-394 forget; header HgRepo.h discardFiles (plan section 1.3 says deleted from disk); Edge case,New
+HG-039,Mercurial,Mercurial - Status & Staging,Discard a file that is locked or read-only,"1. On Windows open a modified tracked file exclusively in another program (or make it read-only)
+2. Discard the file","An error toast shows hg's message
+The working tree still lists the file; Sourcerer does not hang",Low,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:396-404; Edge case,New
+HG-040,Mercurial,Mercurial - Commit & Amend,Commit only the staged files,"1. Modify files a.txt and b.txt
+2. Stage only a.txt, enter a summary and commit","The new commit contains only a.txt
+b.txt stays modified in the unstaged list
+The new commit shows the DRAFT phase badge",High,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:413-485 commitStaged,New
+HG-041,Mercurial,Mercurial - Commit & Amend,Commit with nothing staged or an empty message,"1. With nothing staged, click Commit
+2. Stage a file, leave the summary empty and commit (if the button allows it)","First: error 'There are no staged changes to commit.'
+Second: error 'The commit message is empty.'; no commit is created",Medium,Not Tested,"lib/HgRepo/src/HgRepoWorkingCopy.cpp:461-466, 76-80; Edge case",New
+HG-042,Mercurial,Mercurial - Commit & Amend,Commit author falls back to hg configuration,"1. Clear author and email in the user profile; keep ui.username in ~/.hgrc
+2. Commit a change
+3. Remove ui.username too and commit again","First commit uses ui.username from the hg configuration
+Second commit fails with hg's 'no username supplied' error toast",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:60-96 commitUser/--user; Edge case,New
+HG-043,Mercurial,Mercurial - Commit & Amend,Sign-off and multi-line Unicode message,"1. Enable sign-off
+2. Commit with summary 'Fix ✓ ünïcode 🚀' and a two-paragraph description","hg log shows the summary, a blank line, the description and a final 'Signed-off-by: Name <email>' line
+Characters are preserved exactly",Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:570-601 makeLogMessage,New
+HG-044,Mercurial,Mercurial - Commit & Amend,Amend with staged files and a new message,"1. Commit a change
+2. Modify another file, stage it, change the message and amend","The last commit is replaced: it contains both changes and the new message
+Unstaged changes are not included",High,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:487-522 amend,New
+HG-045,Mercurial,Mercurial - Commit & Amend,Amend only the message while other files are modified,"1. Leave a tracked file modified but not staged
+2. Amend the last commit with a new message only",Only the message changes; the modified file stays modified in the working tree,Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:506-511 --exclude glob:**; Edge case,New
+HG-046,Mercurial,Mercurial - Commit & Amend,Amend a public commit,"1. Push the last commit so it becomes public
+2. Try to amend it","An error toast shows hg's refusal to amend a public changeset
+History is unchanged",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:513-516 runCommit --amend; Edge case,New
+HG-047,Mercurial,Mercurial - Commit & Amend,Commit during a merge commits the whole working directory,"1. Start a merge that has no conflicts left to resolve but is not committed yet (for example after pull of a diverged branch)
+2. Stage only one file and commit","The merge commit contains every working directory change, not only the staged file
+The staged list is empty afterwards",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkingCopy.cpp:451-480 merging; Edge case,New
+HG-048,Mercurial,Mercurial - Diff,Diff of a modified and of an untracked file,"1. Modify a tracked file and create a new untracked file
+2. Select each file in the working tree","The modified file shows hunks against the working directory parent
+The untracked file shows every line as added",High,Not Tested,"lib/HgRepo/src/HgRepoDiff.cpp:223-301 diffFiles, addedFileDelta",New
+HG-049,Mercurial,Mercurial - Diff,"Diff of a file in a commit, including the root and a merge commit","1. Select a normal commit in history and a changed file
+2. Select the first (root) commit and a file
+3. Select a merge commit and a file changed by the merge","Normal commit: diff against its first parent
+Root commit: every line shown as added, no error
+Merge commit: diff against the first parent only",Medium,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:303-342 diffFilesFromCommit (p1); Edge case,New
+HG-050,Mercurial,Mercurial - Diff,Diff of a binary file,"1. Modify a tracked PNG file
+2. Select it in the working tree and in a commit that changed it","No text hunks are shown and no crash happens
+The file still appears in the file list",Medium,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:72-173 parseGitDiff (no binary handling); Edge case,New
+HG-051,Mercurial,Mercurial - Diff,Diff of a file larger than the maximum diff size,"1. Set a small maximum diff size in Settings (or use a file bigger than the default)
+2. Modify that file and select it",A toast says 'File is too large to be displayed.',Medium,Not Tested,"component/GuiManager/src/containers/RepoContainer.cpp:4170, 4230, 4377 maxDiffFileSize check; lib/HgRepo/src/HgRepo.cpp:748-755 contentWithinLimit; Edge case",New
+HG-052,Mercurial,Mercurial - Diff,Path containing ' b/',"1. Create and commit 'a b/c.txt' (folder 'a b')
+2. Modify the file and diff it",The diff is shown for 'a b/c.txt' with correct old and new paths,Low,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:76-99 headerPaths; Edge case,New
+HG-053,Mercurial,Mercurial - History & Graph,History paging on All branches,"1. Open a repository with more commits than the history page size
+2. Select 'All branches' and scroll to the bottom repeatedly","The newest commits are shown first
+More commits load while scrolling until all are shown; no duplicates or gaps",High,Not Tested,"lib/HgRepo/src/HgRepoHistory.cpp:186-271 getBranchHistory, HistoryCursor",New
+HG-054,Mercurial,Mercurial - History & Graph,"History of a named branch, a bookmark and a tag","1. Select a named branch in Local branches
+2. Select a bookmark
+3. Select a tag","Each shows the ancestors of that tip (::branch / ::bookmark / ::tag), including commits from other branches that they descend from",Medium,Not Tested,lib/HgRepo/src/HgRepoHistory.cpp:21-43 historyRevset,New
+HG-055,Mercurial,Mercurial - History & Graph,"Ref badges for heads, bookmarks and tags","1. Create a repository with two named branches, a bookmark, a tag and one closed branch
+2. Look at the history graph","Open branch heads show branch badges, bookmarks and tags show their badges
+No 'tip' badge is shown
+The head of the closed branch has no branch badge",Medium,Not Tested,"lib/HgRepo/src/HgRepoHistory.cpp:57-104 collectRefs ('head() and not closed()', skips tip); Edge case",New
+HG-056,Mercurial,Mercurial - History & Graph,Phase badges and the commit details Phase row,"1. Create a local commit
+2. Mark an older draft commit secret with 'hg phase --secret --force REV'
+3. Push to a publishing remote and refresh","The local commit shows a DRAFT badge; the secret commit shows SECRET
+Commit details show 'Phase:' with draft / secret / public
+After the push the pushed commits lose their badge and show 'public'",High,Not Tested,"component/GuiManager/src/delegates/HistorySummaryTableColumnDelegate.cpp:178-193; component/GuiManager/src/containers/RepoContainer.cpp:585-589, 10995-11005; lib/HgRepo/src/HgRepoHistory.cpp:146-157",New
+HG-057,Mercurial,Mercurial - History & Graph,Multiple heads on one named branch,"1. Create two heads on branch 'default' (commit, update back one revision, commit again)
+2. Look at history and Local branches","The graph shows two lines; both heads carry a 'default' badge
+Local branches lists 'default' once",Medium,Not Tested,lib/HgRepo/src/HgRepoHistory.cpp:62-74; lib/HgRepo/src/HgRepoBranches.cpp:329-404; Edge case,New
+HG-058,Mercurial,Mercurial - History & Graph,Author parsing in commit details,"1. Create commits with users 'Jane Doe <jane@example.com>', 'jdoe' and 'jane@example.com'
+2. Select each in history","Name and email are shown as 'Jane Doe' / 'jane@example.com', 'jdoe' / empty, and 'jane@example.com' / 'jane@example.com'",Low,Not Tested,lib/HgRepo/src/HgRepo.cpp:552-568 splitUser; Edge case,New
+HG-059,Mercurial,Mercurial - Blame / Annotate,Blame a tracked file with uncommitted lines,"1. Modify two lines of a tracked file without committing
+2. Open blame for the file","Committed lines show commit, author and commit summary
+The two changed lines show the all-zero (uncommitted) commit",High,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:344-437 blame (annotate -r wdir()),New
+HG-060,Mercurial,Mercurial - Blame / Annotate,Blame an untracked file,1. Create a new file and open blame for it,The blame view reports '<path> is not tracked by Mercurial.',Low,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:378-384; Edge case,New
+HG-061,Mercurial,Mercurial - Blame / Annotate,Blame from an older commit,1. Select an old commit in history and open blame for a file from it,"Expected: blame of the file as of that commit
+Report a defect if the working directory version is annotated instead (the commit argument is ignored)",Medium,Not Tested,component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:253-255 blame ignores commit; lib/HgRepo/src/HgRepoDiff.cpp:366-371 always wdir(); Edge case,New
+HG-062,Mercurial,Mercurial - Named Branches,Local branches page has two sections,"1. Open a repository with named branches and bookmarks
+2. Open Local branches","Section 'Named branches' is listed first, then 'Bookmarks'
+Names are sorted case-insensitively in each section; the active one is highlighted",High,Not Tested,component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:3785-3870 getLocalBranches; lib/HgRepo/src/HgRepoBranches.cpp:329-404,New
+HG-063,Mercurial,Mercurial - Named Branches,Create a named branch from a commit,"1. Right-click a commit > Create branch
+2. Choose 'Named branch' in the kind menu and enter 'feature-x'
+3. Commit a change","The working directory updates to that commit
+'feature-x (new)' appears under Named branches before any commit
+After the commit 'feature-x' is shown without '(new)' and history shows the commit on it",High,Not Tested,"component/GuiManager/src/containers/RepoContainer.cpp:3340-3365, 11327-11351 requestBranchKind; lib/HgRepo/src/HgRepoBranches.cpp:499-514",New
+HG-064,Mercurial,Mercurial - Named Branches,Invalid or duplicate named branch names,"1. Create a named branch '@foo'
+2. Create a named branch with the name of an existing open branch","First: error '@foo is not a valid branch name.'
+Second: error toast with hg's message that a branch of the same name already exists",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:501-513; Edge case,New
+HG-065,Mercurial,Mercurial - Named Branches,Rename a named branch,"1. Create a named branch without committing and rename it
+2. Rename a named branch that has commits","First: the '(new)' entry gets the new name
+Second: error 'Mercurial can't rename the named branch <name> because it has commits.'",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:551-573; Edge case,New
+HG-066,Mercurial,Mercurial - Named Branches,Close a named branch,"1. Check out another branch
+2. Right-click a named branch: the item says 'Close branch'
+3. Confirm 'Are you sure that you want to close branch ...?'","A 'Close branch <name>' commit is added on the branch tip
+The working directory goes back to where it was (same bookmark or commit)
+The branch disappears from Local branches; toast 'Branch '<name>' was closed.'",High,Not Tested,"component/GuiManager/src/containers/RepoContainer.cpp:3492-3500, 4630-4634; lib/HgRepo/src/HgRepoBranches.cpp:516-549; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:7049-7081",New
+HG-067,Mercurial,Mercurial - Named Branches,Close a branch with uncommitted changes,"1. Modify a tracked file
+2. Close a named branch","Error 'Commit, shelve or discard the changes of the working directory first.'
+No close commit is created",Medium,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:119-131, 518-520; Edge case",New
+HG-068,Mercurial,Mercurial - Named Branches,Closed branches are hidden,"1. Close a named branch
+2. Look for a way to show closed branches in Local branches","The closed branch is not listed and there is no 'Show closed branches' option
+Its commits stay visible under All branches",Low,Not Tested,component/HgRepoManager/src/HgRepoManagerWorkers.cpp run(ListLocalBranches) includeClosed never set by the bridge (component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:3792-3794); Edge case,New
+HG-069,Mercurial,Mercurial - Named Branches,Checkout a named branch with uncommitted changes,"1. Modify a file that is the same on both branches; check out the other named branch
+2. Modify a file that differs between the branches; check out the other branch","First: checkout succeeds and the change is kept
+Second: error toast with hg's conflict message; working directory unchanged",High,Not Tested,lib/HgRepo/src/HgRepo.cpp:76-78 commands.update.check=noconflict; lib/HgRepo/src/HgRepoBranches.cpp:416-479; Edge case,New
+HG-070,Mercurial,Mercurial - Named Branches,Branch and bookmark with the same name,"1. Create named branch 'release' with a commit and a bookmark 'release' on another commit
+2. Check out each entry","Both are listed, one per section
+Each checkout goes to its own commit; the bookmark checkout activates the bookmark",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:406-414 '@name' internal names; Edge case,New
+HG-071,Mercurial,Mercurial - Bookmarks,"Create, check out and advance a bookmark","1. Right-click a commit > Create branch > Bookmark, name 'topic'
+2. Check out 'topic' and commit a change","Creating does not move the working directory
+After checkout 'topic' is active (highlighted)
+The new commit carries the 'topic' badge",High,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:485-497, 468-470",New
+HG-072,Mercurial,Mercurial - Bookmarks,Bookmark becomes inactive,"1. Check out bookmark 'topic'
+2. Check out an older commit from history","'topic' is no longer highlighted as active
+The active branch shown is the named branch of the commit",Medium,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:100-117, 305-313; Edge case",New
+HG-073,Mercurial,Mercurial - Bookmarks,Rename and delete bookmarks,"1. Rename bookmark 'topic' to 'topic2'
+2. Rename 'topic2' to the name of another existing bookmark
+3. Delete bookmark 'topic2' (confirm)","Rename works; renaming onto an existing bookmark shows hg's error toast
+Delete removes the bookmark; the commits stay",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:551-582; Edge case,New
+HG-074,Mercurial,Mercurial - Bookmarks,Bookmark checked out in a worktree,"1. Add a worktree for bookmark 'wt'
+2. In the main repository right-click 'wt' in Local branches","Checkout, Rename and Delete are disabled with the tooltip 'Checked out in worktree ...'",Low,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:4636-4646; Edge case,New
+HG-075,Mercurial,Mercurial - Bookmarks,Divergent bookmark after pull,"1. Move bookmark 'feat' differently in two clones, push from one
+2. Pull in the other clone","The divergent bookmark (for example 'feat@default') appears as its own bookmark entry
+It can be deleted from Local branches",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:386-395 lists every 'hg bookmarks' entry; Edge case,New
+HG-076,Mercurial,Mercurial - Tags,Create a tag from a commit,"1. Right-click a commit > Create tag, enter 'v1.0' and a message","A new commit that edits .hgtags is created with the message
+The tagged commit shows a 'v1.0' badge and Tags lists it",High,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:653-686 (global tag, --force)",New
+HG-077,Mercurial,Mercurial - Tags,Duplicate tag and reserved 'tip',"1. Create tag 'v1.0' again
+2. Create tag 'tip'","First: error 'Tag v1.0 already exists.'
+Second: error toast with hg's message that 'tip' is reserved",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:663-669; Edge case,New
+HG-078,Mercurial,Mercurial - Tags,Delete and rename tags,"1. Delete tag 'v1.0'
+2. Create 'v2.0' and rename it to 'v2.0-final'","Delete adds a commit that removes the tag from .hgtags
+Rename adds 'v2.0-final' (commit 'Rename tag v2.0 to v2.0-final') and a second commit that removes 'v2.0'",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:688-718,New
+HG-079,Mercurial,Mercurial - Tags,Local tags created outside Sourcerer,"1. Run 'hg tag --local lt' in a terminal
+2. Refresh Tags; try Push to remote and Delete from remote on 'lt'
+3. Delete 'lt'","'lt' is listed like other tags
+Push shows 'lt is a local tag, local tags are never pushed.'; delete-from-remote shows 'lt is a local tag, it is not on the remote.'
+Delete removes it without creating a commit",Medium,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:688-702, 720-764; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:4216-4290 localTags ignored by UI; Edge case",New
+HG-080,Mercurial,Mercurial - Tags,Push one tag and all tags,"1. Create two tags locally
+2. Push one tag to remote, then Push all tags","Push tag pushes the commit that recorded the tag (and its ancestors) to the default remote; toast 'Successfully pushed tag to remote.'
+Push all tags pushes every .hgtags commit; new remote branches are created without asking",Medium,Not Tested,"lib/HgRepo/src/HgRepoBranches.cpp:264-297, 720-747 (--new-branch)",New
+HG-081,Mercurial,Mercurial - Tags,Delete a tag from the remote,"1. Push tag 'v3' to the remote
+2. Tags > Delete from remote on 'v3'","A removal commit is created and pushed; toast 'Successfully deleted tag from remote.'
+A fresh clone of the remote no longer has 'v3'",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:749-764,New
+HG-082,Mercurial,Mercurial - Merge,Fast-forward merge of bookmarks,"1. Bookmark 'main' at commit A, bookmark 'feat' at a descendant B
+2. Merge 'feat' into 'main'",No merge commit is created; 'main' moves to B and is checked out and active,High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:803-814,New
+HG-083,Mercurial,Mercurial - Merge,Merge named branches without conflicts,"1. Make non-conflicting commits on 'default' and 'feature'
+2. Merge 'feature' into 'default'","A merge commit 'Merge branch 'feature' into 'default'' is created on 'default'
+The staged set is empty afterwards",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:766-857,New
+HG-084,Mercurial,Mercurial - Merge,"Merge with conflicts, resolve and commit","1. Make conflicting changes to file f on two branches
+2. Merge one into the other
+3. Open the conflicted file, edit it, stage it and commit","A toast says 'Merge has failed.'; f is listed as conflicted and contains <<<<<<< ======= >>>>>>> markers
+The three-way diff view opens for f
+Staging f marks it resolved; commit creates the merge commit",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:826-843; lib/HgRepo/src/HgRepoWorkingCopy.cpp:280-284; lib/HgRepo/src/HgRepoShelves.cpp:216-229; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:4438-4447,New
+HG-085,Mercurial,Mercurial - Merge,Abort a merge,"1. Start a merge that has conflicts
+2. Click Abort merge","The working directory returns to the state before the merge (hg merge --abort)
+Conflicted and staged lists are empty",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:859-882,New
+HG-086,Mercurial,Mercurial - Merge,Merge with uncommitted changes and an already merged branch,"1. Modify a file and try to merge
+2. Revert, then merge a branch that is already an ancestor of the destination","First: error 'Commit, shelve or discard the changes of the working directory first.'
+Second: nothing happens and no error is shown (already merged)",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:771-801; Edge case,New
+HG-087,Mercurial,Mercurial - Rebase & Squash,Rebase by drag and drop,1. Drag bookmark 'feat' onto 'main' and choose rebase,"The commits of 'feat' are moved on top of 'main' and keep their named branch
+'feat' is checked out afterwards",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:884-929 (--keepbranches),New
+HG-088,Mercurial,Mercurial - Rebase & Squash,Rebase conflict: continue and abort,"1. Rebase a branch that conflicts in two files
+2. Resolve and stage only one file, then continue the rebase
+3. Resolve and stage the second file and continue (commit) the rebase
+4. Repeat the rebase and abort it instead","The rebase stops with a conflict message
+Continuing with one file unresolved shows 'Resolve and stage every conflicted file first.'
+Continue keeps the original commit messages (the message field is not used)
+Abort restores the original commits",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:914-983 (960-965 unresolved check); Edge case,New
+HG-089,Mercurial,Mercurial - Rebase & Squash,Rebase public commits,"1. Push 'feat' to a publishing remote so its commits are public
+2. Rebase 'feat' onto 'main'",An error toast shows hg's refusal to rebase public changesets; history is unchanged,Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:903-912; Edge case,New
+HG-090,Mercurial,Mercurial - Rebase & Squash,Squash by drag and drop,1. Drag 'feat' (three commits) onto 'main' and choose squash,"One new commit on 'main' with message 'Squash merge branch 'feat' into 'main'' and the three summaries as '* ...' lines
+'feat' and its commits are kept; 'main' moves to the new commit",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:985-1086,New
+HG-091,Mercurial,"Mercurial - Graft, Backout & Strip",Cherry-pick (graft) without conflicts,1. Right-click a commit from another branch > Cherry-pick,"A new commit with the same message is created on the working directory parent
+Toast 'Successfully cherry-picked commit.'",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:1088-1100; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:6294-6380,New
+HG-092,Mercurial,"Mercurial - Graft, Backout & Strip",Cherry-pick with conflicts,"1. Cherry-pick a commit that conflicts with the working directory parent
+2. Resolve, stage and commit with a different message
+3. Repeat and use Abort merge instead","Expected: conflicts are reported. Report a defect if the toast says 'Successfully cherry-picked commit.' while conflicts are pending
+Commit continues the graft (hg graft --continue) and keeps the original message, not the typed one
+Abort runs graft --abort and restores the parent",High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:1098-1099 returns true on conflicts; lib/HgRepo/src/HgRepoWorkingCopy.cpp:429-441; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:6370-6376; Edge case,New
+HG-093,Mercurial,"Mercurial - Graft, Backout & Strip",Backout (revert commit),"1. Right-click the parent commit > Revert commit, enter a message",A backout commit with that message is created; toast 'Successfully reverted commit.',High,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:1102-1118,New
+HG-094,Mercurial,"Mercurial - Graft, Backout & Strip",Backout with conflicts and of a merge commit,"1. Revert an older commit whose lines changed later
+2. Revert a merge commit","First: conflicted files are listed; report a defect if the success toast is shown
+Second: error toast with hg's message that a merge needs --parent",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:1116-1117 returns true for exit code 1; lib/HgRepo/src/HgRepoBranches.cpp:871-876 abort = update --clean; Edge case,New
+HG-095,Mercurial,"Mercurial - Graft, Backout & Strip",Strip with a backup bundle,"1. Right-click a draft commit that has descendants > Strip...
+2. Keep 'Save a backup bundle in .hg\strip-backup' checked and click Strip","The dialog names the commit and says it strips all descendants
+The commit and its descendants disappear from history
+Toast 'The commits were stripped. A backup bundle is in <repo>\.hg\strip-backup.' and a .hg file exists there",High,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:7584-7660 onStripCommit; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:7114-7151; lib/HgRepo/src/HgRepoBranches.cpp:1120-1141,New
+HG-096,Mercurial,"Mercurial - Graft, Backout & Strip",Strip keeping working directory changes / without backup,1. Strip the working directory parent with 'Keep the changes in the working directory' checked and backup unchecked,"History loses the commit; its changes are now uncommitted in the working tree
+No new bundle in .hg/strip-backup; toast 'The commits were stripped.'",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:1128-1134 --keep / --no-backup,New
+HG-097,Mercurial,"Mercurial - Graft, Backout & Strip",Strip a public commit,"1. Push a commit, then open Strip on it","The dialog shows the bold warning 'This commit is public. Other repositories may already have it, and it comes back with the next pull from them.'
+After stripping, a pull brings the commit back",Medium,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:7608-7619; Edge case,New
+HG-098,Mercurial,Mercurial - Shelve,Shelve changes including untracked files,"1. Modify a tracked file, stage another, create an untracked file
+2. Stash (shelve) with note 'wip'
+3. With the now clean working directory click Stash again","The page is titled 'Shelves'; 'wip' is listed
+The working directory is clean, including the untracked file; the staged list is empty
+The second stash shows the error 'There are no changes to shelve.'",High,Not Tested,lib/HgRepo/src/HgRepoShelves.cpp:51-70 (--unknown); component/GuiManager/src/containers/RepoContainer.cpp:664-667,New
+HG-099,Mercurial,Mercurial - Shelve,Apply a shelve keeps it,"1. Create two shelves
+2. Apply the top (newest) one","The newest shelve's changes are restored
+Both shelves are still listed",High,Not Tested,lib/HgRepo/src/HgRepoShelves.cpp:103-125 unshelve --keep (index 0 newest),New
+HG-100,Mercurial,Mercurial - Shelve,Apply a shelve with conflicts,"1. Shelve a change to f, commit a conflicting change to f, apply the shelve
+2. Try to commit
+3. Resolve f and stage it
+4. Repeat the apply, and this time click Abort merge","A 'Conflicts' toast appears and f is conflicted
+Commit is refused with 'A shelve is being restored. Stage the resolved files to finish it, or abort it.'
+Staging the last conflicted file finishes the unshelve automatically; changes stay uncommitted
+Abort runs hg unshelve --abort; the working directory is as before applying and the shelve is still listed",High,Not Tested,"lib/HgRepo/src/HgRepoShelves.cpp:117-123; lib/HgRepo/src/HgRepoWorkingCopy.cpp:286-297, 443-449; lib/HgRepo/src/HgRepoBranches.cpp:864-867; Edge case",New
+HG-101,Mercurial,Mercurial - Shelve,Shelve content view,"1. Shelve a change that adds, deletes, renames (hg mv) and modifies files
+2. Select the shelve","Files are listed as new, deleted, renamed and modified
+Author shown is the current profile author; date is the shelve file's time",Medium,Not Tested,lib/HgRepo/src/HgRepoShelves.cpp:140-214; Edge case,New
+HG-102,Mercurial,Mercurial - Shelve,Delete one shelve and delete all,"1. Delete one shelve
+2. Delete all shelves",The chosen shelve disappears; 'Delete all' removes every shelve (hg shelve --cleanup),Medium,Not Tested,lib/HgRepo/src/HgRepoShelves.cpp:127-138,New
+HG-103,Mercurial,"Mercurial - Pull, Push & Fetch",Fetch from all remotes,"1. Add two remotes with new commits
+2. Use Fetch (all)","Both are pulled; the working directory does not move
+Remote branches show the new remote names; toast 'Fetch completed successfully.'",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:612-630,New
+HG-104,Mercurial,"Mercurial - Pull, Push & Fetch",Pull a fast-forward on an active bookmark,"1. Check out bookmark 'main'; push new commits to 'main' from another clone
+2. Pull",The working directory moves to the new commit and 'main' stays active,High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:540-549,New
+HG-105,Mercurial,"Mercurial - Pull, Push & Fetch",Pull when local and remote diverged,"1. Commit locally and commit differently on the remote
+2. Pull (without rebase)","The remote head is merged into the working directory but not committed; conflicts, if any, are listed
+Report a defect: the success toast says 'Git repository is up to-date.' for a Mercurial pull",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:574-580; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:5199-5202 toast text; Edge case,New
+HG-106,Mercurial,"Mercurial - Pull, Push & Fetch","Pull with rebase, clean and conflicting","1. Diverge without conflicts and use Pull with rebase
+2. Diverge with a conflict and use Pull with rebase","First: local commits are rebased onto the remote head; toast 'Pull with rebase completed successfully.'
+Second: error 'Rebasing onto <remote>/<branch> has conflicts, the rebase was aborted.'; repository unchanged",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:551-572; Edge case,New
+HG-107,Mercurial,"Mercurial - Pull, Push & Fetch",Pull into an empty repository,"1. Mercurial init a repository, add the remote as 'default'
+2. Pull",The working directory is updated to the remote head,Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:517-524; Edge case,New
+HG-108,Mercurial,"Mercurial - Pull, Push & Fetch",Push a bookmark and a new named branch,"1. Check out a bookmark with new commits and push
+2. Check out a new named branch and push","The bookmark and its commits appear on the remote
+The named branch is created on the remote without a question (--new-branch); toast 'Successfully pushed to remote.'",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:583-610,New
+HG-109,Mercurial,"Mercurial - Pull, Push & Fetch",Push that would create a new remote head,"1. Create a second head of 'default' that the remote does not have
+2. Push, then Force push","Push fails with hg's 'push creates new remote head' message in an error toast
+Force push succeeds; toast 'Successfully force-pushed to remote.'",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:600-607 (--force); Edge case,New
+HG-110,Mercurial,"Mercurial - Pull, Push & Fetch","Push with nothing to push, or only secret commits","1. Push when the remote already has everything
+2. Make the only new commit secret and push","Nothing is sent to the remote in both cases
+Note: the success toast is shown (hg exit code 1 'no changes' is treated as success); the secret commit stays local",Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:606-607 allowExitCodeOne; Edge case,New
+HG-111,Mercurial,"Mercurial - Pull, Push & Fetch",Network failure during pull or push,"1. Disconnect the network
+2. Pull, then push","Each shows an error toast with hg's connection error
+The repository stays usable after reconnecting",High,Not Tested,"lib/HgRepo/src/HgRepoRemotes.cpp:172-176, 607; Edge case",New
+HG-112,Mercurial,"Mercurial - Pull, Push & Fetch",Upstream tracking,"1. Local branches > Set Upstream on bookmark 'feat' to remote 'backup' / branch 'feat'
+2. Pull and push while 'feat' is active
+3. Set the upstream of 'feat' to 'backup' / 'other-name' and push",".hg/hgrc has '[sourcerer-upstream]' with '@feat = backup/@feat' (or the chosen name)
+Pull and push use remote 'backup'
+Note: push ignores the upstream branch name and pushes under the local name (remoteBranch unused)",Medium,Not Tested,"lib/HgRepo/src/HgRepoRemotes.cpp:125-133, 583-591 Q_UNUSED(remoteBranch), 787-822; Edge case",New
+HG-113,Mercurial,Mercurial - Remotes & Paths,Remotes page lists [paths],"1. Configure default, default-push and a 'backup' path in .hg/hgrc, and a path in ~/.hgrc
+2. Open Remotes","All paths are listed, including the user-level one
+'default' is marked default and its push URL is the default-push URL",High,Not Tested,"lib/HgRepo/src/HgRepoRemotes.cpp:30-60, 180-238",New
+HG-114,Mercurial,Mercurial - Remotes & Paths,Add a remote with valid and invalid names,"1. Add remote 'mirror' with fetch and push URL
+2. Add remotes named 'a/b', 'a:b', 'a=b', '@a', 'a b', and 'mirror' again","'mirror' is added to [paths] with 'mirror:pushurl' when the push URL differs
+Invalid names show 'A remote needs a name without /, :, =, @, brackets or spaces, and a URL.'
+Duplicate shows 'Remote mirror already exists.'",High,Not Tested,"lib/HgRepo/src/HgRepoRemotes.cpp:96-117, 276-300; Edge case",New
+HG-115,Mercurial,Mercurial - Remotes & Paths,Rename a remote keeps related settings,"1. Remote 'old' has targets, is the default remote and is an upstream
+2. Edit it and rename to 'new'","[paths], [sourcerer-targets], [sourcerer] defaultremote and [sourcerer-upstream] all use 'new'
+Comments and other lines in .hg/hgrc are kept",Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:339-396; Edge case,New
+HG-116,Mercurial,Mercurial - Remotes & Paths,Delete a remote from the repository and from user config,"1. Delete a remote defined in .hg/hgrc
+2. Delete a remote defined only in ~/.hgrc","First: removed together with its :pushurl and targets
+Second: error 'Remote <name> is not defined in the repository's configuration.'",Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:302-337; Edge case,New
+HG-117,Mercurial,Mercurial - Remotes & Paths,Set the default remote,"1. Set 'backup' as default remote
+2. Pull and push",".hg/hgrc has '[sourcerer]' 'defaultremote = backup'; toast 'Default remote set successfully.'
+Pull and push use 'backup' when no upstream is set",Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:240-274,New
+HG-118,Mercurial,Mercurial - Remotes & Paths,Remote targets,"1. Add target 'ci' to 'default' with fetch and push URLs
+2. Set 'ci' as default target, then delete target 'Default'","'ci' is stored in [sourcerer-targets] as default.ci.fetch / .push
+Set default makes the ci URLs the remote URLs and keeps the old ones as target 'Default'
+Deleting 'Default' shows 'The Default target can't be deleted.'",Low,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:398-487; Edge case,New
+HG-119,Mercurial,Mercurial - Remotes & Paths,hgrc formatting is preserved,"1. Write .hg/hgrc with comments, blank lines, a multi-line continuation value and a %include line
+2. Add, edit and delete a remote in Sourcerer","Comments, blank lines, the continuation value and the %include line are still there
+Only the edited keys change",Medium,Not Tested,"lib/HgRepo/src/HgRc.cpp:49-107 parse, 158-206 setValue; Edge case",New
+HG-120,Mercurial,Mercurial - Remotes & Paths,Remote branches with ahead/behind status,"1. Pull from a remote with bookmark 'feat' and branch 'stable'
+2. Make local commits on 'feat'; let the remote get new commits on 'stable'","Remote branches list 'default/@feat' and 'default/stable'
+Status shows Ahead for feat, Behind for stable, UpToDate / Diverged / NoUpstream where applicable",High,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:632-730,New
+HG-121,Mercurial,Mercurial - Remotes & Paths,Check out a remote bookmark,"1. Check out remote 'default/@feat' when no local 'feat' exists
+2. Move local 'feat' and check out 'default/@feat' again","First: local bookmark 'feat' is created at the remote node, activated, and its upstream is set
+Second: the existing local bookmark is not moved",Medium,Not Tested,lib/HgRepo/src/HgRepoBranches.cpp:428-465; Edge case,New
+HG-122,Mercurial,Mercurial - Remotes & Paths,Delete a remote bookmark and a remote named branch,"1. Delete remote branch 'default/@feat' while local 'feat' exists
+2. Delete remote branch 'default/stable'","The remote no longer has bookmark 'feat'; local 'feat' still exists but is inactive
+For 'stable' a close commit is created locally and pushed",Medium,Not Tested,lib/HgRepo/src/HgRepoRemotes.cpp:732-785; Edge case,New
+HG-123,Mercurial,Mercurial - Authentication & Credentials,HTTP credentials prompt and remember,"1. Pull from an https remote that needs authentication
+2. Enter valid credentials, tick remember
+3. Pull again, and restart Sourcerer and pull again","The credentials overlay appears with the remote URL
+After success the overlay closes; later pulls do not ask (credentials stored for this repository path)",High,Not Tested,component/HgRepoManager/src/HgRepoManagerCredentials.cpp:28-136; lib/HgRepo/src/HgRepoAuth.cpp:202-290,New
+HG-124,Mercurial,Mercurial - Authentication & Credentials,Wrong password,"1. Pull from an https remote and enter a wrong password
+2. Enter a wrong password four more times","The overlay is shown again marked as invalid after each rejection
+After the fifth rejection the pull ends with 'The remote rejected the credentials for <url>.'",High,Not Tested,"lib/HgRepo/src/HgRepoAuth.cpp:65-66, 254-263; Edge case",New
+HG-125,Mercurial,Mercurial - Authentication & Credentials,Cancel the credentials prompt,"1. Pull from an https remote that needs authentication
+2. Cancel the overlay","The pull ends with 'Authorization for <url> was cancelled.'
+No credentials are stored",High,Not Tested,lib/HgRepo/src/HgRepoAuth.cpp:279-285; component/HgRepoManager/src/HgRepoManagerCredentials.cpp:96-102; Edge case,New
+HG-126,Mercurial,Mercurial - Authentication & Credentials,Stored credentials no longer valid,"1. Store credentials for a repository, then change the password on the server
+2. Pull","The stored credentials are tried first, then the overlay asks for new ones",Medium,Not Tested,component/HgRepoManager/src/HgRepoManagerCredentials.cpp:35-48; Edge case,New
+HG-127,Mercurial,Mercurial - Authentication & Credentials,Two authenticated remotes on different hosts,"1. Add remotes on two hosts with different accounts; store credentials for the first
+2. Pull from the second remote","Expected: the second host asks for its own credentials
+Note: stored credentials are looked up by repository path only, so the first host's credentials are sent first; check that the overlay then appears and the first host's stored credentials are not overwritten unexpectedly",Medium,Not Tested,"component/HgRepoManager/src/HgRepoManagerCredentials.cpp:39-40 lookup by repoPath, 119-120 store by repoPath; Edge case",New
+HG-128,Mercurial,Mercurial - Authentication & Credentials,Credentials are not on the command server's command line,"1. Pull from an authenticated https remote
+2. Inspect the 'hg serve --cmdserver pipe' process command line",No user name or password appears in the process command line,Medium,Not Tested,lib/HgRepo/src/HgRepo.cpp:303-343 credentials sent over the pipe; lib/HgRepo/src/HgRepoAuth.cpp:167-180,New
+HG-129,Mercurial,Mercurial - Authentication & Credentials,SSH remote with a key from SSH keys,"1. Add an SSH key for the host in SSH keys
+2. Pull and push to ssh://host/repo","The operations succeed with that key
+%LOCALAPPDATA%/<app>/hg/ssh_config holds 'Host <host>', 'IdentityFile', 'IdentitiesOnly yes' and includes ~/.ssh/config",High,Not Tested,lib/HgRepo/src/HgRepoAuth.cpp:89-145 sshConfigArgs,New
+HG-130,Mercurial,Mercurial - Authentication & Credentials,SSH key passphrase prompt,"1. Use an SSH key with a passphrase
+2. Pull; enter a wrong passphrase, then the right one
+3. Pull again","The overlay asks for the passphrase of the key path
+A wrong passphrase shows the overlay again as invalid
+The second pull does not ask again during this session",High,Not Tested,component/HgRepoManager/src/HgRepoManagerAskPass.cpp answer/askPassphrase/checkPassphrase (ssh-keygen -y); Edge case,New
+HG-131,Mercurial,Mercurial - Authentication & Credentials,SSH unknown host key,1. Pull from an SSH host that is not in known_hosts,"The pull fails; the message ends with 'The server's SSH host key isn't known yet. Trust it in SSH keys, ...'
+In SSH keys, adding the host offers its fingerprints; after trusting, the pull works",High,Not Tested,component/HgRepoManager/src/HgRepoManagerAskPass.cpp answer() declines (yes/no); lib/HgRepo/src/HgRepoAuth.cpp:157-163; containers/GitKeysContainer.cpp:103-170; Edge case,New
+HG-132,Mercurial,Mercurial - Authentication & Credentials,SSH key rejected,"1. Choose a key the server does not accept, pull",The error ends with 'The SSH server didn't accept a key. Choose the key for this host in SSH keys.',Medium,Not Tested,lib/HgRepo/src/HgRepoAuth.cpp:147-156; Edge case,New
+HG-133,Mercurial,Mercurial - Authentication & Credentials,HTTPS server with an untrusted certificate,1. Pull from an https remote with a self-signed certificate,"The pull fails with hg's certificate verification error in a toast
+No certificate prompt is shown (none exists for Mercurial)",Medium,Not Tested,No certificate handling in lib/HgRepo; error from runCommand; Edge case,New
+HG-134,Mercurial,Mercurial - Subrepos,Subrepos page with kinds and status,"1. Open a repository with Mercurial, Git and SVN subrepos in .hgsub
+2. Open the Subrepos page","The page is titled 'Subrepos'; each entry shows its kind
+Status is UpToDate when the checkout equals .hgsubstate, Outdated otherwise, Error for a missing folder; SVN is checked with SvnRepo",High,Not Tested,lib/HgRepo/src/HgRepoSubrepos.cpp:220-277; component/HgRepoManager/src/HgRepoManagerWorkers.cpp run(ListSubmodulesWithStatus),New
+HG-135,Mercurial,Mercurial - Subrepos,Add a Mercurial subrepo,"1. Add subrepo of kind Mercurial: URL, path 'libs/core', branch 'stable'
+2. Commit","The repository is cloned at 'stable'; .hgsub gets 'libs/core = <url>' and is staged
+The commit writes .hgsubstate with the node",High,Not Tested,lib/HgRepo/src/HgRepoSubrepos.cpp:287-353,New
+HG-136,Mercurial,Mercurial - Subrepos,Add Git and Subversion subrepos,"1. Add a Git subrepo with branch 'dev'
+2. Add an SVN subrepo with branch 'trunk'","Git: cloned, 'dev' checked out, .hgsub line '<path> = [git]<url>'
+SVN: checked out from <url>/trunk, .hgsub line '<path> = [svn]<url>/trunk'",Medium,Not Tested,component/HgRepoManager/src/HgRepoManagerWorkers.cpp addGitSubrepo/addSvnSubrepo,New
+HG-137,Mercurial,Mercurial - Subrepos,Update a subrepo to its pinned state,"1. Move a Mercurial subrepo to another revision in a terminal
+2. Update it from the Subrepos page
+3. Delete the subrepo folder and update again
+4. Add a subrepo, do not commit, and update it","Update brings it back to the .hgsubstate node; toast 'Submodule updated successfully.'
+A missing checkout is cloned and updated
+Without a pinned state: '<path> has no pinned revision yet, commit it first.'",High,Not Tested,lib/HgRepo/src/HgRepoSubrepos.cpp:396-439; component/HgRepoManager/src/HgRepoManagerWorkers.cpp run(SubmoduleUpdate); Edge case,New
+HG-138,Mercurial,Mercurial - Subrepos,Moved subrepo in the working tree,"1. Commit something inside a Mercurial subrepo
+2. Look at the parent's working tree; stage the subrepo entry and commit
+3. Repeat, then discard the subrepo entry instead","The subrepo path is listed as modified
+Committing updates .hgsubstate
+Discard returns the subrepo to its pinned node",Medium,Not Tested,lib/HgRepo/src/HgRepoSubrepos.cpp:199-216; lib/HgRepo/src/HgRepoWorkingCopy.cpp:359-370; Edge case,New
+HG-139,Mercurial,Mercurial - Subrepos,Delete subrepos,"1. Delete one of two subrepos
+2. Delete the last subrepo and commit","Its .hgsub line and folder are removed and .hgsub is staged
+After the last one, .hgsub and .hgsubstate are removed and the commit records their removal",Medium,Not Tested,lib/HgRepo/src/HgRepoSubrepos.cpp:355-394,New
+HG-140,Mercurial,Mercurial - Subrepos,Open subrepos of each kind,"1. Open a Mercurial, a Git and an SVN subrepo from the Subrepos page
+2. Open a subrepo whose folder is not checked out","Each opens in a tab of its own kind
+Expected for the missing checkout: an error suggesting Update. Report a defect if it tries to open as a Git repository and shows the error page",Medium,Not Tested,component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:2514-2587 openSubmodule uses repositoryTypeOf (defaults to Git); component/GuiManager/src/MainWindow.cpp:679-686 no check; Edge case,New
+HG-141,Mercurial,Mercurial - Shares (Worktrees),Add a worktree for an existing bookmark,"1. Worktrees > Add: path outside the repository, branch = an existing bookmark
+2. Open the new worktree","A share is created (hg share --bookmarks) and updated to the bookmark
+.hg/sourcerer/shares.json in the main repository lists it
+It opens in a Mercurial tab",High,Not Tested,lib/HgRepo/src/HgRepoShares.cpp:183-261; component/GuiManager/src/containers/RepoContainer.cpp:7990-8004,New
+HG-142,Mercurial,Mercurial - Shares (Worktrees),Add a worktree with a new bookmark or a new named branch,"1. Add a worktree with 'create branch' and choose Bookmark in the kind menu
+2. Add another with 'create branch' and choose Named branch","The bookmark is created in the main repository and is active in the share
+The named branch is set in the share and shows as '(new)' there until the first commit",Medium,Not Tested,lib/HgRepo/src/HgRepoShares.cpp:209-250; component/GuiManager/src/containers/RepoContainer.cpp:2495-2510,New
+HG-143,Mercurial,Mercurial - Shares (Worktrees),Add a worktree into a non-empty folder or with a duplicate name,"1. Add a worktree to a folder that contains a file
+2. Add a worktree whose folder name equals an existing worktree's folder name (different parent)","First: '<path> is not empty.'
+Second: 'Worktree <name> already exists.' (name is the folder name)",Medium,Not Tested,lib/HgRepo/src/HgRepoShares.cpp:192-207; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:846 name = folder name; Edge case,New
+HG-144,Mercurial,Mercurial - Shares (Worktrees),"Remove, lock and unlock worktrees","1. Modify a file in a worktree and remove it without force
+2. Remove it with force
+3. Lock another worktree with a reason and try to remove it; unlock and remove","Without force: 'Worktree <name> has changes.'
+With force: the folder and registry entry are deleted
+Locked: 'Worktree <name> is locked.'; after unlock removal works",High,Not Tested,lib/HgRepo/src/HgRepoShares.cpp:263-349; Edge case,New
+HG-145,Mercurial,Mercurial - Shares (Worktrees),Worktree list from a share and removing the open share,"1. Open a share in its own tab and look at Worktrees
+2. Try to remove the share itself from that tab","The same list as in the main repository, with the share marked current
+Error 'The open worktree can't be removed.'",Medium,Not Tested,"lib/HgRepo/src/HgRepoShares.cpp:138-181, 286-290; Edge case",New
+HG-146,Mercurial,Mercurial - Shares (Worktrees),Worktree folder deleted outside Sourcerer,"1. Delete a share's folder in Explorer
+2. Refresh Worktrees and try to open it","The entry is marked invalid ('Working tree directory is missing or invalid')
+Open shows 'Worktree folder '<path>' does not exist.'; removing it cleans the registry",Medium,Not Tested,lib/HgRepo/src/HgRepoShares.cpp:103-111; models/WorktreesModel.cpp:77; component/GuiManager/src/containers/RepoContainer.cpp:7990-7996; Edge case,New
+HG-147,Mercurial,Mercurial - LFS,First LFS tracking asks to enable the extension,"1. In a repository without lfs, use LFS > Add on a file
+2. Answer No; repeat and answer Yes","Dialog 'Enable LFS' explains that clients without the lfs extension can't read the repository after the next commit
+No: nothing changes
+Yes: .hg/hgrc gets 'lfs =' under [extensions], .hglfs gets 'path:<file> = all()' under [track] and is staged",High,Not Tested,component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:6979-7029; lib/HgRepo/src/HgRepoLfs.cpp:79-123,New
+HG-148,Mercurial,Mercurial - LFS,Commit an LFS file and check storage,"1. Commit the LFS-tracked file
+2. Open the LFS storage status",".hg/requires (or .hg/store/requires) contains 'lfs'
+Storage status counts the objects and bytes in .hg/store/lfs/objects",Medium,Not Tested,lib/HgRepo/src/HgRepoLfs.cpp:164-179; Edge case,New
+HG-149,Mercurial,Mercurial - LFS,Untrack a file from LFS,1. LFS > Remove on a tracked file,Its line is removed from .hglfs and .hglfs is staged,Medium,Not Tested,lib/HgRepo/src/HgRepoLfs.cpp:125-143,New
+HG-150,Mercurial,Mercurial - Bisect,Bisect to the first bad commit,"1. Right-click the newest commit > Bisect > Bad
+2. Right-click an old commit > Bisect > Good
+3. Mark the tested commits until the end","Toasts guide the steps: 'Mark a good commit to continue bisecting.', then 'Bisecting: N revisions left to test (about M steps). Checked out ...'
+History shows GOOD / BAD / TEST badges
+At the end: '<sha> is the first bad commit: <summary>'",High,Not Tested,lib/HgRepo/src/HgRepoBisect.cpp:70-238; component/GuiManager/src/containers/HgRepoManagerBridgeImpl.cpp:4591-4685,New
+HG-151,Mercurial,Mercurial - Bisect,Bisect ending ambiguous after skips,1. Bisect and skip every commit that is offered,Message 'Only skipped commits are left to test. The first bad commit is <sha> or one of the skipped commits.',Low,Not Tested,lib/HgRepo/src/HgRepoBisect.cpp:189-195; Edge case,New
+HG-152,Mercurial,Mercurial - Bisect,Reset bisect returns to the start,"1. Check out bookmark 'main', start bisect, mark a few commits
+2. Bisect > Reset
+3. Bisect > Reset again","'Bisect finished. The original state has been restored.'; 'main' is checked out and active again
+Second reset: 'No bisect is in progress.'",Medium,Not Tested,lib/HgRepo/src/HgRepoBisect.cpp:80-106; Edge case,New
+HG-153,Mercurial,Mercurial - Workflows,Workflow branch kind setting,"1. Open the Git Flow menu > Workflow branches
+2. Choose Bookmarks","The menu has 'Named branches' (default) and 'Bookmarks'
+.hg/hgrc has '[sourcerer]' 'flow-branch-kind = bookmark'",Medium,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:1329-1350; lib/HgRepo/src/HgRepoWorkflows.cpp:249-269,New
+HG-154,Mercurial,Mercurial - Workflows,Git Flow feature with named branches,"1. Workflow branches = Named branches
+2. Start feature 'login'
+3. Commit, then finish the feature","Branch 'feature/login' is created with a commit 'Start branch feature/login' and checked out
+Finish merges it into 'develop' (or 'main'/'default' when develop is missing) and closes 'feature/login'",High,Not Tested,"lib/HgRepo/src/HgRepoWorkflows.cpp:100-135, 271-337",New
+HG-155,Mercurial,Mercurial - Workflows,Git Flow feature with bookmarks,"1. Workflow branches = Bookmarks
+2. Start feature 'x', commit, finish","A bookmark 'feature/x' is created and active
+Finish merges it and deletes the bookmark",Medium,Not Tested,"lib/HgRepo/src/HgRepoWorkflows.cpp:104-108, 137-143",New
+HG-156,Mercurial,Mercurial - Workflows,Git Flow release and hotfix finish,1. Start and finish release '1.0' with develop and main present,"The release is merged into main and into develop and then closed/deleted
+Note: classic Git Flow finish creates no tag",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkflows.cpp:296-337; Edge case,New
+HG-157,Mercurial,Mercurial - Workflows,GitLab Flow promote and cherry-pick to release,"1. Promote 'main' when the next environment branch does not exist
+2. Promote again after new commits
+3. Cherry-pick a commit to a release branch with a conflict","First promote creates the environment branch from main
+Second promote merges main into it
+Conflict: the release branch stays checked out with the conflicts; without conflict the original branch is checked out again",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkflows.cpp:374-455; Edge case,New
+HG-158,Mercurial,Mercurial - Workflows,"GitHub Flow start, update and finish","1. Start branch 'topic' from main, commit
+2. Update 'topic' from main; finish 'topic'
+3. Try to finish 'main'","Update merges main into topic; finish merges topic into main and closes/deletes it
+Finishing main: 'The main branch can't be finished.'",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkflows.cpp:457-506; Edge case,New
+HG-159,Mercurial,Mercurial - Workflows,"git-flow-next init, start and finish with tag","1. Init git-flow-next with main 'default' and develop 'develop'
+2. Start a release topic, commit, finish it
+3. Finish another release whose tag already exists","[gitflow] keys are written to .hg/hgrc and 'develop' is created
+Finish merges, tags the parent tip and removes the topic branch
+Existing tag: 'Tag <name> already exists.' and nothing is merged",Medium,Not Tested,lib/HgRepo/src/HgRepoWorkflows.cpp:518-660; Edge case,New
+HG-160,Mercurial,Mercurial - Ignore (.hgignore),Ignore a file and a folder,"1. Right-click an untracked file > Ignore
+2. Right-click an untracked file in folder build/ > Ignore folder (recursive)",".hgignore gets 'path:<file>' and 'path:build' lines (file created when missing)
+Both disappear from the working tree",High,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:10573-10685 ignoreFiles/ignoreFilesRecursive; component/GuiManager/src/containers/RepoContainer.cpp:513-515 ignoreFileName,New
+HG-161,Mercurial,Mercurial - Ignore (.hgignore),Ignore with an existing .hgignore and special names,"1. Have a .hgignore that starts with 'syntax: glob'
+2. Ignore 'my file [1].txt'","The 'path:' line is appended and works (the file is no longer listed)
+Existing patterns keep working",Medium,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:10598-10611; Edge case,New
+HG-162,Mercurial,Mercurial - Ignore (.hgignore),Read-only .hgignore,"1. Make .hgignore read-only
+2. Ignore a file",Error toast 'Failed to open .hgignore for writing.',Low,Not Tested,component/GuiManager/src/containers/RepoContainer.cpp:10585-10593; Edge case,New
+HG-163,Mercurial,Mercurial - Patches,Create and apply a patch,"1. Right-click a commit > Create patch and save it
+2. In another clone, Apply patch with that file","The patch is in 'hg export --git' format
+Applying changes the working directory without creating a commit",Medium,Not Tested,lib/HgRepo/src/HgRepoDiff.cpp:439-467,New

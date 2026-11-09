@@ -12,6 +12,7 @@
 #include <FileManager.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
+#include <HgRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
@@ -418,6 +419,9 @@ HomeContainer::HomeContainer(QWidget *parent)
   auto *cloneSubversionAction = cloneMenu->addAction(tr("Subversion checkout"));
   connect(cloneSubversionAction, &QAction::triggered, this,
           &HomeContainer::onCloneSubversionClicked);
+  auto *cloneMercurialAction = cloneMenu->addAction(tr("Mercurial clone"));
+  connect(cloneMercurialAction, &QAction::triggered, this,
+          &HomeContainer::onCloneMercurialClicked);
 
   ui->cloneButton->setMenu(cloneMenu);
 
@@ -428,8 +432,28 @@ HomeContainer::HomeContainer(QWidget *parent)
   auto *initSubversionAction = initMenu->addAction(tr("Subversion create"));
   connect(initSubversionAction, &QAction::triggered, this,
           &HomeContainer::onInitSubversionClicked);
+  auto *initMercurialAction = initMenu->addAction(tr("Mercurial init"));
+  connect(initMercurialAction, &QAction::triggered, this,
+          &HomeContainer::onInitMercurialClicked);
 
   ui->initButton->setMenu(initMenu);
+
+  // Mercurial is installed by the user, its entries are disabled until hg is
+  // found. Checked whenever a menu opens, so a path set in Settings applies.
+  const auto updateMercurialActions = [cloneMercurialAction,
+                                       initMercurialAction]() {
+    const bool found = !HgRepo::findExecutable().isEmpty();
+    const QString tip =
+        found ? QString() : tr("Install Mercurial or set its path in Settings");
+    for (QAction *action : {cloneMercurialAction, initMercurialAction}) {
+      action->setEnabled(found);
+      action->setToolTip(tip);
+    }
+  };
+  cloneMenu->setToolTipsVisible(true);
+  initMenu->setToolTipsVisible(true);
+  connect(cloneMenu, &QMenu::aboutToShow, this, updateMercurialActions);
+  connect(initMenu, &QMenu::aboutToShow, this, updateMercurialActions);
 
   connect(ui->tableViewIssueTrackerConnections,
           &IssueTrackersTableView::hoverEnter, this,
@@ -654,9 +678,6 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void HomeContainer::hoverEnter(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
   _itemDelegate->setHover(index);
 
   ui->tableViewRecent->viewport()->update();
@@ -664,14 +685,9 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
-
-  LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::hoverLeave(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
+void HomeContainer::hoverLeave(const QModelIndex &) {
   _itemDelegate->setHover(QModelIndex());
 
   ui->tableViewRecent->viewport()->update();
@@ -679,8 +695,6 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
-
-  LOG_PERF(0, "Exit");
 }
 
 void HomeContainer::onCloneClicked() {
@@ -695,6 +709,14 @@ void HomeContainer::onCloneSubversionClicked() {
   LOG_PERF(0, "Enter");
 
   emit cloneSubversion();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onCloneMercurialClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit cloneMercurial();
 
   LOG_PERF(0, "Exit");
 }
@@ -1780,6 +1802,14 @@ void HomeContainer::onInitSubversionClicked() {
   LOG_PERF(0, "Enter");
 
   emit initSubversion();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onInitMercurialClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit initMercurial();
 
   LOG_PERF(0, "Exit");
 }

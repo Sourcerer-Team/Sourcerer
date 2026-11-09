@@ -9,6 +9,15 @@
 
 namespace GuiManager::Models {
 
+// A group of branches shown under a title, e.g. Mercurial's named branches
+// and bookmarks. An untitled section has no header row.
+struct BranchSection {
+  QString title;
+  QStringList branches;
+  // Shown instead of the branch names when not empty, same size as branches.
+  QStringList labels;
+};
+
 class BranchesModel : public QStandardItemModel {
   Q_OBJECT
 public:
@@ -55,6 +64,10 @@ public:
   void clearGraphite();
   [[nodiscard]] bool isHeaderRow(int row) const;
   void updateModel(const QStringList &branches, int activeIndex = -1);
+  // leadingBranches (e.g. the all branches item) come first, then each
+  // section under a header row.
+  void updateModelWithSections(const QStringList &leadingBranches,
+                               const QVector<BranchSection> &sections);
   void
   updateModelWithStatus(const QVector<GitRepo::BranchInfo> &branchesWithStatus,
                         int activeIndex = -1);
@@ -64,8 +77,15 @@ signals:
 
 private:
   [[nodiscard]] QString graphiteToolTip(const QString &branch) const;
+  // The branch name of a row: the item text, whatever data() shows.
+  [[nodiscard]] QString rowText(int row) const;
+  void clearSections();
 
   int _prevIndex;
+  // Rows of section headers and their titles.
+  QHash<int, QString> _sectionHeaders;
+  // Branch name to the label shown for it.
+  QHash<QString, QString> _labels;
   QHash<QString, GitRepo::GraphiteBranchRow> _graphiteRows;
   GitRepo::GraphiteStacks _graphiteStacks;
   int _graphiteHeaderRow = -1;

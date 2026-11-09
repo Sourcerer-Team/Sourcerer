@@ -20,16 +20,34 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(GitRepo STATIC
     include/GitRepo.h
+    include/GitRepoTypes.h
     include/WorkflowUtils.h
     include/GraphiteUtils.h
     include/GitFlowNextWorkflow.h
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
+    include/SshKnownHosts.h
     include/PatchFileUtils.h
     include/GitLfs.h
+    src/GitRepoPrivate.h
     src/GitRepo.cpp
+    src/GitRepoBisect.cpp
+    src/GitRepoBranches.cpp
+    src/GitRepoCertificates.cpp
+    src/GitRepoCredentials.cpp
+    src/GitRepoDiff.cpp
+    src/GitRepoHistory.cpp
+    src/GitRepoMerge.cpp
+    src/GitRepoRemotes.cpp
+    src/GitRepoSigning.cpp
+    src/GitRepoStashes.cpp
+    src/GitRepoSubmodules.cpp
+    src/GitRepoWorkflows.cpp
+    src/GitRepoWorkingCopy.cpp
+    src/GitRepoWorktrees.cpp
     src/GitCredentialStorage.cpp
     src/GitKeyStorage.cpp
+    src/SshKnownHosts.cpp
     src/GitLfs.cpp
     src/PatchFileUtils.cpp
 )
@@ -48,14 +66,20 @@ includeLib(GitRepo Log)
 includeLib(GitRepo OpenSSLHelper)
 includeLib(GitRepo Util)
 
+useSharedThirdPartyLibs()
+
 set(WITH_ossl_PLUGIN ON CACHE BOOL "Enable OpenSSL plugin for QCA")
 set(BUILD_WITH_QT6 ON CACHE BOOL "Build with Qt 6")
 set(BUILD_TESTS OFF CACHE BOOL "Create test")
 set(BUILD_TOOLS OFF CACHE BOOL "Compile mozcerts and qcatool")
 set(BUILD_PLUGINS "none" CACHE STRING "Plugins for building (also possible values: none, all and auto)")
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared library")
+# The OpenSSL plugin stays a static plugin of the shared QCA library, it is
+# imported with Q_IMPORT_PLUGIN (see GitKeyStorage.cpp).
+set(QCA_STATIC_PLUGINS ON CACHE BOOL "Build the QCA plugins as static plugins" FORCE)
+set(OSX_FRAMEWORK OFF CACHE BOOL "Build QCA as a plain dylib, not a framework" FORCE)
 
 add_subdirectory(../../lib/qca "QCA")
+sharedThirdPartyOutput(qca-qt6)
 
 
 set(ZLIB_BUILD_STATIC OFF CACHE BOOL "Enable static libraries" FORCE)
@@ -63,8 +87,7 @@ set(ZLIB_BUILD_SHARED ON CACHE BOOL "Enable shared libraries" FORCE)
 set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
 add_subdirectory(../../lib/zlib "zlib")
 
-set(BUILD_STATIC_LIBS ON CACHE BOOL "Enable static libraries" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
+set(BUILD_STATIC_LIBS OFF CACHE BOOL "Disable static libraries" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
 set(LIBSSH2_BUILD_DOCS OFF CACHE BOOL "Disable docs" FORCE)
@@ -79,7 +102,6 @@ add_subdirectory(../../lib/libssh2 "libssh2")
 set(CMAKE_C_FLAGS "${_SAVED_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${_SAVED_CXX_FLAGS}")
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
 set(BUILD_REGRESS OFF CACHE BOOL "Disable regress" FORCE)
 set(BUILD_OSSFUZZ OFF CACHE BOOL "Disable ossfuzz" FORCE)
@@ -92,10 +114,17 @@ set(ENABLE_LZMA OFF CACHE BOOL "Disable LZMA" FORCE)
 
 add_subdirectory(../../lib/libzip "libzip")
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Disable test suite" FORCE)
 set(BUILD_CLI OFF CACHE BOOL "Disable CLI" FORCE)
-set(USE_THREADS ON CACHE BOOL "Enable threads" FORCE)
+if(WIN32)
+  # Force Win32 threads and skip librt: with CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+  # library checks never link, so FindThreads/check_library_exists falsely detect
+  # pthreads and rt on MSVC.
+  set(USE_THREADS "win32" CACHE STRING "Threads backend" FORCE)
+  set(NEED_LIBRT OFF CACHE INTERNAL "librt is not used on Windows" FORCE)
+else()
+  set(USE_THREADS ON CACHE BOOL "Enable threads" FORCE)
+endif()
 set(USE_SSH ON CACHE BOOL "Enable SSH" FORCE)
 set(USE_HTTP ON CACHE BOOL "Enable HTTP" FORCE)
 set(USE_HTTPS OpenSSL CACHE BOOL "Enable HTTPS" FORCE)
@@ -111,8 +140,22 @@ set(STATIC_CRT OFF CACHE BOOL "Link the static CRT libraries" FORCE)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 add_subdirectory(../../lib/libgit2 "libgit2")
 unset(CMAKE_POLICY_VERSION_MINIMUM)
+sharedThirdPartyOutput(libgit2package)
+target_include_directories(libgit2package INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../libgit2/include>)
+if(APPLE)
+  # libgit2 detects iconv as "provided by libc", on macOS it is libiconv.
+  # (libgit2 uses the plain signature, keywords may not be mixed with it.)
+  target_link_libraries(libgit2package iconv)
+endif()
 
 add_subdirectory(../../lib/qtkeychain "qtkeychain")
+sharedThirdPartyOutput(qt6keychain)
+if(WIN32)
+  # windeployqt takes Qt6*.dll for Qt modules, looks for them in the Qt
+  # installation and fails.
+  set_target_properties(qt6keychain PROPERTIES OUTPUT_NAME qtkeychain)
+endif()
 
 target_link_libraries(GitRepo PRIVATE
     Qt6::Core
@@ -124,11 +167,9 @@ target_link_libraries(GitRepo PRIVATE
     Threads::Threads
     OpenSSL::SSL
     OpenSSL::Crypto
-    libgit2
-    libssh2_static
-    util
+    libgit2package
+    libssh2
     qt6keychain
-    ${LIBSSH2_LIBRARY}
 )
 
 target_include_directories(GitRepo PRIVATE

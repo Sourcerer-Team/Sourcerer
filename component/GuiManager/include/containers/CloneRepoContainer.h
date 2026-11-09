@@ -14,7 +14,7 @@ namespace GuiManager {
 
 namespace Containers {
 
-enum class CloneType { Git, Subversion };
+enum class CloneType { Git, Subversion, Mercurial };
 
 using namespace Widgets;
 

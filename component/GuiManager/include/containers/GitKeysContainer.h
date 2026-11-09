@@ -7,6 +7,10 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
+namespace GuiManager::Widgets {
+class PinnedCertificatesWidget;
+}
+
 namespace Ui {
 class GitKeysContainer;
 }
@@ -37,10 +41,14 @@ private slots:
 
 private:
   void loadKeyPairs();
+  // Offers to add the SSH host key of host to known_hosts when it isn't
+  // there: Mercurial's ssh refuses unknown hosts.
+  void offerToTrustHost(const QString &host);
 
 private:
   Ui::GitKeysContainer *ui;
   QStandardItemModel *_model;
+  Widgets::PinnedCertificatesWidget *_pinnedCertificates = nullptr;
 
   GitRepo::GitKeyStorage &_keyStorage;
 };

@@ -12,6 +12,8 @@ set "WXS_BURN_FILE=%INSTALLER_DIR%Burn.wxs"
 set "QT_VERSION=6.10.3"
 set "QT_DIR=C:\Qt"
 set "QT_MSVC_BIN_PATH=%QT_DIR%\%QT_VERSION%\msvc2022_64\bin"
+REM Shared libraries from lib/ that the bundled svn.exe loads (the build puts them next to Sourcerer.exe)
+set "SVN_DLLS=libsvn_client-1.dll libsvn_wc-1.dll libsvn_ra-1.dll libsvn_ra_local-1.dll libsvn_ra_svn-1.dll libsvn_ra_serf-1.dll libsvn_repos-1.dll libsvn_fs-1.dll libsvn_fs_fs-1.dll libsvn_fs_x-1.dll libsvn_fs_util-1.dll libsvn_delta-1.dll libsvn_diff-1.dll libsvn_subr-1.dll serf.dll libapr-1.dll libaprutil-1.dll sqlite3.dll libexpat.dll utf8proc.dll libsasl.dll"
 
 REM Normalize build directory path
 if not exist "%BUILD_DIR%" (
@@ -235,13 +237,97 @@ if not defined APP_VERSION (
 )
 echo [DEBUG] Sourcerer version=!APP_VERSION!
 
+REM Bundle portable git (MinGit) so the application does not depend on a system git
+echo.
+echo Preparing bundled git...
+if not exist "%INSTALLER_DIR%3rdparty\git\cmd\git.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\fetch-mingit.ps1"
+    if errorlevel 1 (
+        echo Error: Failed to fetch MinGit
+        exit /b 1
+    )
+)
+if exist "%BUILD_DIR%\3rdparty\git" rmdir /s /q "%BUILD_DIR%\3rdparty\git"
+xcopy "%INSTALLER_DIR%3rdparty\git\*" "%BUILD_DIR%\3rdparty\git\" /Y /I /E >nul
+if errorlevel 1 (
+    echo Error: Failed to copy bundled git into the build directory
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName git -SourceDir "%BUILD_DIR%\3rdparty\git" -OutFile "%INSTALLER_DIR%GitComponents.wxs" -OwnsThirdPartyDir
+if errorlevel 1 (
+    echo Error: Failed to generate GitComponents.wxs
+    exit /b 1
+)
+
+REM Stage the Subversion CLI built by the Docker container (svn.exe plus the DLLs it loads:
+REM Subversion, APR, serf, SQLite, expat, utf8proc, zlib and OpenSSL)
+echo.
+echo Preparing bundled svn...
+if not exist "%BUILD_DIR%\SvnRepo\svn.exe" (
+    echo Error: svn.exe was not built. Configure with -DSOURCERER_BUILD_SVN_CLI=ON
+    exit /b 1
+)
+if exist "%BUILD_DIR%\3rdparty\svn" rmdir /s /q "%BUILD_DIR%\3rdparty\svn"
+mkdir "%BUILD_DIR%\3rdparty\svn\bin"
+copy /Y "%BUILD_DIR%\SvnRepo\svn.exe" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
+for %%D in (libssl-3-x64.dll libcrypto-3-x64.dll z.dll %SVN_DLLS%) do (
+    copy /Y "%BUILD_DIR%\%%D" "%BUILD_DIR%\3rdparty\svn\bin\" >nul
+    if errorlevel 1 (
+        echo Error: Failed to copy %%D for svn
+        exit /b 1
+    )
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName svn -SourceDir "%BUILD_DIR%\3rdparty\svn" -OutFile "%INSTALLER_DIR%SvnComponents.wxs"
+if errorlevel 1 (
+    echo Error: Failed to generate SvnComponents.wxs
+    exit /b 1
+)
+
+REM Stage Mercurial: relocatable CPython + Mercurial package (fetched) plus the hg.exe launcher (built by Docker)
+echo.
+echo Preparing bundled hg...
+if not exist "%INSTALLER_DIR%3rdparty\hg\python\python.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\fetch-hg-windows.ps1"
+    if errorlevel 1 (
+        echo Error: Failed to fetch Mercurial
+        exit /b 1
+    )
+)
+REM Also for a python.exe fetched before this step existed
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\set-python-utf8-codepage.ps1" -PythonExe "%INSTALLER_DIR%3rdparty\hg\python\python.exe"
+if errorlevel 1 (
+    echo Error: Failed to set the UTF-8 code page of the bundled Python
+    exit /b 1
+)
+if not exist "%BUILD_DIR%\hg.exe" (
+    echo Error: hg.exe launcher was not built
+    exit /b 1
+)
+if exist "%BUILD_DIR%\3rdparty\hg" rmdir /s /q "%BUILD_DIR%\3rdparty\hg"
+xcopy "%INSTALLER_DIR%3rdparty\hg\*" "%BUILD_DIR%\3rdparty\hg\" /Y /I /E >nul
+if errorlevel 1 (
+    echo Error: Failed to copy bundled hg into the build directory
+    exit /b 1
+)
+copy /Y "%BUILD_DIR%\hg.exe" "%BUILD_DIR%\3rdparty\hg\" >nul
+copy /Y "%INSTALLER_DIR%3rdparty\hg-config\sourcerer.rc" "%BUILD_DIR%\3rdparty\hg\python\Lib\site-packages\mercurial\defaultrc\" >nul
+if errorlevel 1 (
+    echo Error: Failed to copy the bundled hg configuration
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALLER_DIR%3rdparty\generate-3rdparty-wxs.ps1" -ToolName hg -SourceDir "%BUILD_DIR%\3rdparty\hg" -OutFile "%INSTALLER_DIR%HgComponents.wxs"
+if errorlevel 1 (
+    echo Error: Failed to generate HgComponents.wxs
+    exit /b 1
+)
+
 REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
 set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
 echo [DEBUG] Running wix: !WIX_PATH! build !WXS_FILE! -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
-!WIX_PATH! build !WXS_FILE! -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
+!WIX_PATH! build !WXS_FILE! "%INSTALLER_DIR%GitComponents.wxs" "%INSTALLER_DIR%SvnComponents.wxs" "%INSTALLER_DIR%HgComponents.wxs" -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
 if errorlevel 1 (
     echo Error: WiX candle compilation failed

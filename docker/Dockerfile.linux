@@ -10,6 +10,13 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     pkg-config \
     libtool \
+    patchelf \
+    gettext \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libpcre2-dev \
+    zlib1g-dev \
+    libexpat1-dev \
     libtool-bin \
     autoconf \
     automake \

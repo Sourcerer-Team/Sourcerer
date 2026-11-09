@@ -8,7 +8,7 @@ This document describes the UI integration for the encrypted Git credentials sto
 
 ### 1. Data Structure Updates
 
-#### File: `lib/GitRepo/include/GitRepo.h`
+#### File: `lib/GitRepo/include/GitRepoTypes.h`
 - **Added**: `QString repoPath` field to `GitCredentialsRequest` struct
 - **Purpose**: Pass repository path through the event system to the UI layer
 
@@ -24,10 +24,10 @@ struct GitCredentialsRequest {
 
 ### 2. Backend Integration
 
-#### File: `lib/GitRepo/src/GitRepo.cpp`
+#### File: `lib/GitRepo/src/GitRepoCredentials.cpp`
 - **Modified**: `acquireCredentials()` function
 - **Change**: Set `request.repoPath = repoPath` when creating the credentials request
-- **Line**: ~1257
+- **Line**: ~184
 
 ```cpp
 GitCredentialsRequest request;
@@ -213,8 +213,8 @@ ConfigKey::GitRepoGitCredentialsStorageEnabled  // Master enable/disable flag
 
 ## Files Modified
 
-1. `lib/GitRepo/include/GitRepo.h` - Added `repoPath` to `GitCredentialsRequest`
-2. `lib/GitRepo/src/GitRepo.cpp` - Set `repoPath` in credential request
+1. `lib/GitRepo/include/GitRepoTypes.h` - Added `repoPath` to `GitCredentialsRequest`
+2. `lib/GitRepo/src/GitRepoCredentials.cpp` - Set `repoPath` in credential request
 3. `component/GuiManager/include/widgets/GitCredentialsOverlayWidget.h` - Added checkbox member and `setRepoPath()` method
 4. `component/GuiManager/src/widgets/GitCredentialsOverlayWidget.cpp` - Implemented checkbox UI and storage integration
 5. `component/GuiManager/src/MainWindow.cpp` - Call `setRepoPath()` before showing overlay

@@ -78,11 +78,9 @@ bool IssueTrackersTableView::mouseMove(const QMouseEvent *event) {
   if (const auto index = indexAt(pos); index.row() == -1) {
     emit hoverLeave(_prev);
     _prev = QModelIndex();
-    LOG_DEBUG("emitted hoveLeave");
   } else if (index != _prev) {
     _prev = index;
     emit hoverEnter(index);
-    LOG_DEBUG("emitted hoveEnter");
   }
 
   return true;

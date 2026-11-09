@@ -42,6 +42,8 @@
 // QStringList of the full names (refs/heads/..., refs/remotes/...,
 // refs/tags/...) of the refs pointing to the commit of the row.
 #define RefBadgesRole (Qt::UserRole + 6)
+// int, GitRepo::CommitPhase of the commit of the row.
+#define PhaseRole (Qt::UserRole + 7)
 
 namespace GuiManager {
 namespace Models {
@@ -67,6 +69,18 @@ enum class StatusFields {
 };
 
 typedef QMap<StatusFields, int> StatusFieldsMap;
+
+// Colour of the badge of a draft or secret Mercurial commit.
+inline QColor phaseColor(const int phase) {
+  switch (static_cast<GitRepo::CommitPhase>(phase)) {
+  case GitRepo::CommitPhase::Draft:
+    return QColor(0xEF6C00);
+  case GitRepo::CommitPhase::Secret:
+    return QColor(0x6A1B9A);
+  default:
+    return {};
+  }
+}
 
 inline QColor bisectMarkColor(const int mark) {
   switch (static_cast<GitRepo::BisectMark>(mark)) {

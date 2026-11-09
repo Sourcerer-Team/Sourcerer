@@ -13,7 +13,7 @@ public:
   RepoFeatures features() const override;
 
   void blame(const QWeakPointer<RepoContainer> &guard,
-             const QStringList &files) override;
+             const QStringList &files, const QString &commit) override;
   void
   setUpstream(const QWeakPointer<RepoContainer> &guard,
               const QString &branchName, const QString &remoteName,

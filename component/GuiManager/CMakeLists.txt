@@ -76,6 +76,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/RepoContainer.h
         include/containers/RepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
+        include/containers/HgRepoManagerBridgeImpl.h
         include/containers/SvnRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h
         include/containers/InitRepoContainer.h
@@ -123,6 +124,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ExtendedTabBar.h
         include/widgets/ExtendedTabWidget.h
         include/widgets/GitCredentialsOverlayWidget.h
+        include/widgets/PinnedCertificatesWidget.h
         include/widgets/SshPassphraseOverlayWidget.h
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitProgressToast.h
@@ -191,6 +193,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitKeysContainer.cpp
         src/containers/RepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
+        src/containers/HgRepoManagerBridgeImpl.cpp
         src/containers/SvnRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitRepoContainer.cpp
@@ -232,6 +235,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
         src/widgets/GitCredentialsOverlayWidget.cpp
+        src/widgets/PinnedCertificatesWidget.cpp
         src/widgets/SshPassphraseOverlayWidget.cpp
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
@@ -288,11 +292,14 @@ include(../../cmake/helpers.cmake)
 includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
 includeComponent(GuiManager GitRepoManager)
+includeComponent(GuiManager HgRepoManager)
 includeComponent(GuiManager NewsTracker)
+includeComponent(GuiManager SvnRepoManager)
 includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
+includeLib(GuiManager HgRepo)
 includeLib(GuiManager IssueTrackers)
 includeLib(GuiManager Log)
 includeLib(GuiManager SvnRepo)
@@ -307,8 +314,7 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Svg
         Qt6::Widgets
         Qt6::Network
-        libgit2
-        util
+        libgit2package
         libzip::zip
         apr-1
 )

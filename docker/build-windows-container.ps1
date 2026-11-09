@@ -39,7 +39,8 @@ if (-not (Test-Path $buildScript)) {
     throw 'Build script not found inside the container'
 }
 
-& cmd /c $buildScript
+# 'call' makes cmd.exe propagate the script's 'exit /b' code as its process exit code
+& cmd /c "call `"$buildScript`""
 if ($LASTEXITCODE -ne 0) {
     Write-Host 'Project build failed' -ForegroundColor Red
     exit 1
@@ -82,6 +83,17 @@ if (-not (Test-Path $launcherDestination) -or (Resolve-Path $launcherCandidate.F
     Write-Host "  Copied SourcererLauncher.exe from $($launcherCandidate.FullName)" -ForegroundColor Gray
 } else {
     Write-Host '  SourcererLauncher.exe is already in the release directory' -ForegroundColor Gray
+}
+
+$askPassCandidate = Get-ChildItem 'C:\workspace\build' -Recurse -Filter 'SourcererAskPass.exe' -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if (-not $askPassCandidate) {
+    throw 'SourcererAskPass.exe was not found in the build output'
+}
+$askPassDestination = Join-Path $releaseDirFull 'SourcererAskPass.exe'
+if (-not (Test-Path $askPassDestination) -or (Resolve-Path $askPassCandidate.FullName).Path -ne (Resolve-Path $askPassDestination).Path) {
+    Copy-Item $askPassCandidate.FullName $askPassDestination -Force
+    Write-Host "  Copied SourcererAskPass.exe from $($askPassCandidate.FullName)" -ForegroundColor Gray
 }
 
 # Copy any shared runtime DLLs that the WiX installer expects into the release directory

@@ -19,11 +19,17 @@ command -v make >/dev/null 2>&1 || {
     exit 1
 }
 
-cd "$src_dir"
+work_dir="$build_dir/src"
+rm -rf "$work_dir"
+mkdir -p "$work_dir"
+cp -R "$src_dir/." "$work_dir/"
+find "$work_dir" -type f \( -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' \) -exec sed -i 's/\r$//' {} +
+
+cd "$work_dir"
 autoreconf --force --install --verbose -Wno-portability
 
 cd "$build_dir"
-sh "$src_dir/configure" --disable-shared --enable-static --prefix="$install_dir"
+sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir"
 
 make -C include install prefix="$install_dir"
 make -C common

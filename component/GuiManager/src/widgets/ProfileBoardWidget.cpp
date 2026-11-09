@@ -70,6 +70,8 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   _signinSpinner->setLineLength(3);
   _signinSpinner->setLineWidth(2);
 
+  ui->pushButtonSignout->setVisible(false);
+
   layout()->setContentsMargins(15, 25, 15, 15); // Leave space for arrow
 
   qApp->installEventFilter(this);
@@ -148,7 +150,8 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
 
 // Dummy login state for demonstration. Replace with real logic as needed.
 bool ProfileBoardWidget::isUserLoggedIn() const {
-  return _isLoggedIn;
+  //return _isLoggedIn;
+  return true;
 }
 
 void ProfileBoardWidget::updatePageForLoginState() {
@@ -157,7 +160,7 @@ void ProfileBoardWidget::updatePageForLoginState() {
            _isLoggedIn, _userFirstName, _userLastName, _plan);
   if (isUserLoggedIn()) {
     ui->stackedWidget->setCurrentWidget(ui->pageProfiles);
-    ui->pushButtonSignout->setVisible(true);
+    //ui->pushButtonSignout->setVisible(true);
     ui->labelSignupLink->hide();
 
     // Update the label with user's name from JWT claims

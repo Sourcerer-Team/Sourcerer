@@ -32,7 +32,9 @@ find_package(zlib REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg Core5Compat
              LinguistTools OPTIONAL_COMPONENTS WebEngineWidgets)
 
-if(WIN32)
+# Host-specific toolchain paths; only needed when not running inside a VS developer
+# environment (VsDevCmd/vcvars set INCLUDE/LIB for the active toolset).
+if(WIN32 AND NOT DEFINED ENV{VCToolsInstallDir})
   include_directories(SYSTEM
       C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
       "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
@@ -58,10 +60,12 @@ endif()
 
 if(WIN32)
   set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
-  link_directories(
-      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
-      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
-      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+  if(NOT DEFINED ENV{VCToolsInstallDir})
+    link_directories(
+        "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+        "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+        "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+  endif()
 endif()
 
 qt_add_executable(Sourcerer
@@ -74,6 +78,12 @@ qt_add_executable(SourcererLauncher
         ${LAUNCHER_SOURCES}
 )
 
+# SSH_ASKPASS program that asks for SSH key passphrases for Mercurial's ssh.
+# A console program: ssh reads the passphrase from its standard output.
+qt_add_executable(SourcererAskPass askpass.cpp)
+target_link_libraries(SourcererAskPass PRIVATE Qt6::Core Qt6::Network)
+add_dependencies(Sourcerer SourcererAskPass)
+
 include("../cmake/helpers.cmake")
 
 includeComponent(Sourcerer ComponentManager)
@@ -81,6 +91,7 @@ includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GitRepoManager)
 includeComponent(Sourcerer SvnRepoManager)
+includeComponent(Sourcerer HgRepoManager)
 includeComponent(Sourcerer NewsTracker)
 includeComponent(Sourcerer UpdateManager)
 includeComponent(Sourcerer GuiManager)
@@ -94,6 +105,7 @@ includeLib(Sourcerer Fsm)
 includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer SvnRepo)
+includeLib(Sourcerer HgRepo)
 includeLib(Sourcerer OpenSSLHelper)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer Util)
@@ -118,15 +130,29 @@ if (SOURCERER_BUILD_SVNREPO_TESTS)
   add_subdirectory(../tests/svnrepo ${CMAKE_BINARY_DIR}/tests/svnrepo)
 endif ()
 
+option(SOURCERER_BUILD_HGREPO_TESTS "Build the HgRepo tests" OFF)
+if (SOURCERER_BUILD_HGREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/hgrepo ${CMAKE_BINARY_DIR}/tests/hgrepo)
+endif ()
+
+option(SOURCERER_BUILD_GITREPO_TESTS "Build the GitRepo tests" OFF)
+if (SOURCERER_BUILD_GITREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/gitrepo ${CMAKE_BINARY_DIR}/tests/gitrepo)
+  # Header-only tests, also buildable as standalone projects.
+  add_subdirectory(../tests/workflows ${CMAKE_BINARY_DIR}/tests/workflows)
+  add_subdirectory(../tests/commit_graph_builder
+    ${CMAKE_BINARY_DIR}/tests/commit_graph_builder)
+  # Next to the application, so the deployed Qt libraries are found.
+  set_target_properties(workflows_test commit_graph_builder_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif ()
+
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         libssh2
-        libgit2
-        llhttp
-        pcre2
-        reftable
-        util
-        xdiff
+        libgit2package
         cyrus-sasl
         serf
         apr-1
@@ -164,6 +190,17 @@ set_target_properties(Sourcerer PROPERTIES
 set_target_properties(SourcererLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE
 )
+
+# The shared third-party libraries (SOURCERER_SHARED_LIB_DIR) are next to the
+# executable on Windows. Elsewhere they are in lib/ of the build directory,
+# usr/lib of the AppImage and Contents/Frameworks of the macOS bundle.
+if (APPLE)
+  set_property(TARGET Sourcerer APPEND PROPERTY BUILD_RPATH
+          "@executable_path/../Frameworks")
+elseif (UNIX)
+  set_property(TARGET Sourcerer APPEND PROPERTY BUILD_RPATH
+          "$ORIGIN/lib" "$ORIGIN/../lib")
+endif ()
 
 if (APPLE)
   if (CMAKE_OSX_DEPLOYMENT_TARGET)
@@ -232,7 +269,7 @@ endif ()
 qt_finalize_target(Sourcerer)
 qt_finalize_target(SourcererLauncher)
 
-install(TARGETS Sourcerer SourcererLauncher
+install(TARGETS Sourcerer SourcererLauncher SourcererAskPass
         BUNDLE DESTINATION .
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

@@ -36,6 +36,9 @@ SvnRepoManagerProcessingState::SvnRepoManagerProcessingState(
                        eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerOpenRepoError, eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::SvnRepoManagerCloseRepoResult,
+                       eventCallbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -47,6 +50,9 @@ SvnRepoManagerProcessingState::~SvnRepoManagerProcessingState() {
       std::bind(&SvnRepoManagerProcessingState::eventCallback, this,
                 std::placeholders::_1);
 
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::SvnRepoManagerCloseRepoResult,
+                       eventCallbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerOpenRepoError, eventCallbackFunc));
   _eventManager.unsubscribe(
@@ -100,11 +106,6 @@ bool SvnRepoManagerProcessingState::process(Fsm::FsmEvent event) {
   case EventType::AddRemote: {
     const auto addRemoteCommand = event.nextParam<SvnRepoAddRemoteCommand>();
     scheduleWorkerForAddRemote(addRemoteCommand);
-    break;
-  }
-  case EventType::Amend: {
-    const auto amendCommand = event.nextParam<SvnRepoAmendCommand>();
-    scheduleWorkerForAmend(amendCommand);
     break;
   }
   case EventType::Blame: {
@@ -671,7 +672,7 @@ void SvnRepoManagerProcessingState::blameWorker(
     repo = ctx->SvnRepo;
   }
 
-  const SvnRepo::BlameReport blameReport = SvnRepo::blame(repo, command.files);
+  const SvnRepo::BlameReport blameReport = SvnRepo::blame(repo, command.files, command.commit);
   if (!blameReport.valid) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
@@ -689,45 +690,6 @@ void SvnRepoManagerProcessingState::blameWorker(
       command.uuid, command.type,
       QVariant::fromValue(SvnRepoBlameCommandResult{blameReport})});
   _eventManager.send(resultEvent);
-
-  LOG_PERF(0, "Exit");
-}
-
-void SvnRepoManagerProcessingState::amendWorker(
-    const Structs::SvnRepoAmendCommand &command) {
-  LOG_PERF(0, "Enter");
-
-  const SvnRepoContext *ctx = context(command.uuid);
-  if (!ctx) {
-    reportError(EventManager::EventType::SvnRepoManagerAmendError,
-                tr("Internal error. Context not initialized."), command);
-    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
-    return;
-  }
-
-  QString repo;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    repo = ctx->SvnRepo;
-  }
-
-  const bool success =
-      SvnRepo::amend(repo, command.summary, command.message, command.author,
-                     command.email, command.signoff, command.signCommit);
-  if (!success) {
-    const auto lastError = SvnRepo::getLastError();
-    EventManager::Event errorEvent(
-        EventManager::EventType::SvnRepoManagerAmendError, command.syncUuid);
-    errorEvent.addData(SvnRepoError{command.uuid, lastError.errorMessage,
-                                    lastError.errorCode, lastError.error});
-    _eventManager.send(errorEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::SvnRepoManagerAmendResult, command.syncUuid);
-    resultEvent.addData(SvnRepoResult{command.uuid, command.type, true});
-    _eventManager.send(resultEvent);
-  }
 
   LOG_PERF(0, "Exit");
 }
@@ -936,6 +898,8 @@ void SvnRepoManagerProcessingState::cloneRepoWorker(
       command.url, command.destinationDir, command.uuid);
   if (!success) {
     const auto lastError = SvnRepo::getLastError();
+    LOG_ERROR(Log::ErrorId::Gui, "Checkout of '{}' into '{}' failed: {}",
+              command.url, command.destinationDir, lastError.errorMessage);
     EventManager::Event errorEvent(
         EventManager::EventType::SvnRepoManagerCloneRepoError,
         command.syncUuid);
@@ -1352,7 +1316,7 @@ void SvnRepoManagerProcessingState::quitRepoWorker(
   if (quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerQuitError, command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1372,7 +1336,7 @@ SvnRepoManagerProcessingState::context(const QString &uuid) {
 
   LOG_PERF(0, "Exit");
 
-  return _contexts[uuid];
+  return _contexts.value(uuid, nullptr);
 }
 
 void SvnRepoManagerProcessingState::destroyContext(const QString &uuid) {
@@ -1845,30 +1809,39 @@ void SvnRepoManagerProcessingState::eventCallback(
 
   LOG_DEBUG("Processing event {}.", (int)eventType);
 
+  // A context ends with the answer to the request that made it (a clone, an
+  // init or a failed open) or to its close. A refused request (the container
+  // is in use) is answered with the same error event types, but must leave
+  // the context alone: it is recognised by its sync uuid.
+  const auto destroyIfAnswerOf = [this, &event](const QString &uuid,
+                                                const bool close) {
+    bool matches = false;
+    {
+      LOCKGUARD(_contextsMutex);
+      const SvnRepoContext *ctx = _contexts.value(uuid, nullptr);
+      matches = ctx && !event.uuid().isEmpty() &&
+                event.uuid() ==
+                    (close ? ctx->closeSyncUuid : ctx->ownerSyncUuid);
+    }
+    if (matches) {
+      destroyContext(uuid);
+    }
+  };
+
   switch (eventType) {
-  case EventManager::EventType::SvnRepoManagerCloneRepoError: {
-    const auto error = event.data<SvnRepoError>();
-    destroyContext(error.uuid);
-    break;
-  }
-  case EventManager::EventType::SvnRepoManagerCloneRepoResult: {
-    const auto commandResult = event.data<SvnRepoResult>();
-    destroyContext(commandResult.uuid);
-    break;
-  }
-  case EventManager::EventType::SvnRepoManagerInitRepoError: {
-    const auto error = event.data<SvnRepoError>();
-    destroyContext(error.uuid);
-    break;
-  }
-  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
-    const auto commandResult = event.data<SvnRepoResult>();
-    destroyContext(commandResult.uuid);
-    break;
-  }
+  case EventManager::EventType::SvnRepoManagerCloneRepoError:
+  case EventManager::EventType::SvnRepoManagerInitRepoError:
   case EventManager::EventType::SvnRepoManagerOpenRepoError: {
-    const auto error = event.data<SvnRepoError>();
-    destroyContext(error.uuid);
+    destroyIfAnswerOf(event.data<SvnRepoError>().uuid, false);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerCloneRepoResult:
+  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
+    destroyIfAnswerOf(event.data<SvnRepoResult>().uuid, false);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerCloseRepoResult: {
+    destroyIfAnswerOf(event.data<SvnRepoResult>().uuid, true);
     break;
   }
   default: {
@@ -2006,9 +1979,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForFetchAll(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerFetchAllError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2025,9 +1998,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForFetchRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerFetchRemoteError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2044,9 +2017,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForRebase(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerRebaseError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2130,7 +2103,7 @@ void SvnRepoManagerProcessingState::getActiveBranchWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetActiveBranchError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     SvnRepoGetActiveBranchCommandResult result;
@@ -2169,6 +2142,7 @@ void SvnRepoManagerProcessingState::getCommitBranchesWorker(
     quit = &ctx->quit;
   }
 
+  const quint64 errorsBefore = SvnRepo::getLastError().serial;
   const QStringList branches =
       SvnRepo::getCommitBranches(repo, command.commitOid, *quit);
 
@@ -2176,9 +2150,10 @@ void SvnRepoManagerProcessingState::getCommitBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetCommitBranchesError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
-  } else if (branches.isEmpty()) {
+  } else if (branches.isEmpty() &&
+             SvnRepo::getLastError().serial != errorsBefore) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::SvnRepoManagerGetCommitBranchesError,
@@ -2219,15 +2194,17 @@ void SvnRepoManagerProcessingState::getCommitHeadsWorker(
     quit = &ctx->quit;
   }
 
+  const quint64 errorsBefore = SvnRepo::getLastError().serial;
   const QStringList branches =
       SvnRepo::getCommitHeads(repo, command.commitOid, *quit);
   if (*quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetCommitHeadsError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
-  } else if (branches.isEmpty()) {
+  } else if (branches.isEmpty() &&
+             SvnRepo::getLastError().serial != errorsBefore) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::SvnRepoManagerGetCommitHeadsError,
@@ -2274,7 +2251,7 @@ void SvnRepoManagerProcessingState::getCommitIsHeadWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetCommitIsHeadError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2436,7 +2413,7 @@ void SvnRepoManagerProcessingState::getBranchHistoryWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetBranchHistoryError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else if (!history.valid) {
     const auto lastError = SvnRepo::getLastError();
@@ -2464,7 +2441,7 @@ void SvnRepoManagerProcessingState::getSubmodulePathWorker(
 
   const SvnRepoContext *ctx = context(command.uuid);
   if (!ctx) {
-    reportError(EventManager::EventType::SvnRepoManagerGetSubmodulePath,
+    reportError(EventManager::EventType::SvnRepoManagerGetSubmodulePathError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -2651,7 +2628,7 @@ void SvnRepoManagerProcessingState::listLocalBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerListLocalBranchesError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2692,7 +2669,7 @@ void SvnRepoManagerProcessingState::listRemoteBranchesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerListRemoteBranchesError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2736,7 +2713,7 @@ void SvnRepoManagerProcessingState::listRemoteBranchesWithStatusWorker(
         EventManager::EventType::
             SvnRepoManagerListRemoteBranchesWithStatusError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2779,7 +2756,7 @@ void SvnRepoManagerProcessingState::listStashesWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerListStashesError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2838,23 +2815,32 @@ void SvnRepoManagerProcessingState::listSubmodulesWithStatusWorker(
   }
 
   QString repo;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
     repo = ctx->SvnRepo;
+    quit = &ctx->quit;
   }
 
-  const bool quit = false;
-
   const QVector<SvnRepo::SubmoduleInfo> submodulesWithStatus =
-      SvnRepo::listSubmodulesWithStatus(repo, quit);
+      SvnRepo::listSubmodulesWithStatus(repo, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusResult,
-      command.syncUuid);
-  resultEvent.addData(SvnRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(submodulesWithStatus)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusError,
+        command.syncUuid);
+    errorEvent.addData(
+        SvnRepoError{command.uuid, tr("The repository was closed."), -1});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusResult,
+        command.syncUuid);
+    resultEvent.addData(SvnRepoResult{
+        command.uuid, command.type, QVariant::fromValue(submodulesWithStatus)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2866,10 +2852,10 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListSubmodulesWithStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusError,
-        tr("Git repository has not been opened."), command);
+        tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2964,10 +2950,19 @@ void SvnRepoManagerProcessingState::mergeWorker(
       SvnRepo::merge(repo, command.sourceBranch, command.destinationBranch,
                      command.author, command.email);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::SvnRepoManagerMergeResult, command.syncUuid);
-  resultEvent.addData(SvnRepoResult{command.uuid, command.type, merged});
-  _eventManager.send(resultEvent);
+  if (merged) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::SvnRepoManagerMergeResult, command.syncUuid);
+    resultEvent.addData(SvnRepoResult{command.uuid, command.type, merged});
+    _eventManager.send(resultEvent);
+  } else {
+    const auto lastError = SvnRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerMergeError, command.syncUuid);
+    errorEvent.addData(SvnRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2981,7 +2976,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForOpenRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::SvnRepoManagerOpenRepoError,
-                tr("Git repository has already been opened."), command);
+                tr("The working copy has already been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2993,6 +2988,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForOpenRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new SvnRepoOpenCommand(command));
 
@@ -3011,9 +3007,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForPull(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerPullError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3030,9 +3026,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForPush(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerPushError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3049,9 +3045,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForPushTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerPushTagError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3068,9 +3064,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForPushAllTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerPushAllTagsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3087,9 +3083,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForRenameBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerRenameBranchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3106,9 +3102,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForRenameTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerRenameTagError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3125,9 +3121,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForReset(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerResetError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3144,9 +3140,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForRevert(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerRevertError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3163,9 +3159,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForSetUpstream(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerSetUpstreamError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3182,7 +3178,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForIgnoreFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerIgnoreFilesError,
                 tr("Subversion repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -3201,9 +3197,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForStageFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerStageFilesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3220,9 +3216,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerStashError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3239,9 +3235,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerStatusError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3258,9 +3254,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForSubmoduleUpdate(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerSubmoduleUpdateError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3277,9 +3273,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForUnstageFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerUnstageFilesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3296,9 +3292,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListRemotes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListRemotesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3315,9 +3311,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForAddRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerAddRemoteError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3334,9 +3330,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForRemoveRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerRemoveRemoteError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3353,9 +3349,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForUpdateRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerUpdateRemoteError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3372,9 +3368,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForSetDefaultRemote(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerSetDefaultRemoteError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3391,9 +3387,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForAddTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerAddTargetError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3410,9 +3406,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForEditTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerEditTargetError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3429,9 +3425,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteTargetError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3448,9 +3444,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForSetDefaultTarget(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerSetDefaultTargetError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3469,7 +3465,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForQuit(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::SvnRepoManagerQuitError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3485,8 +3481,16 @@ void SvnRepoManagerProcessingState::openRepoWorker(
 
   const QString repo = SvnRepo::openRepository(command.path);
   if (repo.isEmpty()) {
-    reportError(EventManager::EventType::SvnRepoManagerOpenRepoError,
-                QStringLiteral("Unable to open repository."), command);
+    const auto lastError = SvnRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerOpenRepoError,
+        command.syncUuid);
+    errorEvent.addData(SvnRepoError{command.uuid,
+                                    lastError.errorMessage.isEmpty()
+                                        ? tr("Unable to open the working copy.")
+                                        : lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -3515,7 +3519,7 @@ void SvnRepoManagerProcessingState::openRepoWorker(
   if (quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerOpenRepoError, command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3892,9 +3896,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCherryPick(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCherryPickError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4086,9 +4090,18 @@ void SvnRepoManagerProcessingState::statusWorker(
     quit = &ctx->quit;
   }
 
+  if (repo.isEmpty() || *quit) {
+    reportError(EventManager::EventType::SvnRepoManagerStatusError,
+                tr("The repository was closed."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const SvnRepo::SvnStatus status = SvnRepo::getStatus(repo, *quit);
 
   if (*quit) {
+    reportError(EventManager::EventType::SvnRepoManagerStatusError,
+                tr("The repository was closed."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4401,7 +4414,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForResolveTreeConflict(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerResolveTreeConflictError,
         tr("Subversion repository has not been opened."), command);
@@ -4421,9 +4434,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForAbortMerge(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerAbortMergeError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4440,9 +4453,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForAddSubmodule(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerAddSubmoduleError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4459,7 +4472,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForBlame(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerBlameError,
                 tr("Subversion repository has not been opened."), command);
     LOG_PERF(0, "Exit");
@@ -4471,25 +4484,6 @@ void SvnRepoManagerProcessingState::scheduleWorkerForBlame(
   LOG_PERF(0, "Exit");
 }
 
-void SvnRepoManagerProcessingState::scheduleWorkerForAmend(
-    const Structs::SvnRepoAmendCommand &command) {
-  LOG_PERF(0, "Enter");
-
-  LOCKGUARD(_contextsMutex);
-
-  const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
-    reportError(EventManager::EventType::SvnRepoManagerAmendError,
-                tr("Git repository has not been opened."), command);
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  (*it)->commandsQueue.push(new SvnRepoAmendCommand(command));
-
-  LOG_PERF(0, "Exit");
-}
-
 void SvnRepoManagerProcessingState::scheduleWorkerForApplyPatch(
     const Structs::SvnRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -4497,9 +4491,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForApplyPatch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerApplyPatchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4516,9 +4510,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForApplyStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerApplyStashError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4535,9 +4529,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCheckoutBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCheckoutBranchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4554,9 +4548,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCheckoutCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCheckoutCommitError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4573,7 +4567,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCloneRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::SvnRepoManagerCloneRepoError,
-                tr("Git repository is already in use."), command);
+                tr("The working copy is already in use."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4585,6 +4579,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCloneRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new SvnRepoCloneCommand(command));
 
@@ -4603,14 +4598,15 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCloseRepo(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCloseRepoError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
 
   (*it)->quit = true;
+  (*it)->closeSyncUuid = command.syncUuid;
   (*it)->commandsQueue.push(new SvnRepoCloseCommand(command));
 
   LOG_PERF(0, "Exit");
@@ -4623,9 +4619,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCommitStagedRepo(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCommitStagedError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4642,10 +4638,10 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCreateBranchFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerCreateBranchFromCommitError,
-        tr("Git repository has not been opened."), command);
+        tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4662,10 +4658,10 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCreatePatchFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerCreatePatchFromCommitError,
-        tr("Git repository has not been opened."), command);
+        tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4682,9 +4678,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForCreateTagFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerCreateTagFromCommitError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4701,9 +4697,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetActiveBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetActiveBranchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4720,9 +4716,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetCommitBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetCommitBranchesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4753,6 +4749,7 @@ void SvnRepoManagerProcessingState::getCommitTagsWorker(
     quit = &ctx->quit;
   }
 
+  const quint64 errorsBefore = SvnRepo::getLastError().serial;
   const QStringList tags =
       SvnRepo::getCommitTags(repo, command.commitOid, *quit);
 
@@ -4760,9 +4757,10 @@ void SvnRepoManagerProcessingState::getCommitTagsWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerGetCommitTagsError,
         command.syncUuid);
-    resultEvent.addData(SvnRepoError{command.uuid, QString(), -1});
+    resultEvent.addData(SvnRepoError{command.uuid, tr("The repository was closed."), -1});
     _eventManager.send(resultEvent);
-  } else if (tags.isEmpty()) {
+  } else if (tags.isEmpty() &&
+             SvnRepo::getLastError().serial != errorsBefore) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::SvnRepoManagerGetCommitTagsError,
@@ -4789,9 +4787,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetCommitTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetCommitTagsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4808,9 +4806,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetCommitHeads(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetCommitHeadsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4827,9 +4825,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetCommitIsHead(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetCommitIsHeadError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4846,9 +4844,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetCommitStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetCommitStatusError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4865,9 +4863,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetStashStatus(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetStashStatusError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4884,10 +4882,10 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetIsMergeInProgress(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerGetIsMergeInProgressError,
-        tr("Git repository has not been opened."), command);
+        tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4904,9 +4902,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetSubmodulePath(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetSubmodulePathError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4923,9 +4921,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetUpstream(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetUpstreamError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4942,9 +4940,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteAllStashes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteAllStashesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4961,9 +4959,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteBranchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4980,9 +4978,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteRemoteBranch(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteRemoteBranchError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4999,9 +4997,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteStash(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteStashError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5018,9 +5016,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteSubmodule(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteSubmoduleError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5037,9 +5035,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteTagError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5056,9 +5054,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDeleteRemoteTag(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDeleteRemoteTagError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5075,9 +5073,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDiffFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDiffFilesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5094,9 +5092,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDiffFilesFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDiffFilesFromCommitError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5113,10 +5111,10 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetFileSizeFromCommit(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(
         EventManager::EventType::SvnRepoManagerGetFileSizeFromCommitError,
-        tr("Git repository has not been opened."), command);
+        tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5133,9 +5131,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForDiscardFiles(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerDiscardFilesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5152,9 +5150,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForGetBranchHistory(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerGetBranchHistoryError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5173,7 +5171,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForInitRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::SvnRepoManagerInitRepoError,
-                tr("Git repository is already in use."), command);
+                tr("The working copy is already in use."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5185,6 +5183,7 @@ void SvnRepoManagerProcessingState::scheduleWorkerForInitRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
+  newContext->ownerSyncUuid = command.syncUuid;
   newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new SvnRepoInitRepoCommand(command));
 
@@ -5203,9 +5202,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListConflicts(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListConflictsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5222,9 +5221,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListLocalBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListLocalBranchesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5241,9 +5240,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListRemoteBranches(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListRemoteBranchesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5261,10 +5260,10 @@ void SvnRepoManagerProcessingState::
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::
                     SvnRepoManagerListRemoteBranchesWithStatusError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5282,9 +5281,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListStashes(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListStashesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5301,9 +5300,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListSubmodules(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListSubmodulesError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5320,9 +5319,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListTagsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5339,9 +5338,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListRemoteTags(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerListRemoteTagsError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5358,9 +5357,9 @@ void SvnRepoManagerProcessingState::scheduleWorkerForMerge(
   LOCKGUARD(_contextsMutex);
 
   const auto it = _contexts.constFind(command.uuid);
-  if (it == _contexts.constEnd()) {
+  if (it == _contexts.constEnd() || (*it)->quit) {
     reportError(EventManager::EventType::SvnRepoManagerMergeError,
-                tr("Git repository has not been opened."), command);
+                tr("The working copy has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -5368,6 +5367,166 @@ void SvnRepoManagerProcessingState::scheduleWorkerForMerge(
   (*it)->commandsQueue.push(new SvnRepoMergeCommand(command));
 
   LOG_PERF(0, "Exit");
+}
+
+// The error event of a command, for answering it without running it.
+static EventManager::EventType errorEventFor(const SvnRepoCommandType type) {
+  switch (type) {
+  case SvnRepoCommandType::AbortMerge:
+    return EventManager::EventType::SvnRepoManagerAbortMergeError;
+  case SvnRepoCommandType::ResolveTreeConflict:
+    return EventManager::EventType::SvnRepoManagerResolveTreeConflictError;
+  case SvnRepoCommandType::AddSubmodule:
+    return EventManager::EventType::SvnRepoManagerAddSubmoduleError;
+  case SvnRepoCommandType::AddRemote:
+    return EventManager::EventType::SvnRepoManagerAddRemoteError;
+  case SvnRepoCommandType::Blame:
+    return EventManager::EventType::SvnRepoManagerBlameError;
+  case SvnRepoCommandType::ApplyPatch:
+    return EventManager::EventType::SvnRepoManagerApplyPatchError;
+  case SvnRepoCommandType::ApplyStash:
+    return EventManager::EventType::SvnRepoManagerApplyStashError;
+  case SvnRepoCommandType::CheckoutBranch:
+    return EventManager::EventType::SvnRepoManagerCheckoutBranchError;
+  case SvnRepoCommandType::CheckoutCommit:
+    return EventManager::EventType::SvnRepoManagerCheckoutCommitError;
+  case SvnRepoCommandType::Clone:
+    return EventManager::EventType::SvnRepoManagerCloneRepoError;
+  case SvnRepoCommandType::Close:
+    return EventManager::EventType::SvnRepoManagerCloseRepoError;
+  case SvnRepoCommandType::CommitStaged:
+    return EventManager::EventType::SvnRepoManagerCommitStagedError;
+  case SvnRepoCommandType::CreateBranchFromCommit:
+    return EventManager::EventType::SvnRepoManagerCreateBranchFromCommitError;
+  case SvnRepoCommandType::CreatePatchFromCommit:
+    return EventManager::EventType::SvnRepoManagerCreatePatchFromCommitError;
+  case SvnRepoCommandType::CreateTagFromCommit:
+    return EventManager::EventType::SvnRepoManagerCreateTagFromCommitError;
+  case SvnRepoCommandType::DeleteAllStashes:
+    return EventManager::EventType::SvnRepoManagerDeleteAllStashesError;
+  case SvnRepoCommandType::DeleteBranch:
+    return EventManager::EventType::SvnRepoManagerDeleteBranchError;
+  case SvnRepoCommandType::DeleteRemoteBranch:
+    return EventManager::EventType::SvnRepoManagerDeleteRemoteBranchError;
+  case SvnRepoCommandType::DeleteStash:
+    return EventManager::EventType::SvnRepoManagerDeleteStashError;
+  case SvnRepoCommandType::DeleteSubmodule:
+    return EventManager::EventType::SvnRepoManagerDeleteSubmoduleError;
+  case SvnRepoCommandType::DeleteTag:
+    return EventManager::EventType::SvnRepoManagerDeleteTagError;
+  case SvnRepoCommandType::DeleteRemoteTag:
+    return EventManager::EventType::SvnRepoManagerDeleteRemoteTagError;
+  case SvnRepoCommandType::DiffFiles:
+    return EventManager::EventType::SvnRepoManagerDiffFilesError;
+  case SvnRepoCommandType::DiffFilesFromCommit:
+    return EventManager::EventType::SvnRepoManagerDiffFilesFromCommitError;
+  case SvnRepoCommandType::DiscardFiles:
+    return EventManager::EventType::SvnRepoManagerDiscardFilesError;
+  case SvnRepoCommandType::GetFileSizeFromCommit:
+    return EventManager::EventType::SvnRepoManagerGetFileSizeFromCommitError;
+  case SvnRepoCommandType::GetActiveBranch:
+    return EventManager::EventType::SvnRepoManagerGetActiveBranchError;
+  case SvnRepoCommandType::GetBranchHistory:
+    return EventManager::EventType::SvnRepoManagerGetBranchHistoryError;
+  case SvnRepoCommandType::GetCommitBranches:
+    return EventManager::EventType::SvnRepoManagerGetCommitBranchesError;
+  case SvnRepoCommandType::GetCommitHeads:
+    return EventManager::EventType::SvnRepoManagerGetCommitHeadsError;
+  case SvnRepoCommandType::GetCommitIsHead:
+    return EventManager::EventType::SvnRepoManagerGetCommitIsHeadError;
+  case SvnRepoCommandType::GetCommitStatus:
+    return EventManager::EventType::SvnRepoManagerGetCommitStatusError;
+  case SvnRepoCommandType::GetCommitTags:
+    return EventManager::EventType::SvnRepoManagerGetCommitTagsError;
+  case SvnRepoCommandType::GetIsMergeInProgress:
+    return EventManager::EventType::SvnRepoManagerGetIsMergeInProgressError;
+  case SvnRepoCommandType::GetStashStatus:
+    return EventManager::EventType::SvnRepoManagerGetStashStatusError;
+  case SvnRepoCommandType::GetSubmodulePath:
+    return EventManager::EventType::SvnRepoManagerGetSubmodulePathError;
+  case SvnRepoCommandType::GetUpstream:
+    return EventManager::EventType::SvnRepoManagerGetUpstreamError;
+  case SvnRepoCommandType::Init:
+    return EventManager::EventType::SvnRepoManagerInitRepoError;
+  case SvnRepoCommandType::ListConflicts:
+    return EventManager::EventType::SvnRepoManagerListConflictsError;
+  case SvnRepoCommandType::ListLocalBranches:
+    return EventManager::EventType::SvnRepoManagerListLocalBranchesError;
+  case SvnRepoCommandType::ListRemoteBranches:
+    return EventManager::EventType::SvnRepoManagerListRemoteBranchesError;
+  case SvnRepoCommandType::ListRemotes:
+    return EventManager::EventType::SvnRepoManagerListRemotesError;
+  case SvnRepoCommandType::ListStashes:
+    return EventManager::EventType::SvnRepoManagerListStashesError;
+  case SvnRepoCommandType::ListSubmodules:
+    return EventManager::EventType::SvnRepoManagerListSubmodulesError;
+  case SvnRepoCommandType::ListSubmodulesWithStatus:
+    return EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusError;
+  case SvnRepoCommandType::ListTags:
+    return EventManager::EventType::SvnRepoManagerListTagsError;
+  case SvnRepoCommandType::ListRemoteTags:
+    return EventManager::EventType::SvnRepoManagerListRemoteTagsError;
+  case SvnRepoCommandType::Merge:
+    return EventManager::EventType::SvnRepoManagerMergeError;
+  case SvnRepoCommandType::Rebase:
+    return EventManager::EventType::SvnRepoManagerRebaseError;
+  case SvnRepoCommandType::Open:
+    return EventManager::EventType::SvnRepoManagerOpenRepoError;
+  case SvnRepoCommandType::Pull:
+    return EventManager::EventType::SvnRepoManagerPullError;
+  case SvnRepoCommandType::Push:
+    return EventManager::EventType::SvnRepoManagerPushError;
+  case SvnRepoCommandType::FetchAll:
+    return EventManager::EventType::SvnRepoManagerFetchAllError;
+  case SvnRepoCommandType::FetchRemote:
+    return EventManager::EventType::SvnRepoManagerFetchRemoteError;
+  case SvnRepoCommandType::PushTag:
+    return EventManager::EventType::SvnRepoManagerPushTagError;
+  case SvnRepoCommandType::PushAllTags:
+    return EventManager::EventType::SvnRepoManagerPushAllTagsError;
+  case SvnRepoCommandType::RemoveRemote:
+    return EventManager::EventType::SvnRepoManagerRemoveRemoteError;
+  case SvnRepoCommandType::RenameBranch:
+    return EventManager::EventType::SvnRepoManagerRenameBranchError;
+  case SvnRepoCommandType::RenameTag:
+    return EventManager::EventType::SvnRepoManagerRenameTagError;
+  case SvnRepoCommandType::Reset:
+    return EventManager::EventType::SvnRepoManagerResetError;
+  case SvnRepoCommandType::Revert:
+    return EventManager::EventType::SvnRepoManagerRevertError;
+  case SvnRepoCommandType::CherryPick:
+    return EventManager::EventType::SvnRepoManagerCherryPickError;
+  case SvnRepoCommandType::SetDefaultRemote:
+    return EventManager::EventType::SvnRepoManagerSetDefaultRemoteError;
+  case SvnRepoCommandType::AddTarget:
+    return EventManager::EventType::SvnRepoManagerAddTargetError;
+  case SvnRepoCommandType::EditTarget:
+    return EventManager::EventType::SvnRepoManagerEditTargetError;
+  case SvnRepoCommandType::DeleteTarget:
+    return EventManager::EventType::SvnRepoManagerDeleteTargetError;
+  case SvnRepoCommandType::SetDefaultTarget:
+    return EventManager::EventType::SvnRepoManagerSetDefaultTargetError;
+  case SvnRepoCommandType::SetUpstream:
+    return EventManager::EventType::SvnRepoManagerSetUpstreamError;
+  case SvnRepoCommandType::IgnoreFiles:
+    return EventManager::EventType::SvnRepoManagerIgnoreFilesError;
+  case SvnRepoCommandType::StageFiles:
+    return EventManager::EventType::SvnRepoManagerStageFilesError;
+  case SvnRepoCommandType::Stash:
+    return EventManager::EventType::SvnRepoManagerStashError;
+  case SvnRepoCommandType::Status:
+    return EventManager::EventType::SvnRepoManagerStatusError;
+  case SvnRepoCommandType::SubmoduleUpdate:
+    return EventManager::EventType::SvnRepoManagerSubmoduleUpdateError;
+  case SvnRepoCommandType::UnstageFiles:
+    return EventManager::EventType::SvnRepoManagerUnstageFilesError;
+  case SvnRepoCommandType::UpdateRemote:
+    return EventManager::EventType::SvnRepoManagerUpdateRemoteError;
+  case SvnRepoCommandType::Quit:
+    return EventManager::EventType::SvnRepoManagerQuitError;
+  default:
+    return EventManager::EventType::Null;
+  }
 }
 
 void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
@@ -5385,6 +5544,30 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
     SvnRepoCommand *command = ctx->commandsQueue.pop();
     if (!command) {
       LOG_ERROR(Log::ErrorId::Git, "Internal error. Enqueued command is null.");
+      continue;
+    }
+
+    // Commands queued behind an open that failed or behind the close find
+    // no working copy. They are answered without running: an empty path
+    // would be the process's current directory.
+    bool hasRepository = false;
+    {
+      LOCKGUARD(_contextsMutex);
+      hasRepository = !ctx->SvnRepo.isEmpty();
+    }
+    const bool needsRepository =
+        command->type != SvnRepoCommandType::Open &&
+        command->type != SvnRepoCommandType::Clone &&
+        command->type != SvnRepoCommandType::Init &&
+        command->type != SvnRepoCommandType::Close &&
+        command->type != SvnRepoCommandType::Quit;
+    if (needsRepository && !hasRepository) {
+      const EventManager::EventType errorEvent = errorEventFor(command->type);
+      if (errorEvent != EventManager::EventType::Null) {
+        reportError(errorEvent, tr("The working copy has not been opened."),
+                    *command);
+      }
+      delete command;
       continue;
     }
 
@@ -5418,14 +5601,6 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const SvnRepoAddRemoteCommand *>(command);
       if (addRemoteCommand) {
         addRemoteWorker(*addRemoteCommand);
-      }
-      break;
-    }
-    case SvnRepoCommandType::Amend: {
-      const auto amendCommand =
-          dynamic_cast<const SvnRepoAmendCommand *>(command);
-      if (amendCommand) {
-        amendWorker(*amendCommand);
       }
       break;
     }

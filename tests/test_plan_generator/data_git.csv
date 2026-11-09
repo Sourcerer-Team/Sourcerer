@@ -1,0 +1,1005 @@
+Test ID,Category,Feature Area,Test Case,Test Steps,Expected Result,Priority,Status,Notes,Origin
+GIT-001,Git,Git - Repository Operations,Clone Repository (HTTPS),"1. Click Clone Repository
+2. Enter HTTPS URL (e.g. https://github.com/user/repo.git)
+3. Select destination folder
+4. Enter credentials if required
+5. Clone","Repository clones successfully
+All branches and history available
+Working directory populated with files",High,Not Tested,,Existing TC-008
+GIT-002,Git,Git - Repository Operations,Clone Repository (SSH),"1. Click Clone Repository
+2. Enter SSH URL (e.g. git@github.com:user/repo.git)
+3. Select destination folder
+4. Provide SSH key if required
+5. Clone","Repository clones successfully
+SSH authentication works
+All data cloned correctly",High,Not Tested,,Existing TC-009
+GIT-003,Git,Git - Repository Operations,Clone with Authentication Failure,"1. Attempt to clone private repository
+2. Provide incorrect credentials","Error message displayed clearly
+User can retry with correct credentials
+No partial clone left behind",Medium,Not Tested,,Existing TC-010
+GIT-004,Git,Git - Repository Operations,Initialize New Repository,"1. Click Initialize Repository
+2. Select empty folder or create new folder
+3. Initialize","New Git repository created (.git folder)
+Repository appears in Sourcerer
+Ready for commits",High,Not Tested,,Existing TC-011
+GIT-005,Git,Git - Repository Operations,Open Existing Repository,"1. Click Open Repository
+2. Browse to existing Git repository
+3. Open","Repository opens successfully
+Current branch and status displayed
+Repository history visible",High,Not Tested,,Existing TC-012
+GIT-006,Git,Git - Repository Operations,Open Non-Git Folder,"1. Click Open Repository
+2. Select folder without .git
+3. Attempt to open","Error message: Not a valid Git repository
+Option to initialize repository in that location",Medium,Not Tested,,Existing TC-013
+GIT-007,Git,Git - Repository Operations,Open Corrupted Repository,"1. Open repository with corrupted .git folder
+2. Observe behavior","Error message indicates corruption
+Recovery suggestions provided if possible
+Application doesn't crash",Low,Not Tested,,Existing TC-014
+GIT-008,Git,Git - Repository Operations,Close Repository,"1. Open a repository
+2. Close repository (switch to Home or close tab)","Repository closes cleanly
+No uncommitted changes lost
+Can reopen repository",Medium,Not Tested,,Existing TC-015
+GIT-009,Git,Git - Repository Operations,Switch Between Multiple Repositories,"1. Open Repository A
+2. Open Repository B
+3. Switch between them","Each repository displays correct state
+No data mixing between repositories
+Switching is smooth and fast",High,Not Tested,,Existing TC-016
+GIT-010,Git,Git - Branches - Local,View Local Branches,"1. Open repository with multiple branches
+2. Navigate to Branches view
+3. View local branches list","All local branches displayed
+Current branch indicated/highlighted
+Branch commit info shown",High,Not Tested,,Existing TC-017
+GIT-011,Git,Git - Branches - Local,Create New Branch,"1. Click Create Branch
+2. Enter branch name
+3. Select source (current HEAD/specific commit)
+4. Create","New branch created
+Optionally switched to new branch
+Appears in branches list",High,Not Tested,,Existing TC-018
+GIT-012,Git,Git - Branches - Local,Create Branch with Invalid Name,"1. Attempt to create branch with invalid name (spaces/special chars)
+2. Try to create","Validation error displayed
+Lists naming rules
+Branch not created",Medium,Not Tested,,Existing TC-019
+GIT-013,Git,Git - Branches - Local,Checkout Existing Branch,"1. Right-click branch or select branch
+2. Click Checkout/Switch
+3. Confirm if uncommitted changes exist","Branch switches successfully
+Working directory updates to branch state
+Current branch indicator updates",High,Not Tested,,Existing TC-020
+GIT-014,Git,Git - Branches - Local,Checkout with Uncommitted Changes,"1. Make changes without committing
+2. Attempt to checkout different branch","Warning about uncommitted changes
+Options: Stash/Discard/Cancel
+Changes handled per user choice",High,Not Tested,,Existing TC-021
+GIT-015,Git,Git - Branches - Local,Delete Local Branch,"1. Right-click branch
+2. Select Delete
+3. Confirm deletion","Branch deleted successfully
+Removed from branches list
+Cannot delete current branch",Medium,Not Tested,,Existing TC-022
+GIT-016,Git,Git - Branches - Local,Delete Unmerged Branch,"1. Create branch with commits
+2. Attempt to delete without merging
+3. Try to delete","Warning: Branch not fully merged
+Option to force delete or cancel
+Data loss warning clear",Medium,Not Tested,,Existing TC-023
+GIT-017,Git,Git - Branches - Local,Rename Branch,"1. Right-click branch
+2. Select Rename
+3. Enter new name
+4. Confirm","Branch renamed successfully
+New name appears in branches list
+Tracking relationships preserved",Medium,Not Tested,,Existing TC-024
+GIT-018,Git,Git - Branches - Local,Merge Branch into Current,"1. Checkout target branch (e.g. main)
+2. Right-click source branch
+3. Select Merge
+4. Confirm","Merge completes successfully (if no conflicts)
+Changes from source branch integrated
+Merge commit created",High,Not Tested,,Existing TC-025
+GIT-019,Git,Git - Branches - Local,Merge with Conflicts,"1. Create conflicting changes in two branches
+2. Attempt to merge","Conflicts detected and displayed
+Conflict markers shown in files
+Option to resolve conflicts",High,Not Tested,,Existing TC-026
+GIT-020,Git,Git - Branches - Local,Abort Merge,"1. Start merge with conflicts
+2. Click Abort Merge","Merge aborted
+Repository returns to pre-merge state
+Working directory restored",Medium,Not Tested,,Existing TC-027
+GIT-021,Git,Git - Branches - Local,Fast-forward Merge,"1. Merge branch that can fast-forward
+2. Observe merge type","Fast-forward merge performed
+No merge commit created
+Branch pointer updated",Medium,Not Tested,,Existing TC-028
+GIT-022,Git,Git - Branches - Local,View Branch History,"1. Right-click branch
+2. Select View History/Log","Commit history for branch displayed
+Graph shows branch relationships
+Commit details accessible",High,Not Tested,,Existing TC-029
+GIT-023,Git,Git - Branches - Local,Switch Workflow per Repository,"1. Open two repositories
+2. In the first, open the Git Flow dropdown and select Workflow > GitLab Flow
+3. Open the dropdown in the second repository
+4. Restart the application and reopen both repositories","First repository shows the GitLab Flow items and the GitLab Flow tooltip
+Second repository still shows the classic Git Flow items
+Both choices survive the restart
+git config sourcerer.workflow shows gitlabflow in the first repository",High,Not Tested,Repositories without sourcerer.workflow use classic Git Flow,Existing TC-176
+GIT-024,Git,Git - Branches - Local,GitLab Flow Start and Finish Feature,"1. Select Workflow > GitLab Flow
+2. Select Start feature and enter a name
+3. Commit a change
+4. Select Finish feature and confirm","feature/<name> is created from the GitLab Flow main branch and checked out
+Finishing merges it into the main branch and deletes the feature branch
+Main branch is checked out afterwards",High,Not Tested,,Existing TC-177
+GIT-025,Git,Git - Branches - Local,GitLab Flow Promote to Environment,"1. Select Workflow > GitLab Flow
+2. Checkout the main branch and open the dropdown
+3. Select Promote to pre-production and confirm
+4. Repeat from pre-production
+5. Checkout production and select Promote","Menu item names the next environment
+Missing environment branch is created from the promoted branch
+Existing environment branch receives a merge of the promoted branch
+Promoting the last environment or a branch outside the chain shows an error",High,Not Tested,,Existing TC-178
+GIT-026,Git,Git - Branches - Local,GitLab Flow Start Release,"1. Select Workflow > GitLab Flow
+2. Select Start release
+3. Enter 1.2",Branch 1-2-stable is created from the main branch and checked out,Medium,Not Tested,,Existing TC-179
+GIT-027,Git,Git - Branches - Local,GitLab Flow Cherry-pick to Release,"1. Create a release branch with Start release
+2. Commit a fix on the main branch and select it in the history
+3. Open Cherry-pick to release and select the release branch
+4. Repeat with a fix that conflicts with the release branch","Release branches are listed newest first
+Fix is committed on the release branch and the original branch is checked out again
+On conflicts the release branch stays checked out and a conflict message is shown
+Without a selected commit a commit SHA is asked for",High,Not Tested,,Existing TC-180
+GIT-028,Git,Git - Branches - Local,GitLab Flow Actions with All Branches,"1. Select Workflow > GitLab Flow
+2. Select the * item in the local branches panel
+3. Open the Git Flow dropdown","Finish feature, Promote and Cherry-pick to release are disabled
+Start feature and Start release stay enabled",Low,Not Tested,,Existing TC-182
+GIT-029,Git,Git - Branches - Local,"GitHub Flow Start, Update and Finish Branch","1. Select Workflow > GitHub Flow
+2. Select Start branch and enter a descriptive name
+3. Commit a change, then commit another change on main
+4. Checkout the branch and select Update from main
+5. Select Finish branch and confirm","Branch is created from the GitHub Flow main branch with the entered name and no prefix
+Update from main merges main into the branch and keeps it checked out
+Finish merges the branch into main, deletes it and checks out main
+Update and Finish on main show an error",High,Not Tested,Repository workflow is stored as sourcerer.workflow=githubflow,Existing TC-183
+GIT-030,Git,Git - Branches - Local,GitHub Flow Open Pull Request,"1. Select Workflow > GitHub Flow in a repository with a github.com remote
+2. Start a branch, commit and push it
+3. Select Open pull request
+4. Repeat in a repository without a github.com remote","A new ""Pull request: <branch>"" tab opens the GitHub compare page for the branch against main
+Signing in from that tab keeps the GitHub session of the repository issue tracker
+The tab is not restored with the workspace
+The default remote is used when several GitHub remotes exist
+Without a github.com remote an error is shown",Medium,Not Tested,"Supports https, git@github.com: and ssh:// remote URLs",Existing TC-184
+GIT-031,Git,Git - Branches - Local,git-flow-next Initialize,"1. Open a repository without git-flow configuration
+2. Select Workflow > GitFlow-Next
+3. Select Initialize git-flow-next and confirm","The classic preset is written to .git/config (gitflow.branch.* keys)
+The develop branch is created from main if it is missing
+The menu then lists Start feature, Start hotfix and Start release",High,Not Tested,Main and develop names come from the Git Flow settings,Existing TC-190
+GIT-032,Git,Git - Branches - Local,"git-flow-next Start, Update and Finish Feature","1. Select Start feature and enter a name
+2. Commit on the feature and on develop
+3. Select Update from develop
+4. Select Finish and confirm","The feature starts at develop
+Update rebases the feature onto develop (downstreamStrategy=rebase)
+Finish merges it into develop, checks out develop and deletes the feature",High,Not Tested,,Existing TC-191
+GIT-033,Git,Git - Branches - Local,git-flow-next Finish Release,"1. Start release 1.0 and commit
+2. Select Finish and confirm","The confirmation lists merge into main, tag 1.0, update develop from main and delete
+main contains the release, annotated tag 1.0 points at main
+develop contains main",High,Not Tested,A finish is refused when the tag already exists,Existing TC-192
+GIT-034,Git,Git - Branches - Local,git-flow-next Custom Configuration,"1. Edit .git/config: add a topic type (e.g. gitflow.branch.bugfix.type=topic, parent=develop) and set gitflow.branch.hotfix.upstreamStrategy=squash
+2. Open the git-flow-next menu
+3. Finish a hotfix","Start bugfix appears in the menu
+The hotfix is squashed into one commit on main
+Configuration written by the git flow command line tool is used the same way",Medium,Not Tested,,Existing TC-193
+GIT-035,Git,Git - Branches - Local,GitFlow-Next Without the CLI,"1. Make sure git-flow (git-flow-next) is not in PATH
+2. Select Workflow > GitFlow-Next
+3. Select any GitFlow-Next menu item","A dialog says the git-flow-next command line tool was not found and asks to download it and add its installation directory to PATH
+The link https://github.com/gittower/git-flow-next opens in the browser
+The selected action is not run",High,Not Tested,"After installing, Sourcerer must be restarted to see the new PATH",Existing TC-194
+GIT-036,Git,Git - Branches - Local,Graphite Without the CLI,"1. Make sure gt is not in PATH
+2. Select Workflow > Graphite
+3. Select any Graphite menu item","A dialog says the Graphite CLI (gt) was not found and asks to install it and add its installation directory to PATH
+The link https://graphite.com/docs/install-the-cli opens in the browser
+The selected action is not run",High,Not Tested,,Existing TC-195
+GIT-037,Git,Git - Branches - Local,Graphite Initialize and Create Stack,"1. Select Workflow > Graphite in a repository not initialized for Graphite
+2. Select Initialize Graphite and confirm
+3. Make changes, select Create branch, enter a name and a commit message
+4. Repeat to stack a second branch","Initialize runs gt init with the GitHub Flow main branch as trunk and is then hidden
+Each branch is stacked on the current one and holds one commit with the entered message and the profile author
+An empty message creates an empty branch
+Names with spaces or characters like & % ^ are refused",High,Not Tested,,Existing TC-196
+GIT-038,Git,Git - Branches - Local,"Graphite Modify, Navigate and Restack","1. Check out the lower branch of a stack and change a file
+2. Select Modify (amend)
+3. Change another file and select Modify with new commit
+4. Use Up, Down, Top of stack and Bottom of stack","Modify amends the last commit and restacks the branches above
+Modify with new commit adds a commit and restacks
+Navigation checks out the matching branch, errors from gt (e.g. already at the top) are shown
+Where the stack forks, Up and Top of stack ask which branch to check out",High,Not Tested,,Existing TC-197
+GIT-039,Git,Git - Branches - Local,Graphite Stacks in Local Branches Panel,"1. Select Workflow > Graphite in an initialized repository with a forked stack and an untracked branch
+2. Look at the local branches panel in the dark and light themes
+3. Hover a branch","Branches are shown as stacks with the trunk on top and children indented below their parent, with connecting lines
+The current branch has a filled dot and a bold name
+Branches that need a restack show a restack badge, branches with pull requests a #number badge (draft, merged, closed)
+Untracked branches are listed under Not tracked by Graphite
+The tooltip shows parent, children, restack state and pull request",High,Not Tested,,Existing TC-199
+GIT-040,Git,Git - Branches - Local,Graphite Panel Refresh,"1. With the Graphite workflow selected, run gt create in a terminal
+2. Switch back to Sourcerer
+3. Commit on a branch that has branches stacked on it
+4. Switch the workflow to Git Flow","The new branch appears in its stack after Sourcerer is activated again
+The branches above the committed branch get a restack badge
+With another workflow the panel shows the plain branch list again",Medium,Not Tested,"gt state takes about a second, the panel updates shortly after",Existing TC-200
+GIT-041,Git,Git - Branches - Local,Graphite Branch Context Menu,"1. Right-click a tracked branch: Restack, Submit stack, Open pull request, Stop tracking with Graphite
+2. Right-click an untracked branch: Track with Graphite and choose a parent
+3. Right-click the section header","The actions run gt restack --branch, gt submit --branch --stack, open the pull request tab and gt untrack --force after confirmations
+Track runs gt track --parent and the branch moves into the chosen stack
+Branch names with characters like & or % have these actions disabled
+The header has no context menu and can not be selected, dragged or dropped on",High,Not Tested,,Existing TC-201
+GIT-042,Git,Git - Branches - Local,Graphite Panel Without CLI,1. Select Workflow > Graphite with gt not in PATH or in a repository without gt init,"The local branches panel shows the plain branch list, no dialog appears until a Graphite menu item is used",Low,Not Tested,,Existing TC-202
+GIT-043,Git,Git - Branches - Local,Create Custom GitFlow-Next Workflow,"1. Open the Git Flow dropdown > Workflow > New custom workflow...
+2. Add base branches (e.g. develop with parent main, staging with parent develop) and topic types with prefixes, parents, start points, strategies, tag and keep
+3. Try an invalid model (missing prefix slash, two roots, a cycle, an empty name)
+4. Save with the check button or Ctrl+Enter","The editor opens as an overlay over the repository tab and scrolls when the window is small
+Problems are listed below the rows and saving stays disabled while there are any
+Esc cancels
+The workflow is saved to gitflow-next-workflows.json in the application data folder and listed under Custom workflows in every open repository",High,Not Tested,,Existing TC-203
+GIT-044,Git,Git - Branches - Local,Apply Custom GitFlow-Next Workflow,"1. In a repository with main only, select the custom workflow under Workflow
+2. Confirm the dialog
+3. Open the Git Flow dropdown","The confirmation lists the base branches that will be created from their parents
+The gitflow.branch.* configuration in .git/config is replaced, sourcerer.gitflownext.workflow and .revision are set
+The dropdown lists Start items for the workflow topic types
+Without the git-flow-next CLI the install dialog is shown and nothing is applied
+Cancelling keeps the previous workflow checked",High,Not Tested,,Existing TC-204
+GIT-045,Git,Git - Branches - Local,"Update, Edit and Remove Custom Workflows","1. Edit a workflow used by an open repository and save
+2. Open the Git Flow dropdown in that repository
+3. Select Apply updated and confirm
+4. Select Workflow > GitFlow-Next
+5. Remove the workflow","Apply updated <name>... appears only after the definition changed and rewrites the configuration
+Choosing GitFlow-Next keeps the configuration but no longer checks the custom workflow
+Removing asks for confirmation, the repository keeps its configuration",High,Not Tested,,Existing TC-205
+GIT-046,Git,Git - Branches - Local,Save Repository Configuration as Custom Workflow,"1. Open a repository configured with the git flow command line tool or Initialize git-flow-next
+2. Select Workflow > Save this repository's configuration as...
+3. Enter a name and save","The editor opens with the base branches and topic types of the repository
+The saved workflow can be applied to other repositories
+The item is disabled in repositories without git-flow-next configuration",Medium,Not Tested,,Existing TC-206
+GIT-047,Git,Git - Branches - Local,Branch Names With Slashes,"1. Create 'feature/team/a'
+2. Check it out, commit, push, then delete it locally and remotely",All steps succeed. Remote shows 'origin/feature/team/a'. No empty folder remains under .git/refs/heads/feature.,Medium,Not Tested,"Edge case (slashes). GitRepoBranches.cpp:807, 1311",New
+GIT-048,Git,Git - Branches - Local,Branch Name That Conflicts With a Folder-Style Branch,"1. With 'feature/x' existing, create branch 'feature'",A clear error says the name conflicts with an existing branch. No branch is created.,Medium,Not Tested,Edge case. CreateBranchFromCommitFailedToCreateBranch,New
+GIT-049,Git,Git - Branches - Local,Very Long Branch Name,"1. Create a branch with a 240-character name on Windows
+2. Commit and push it","Create, checkout and push work, or a clear error is shown when the path is too long. The repository stays usable.",Low,Not Tested,Edge case (long names),New
+GIT-050,Git,Git - Branches - Local,Case-Only Branch Rename,1. On Windows or macOS rename branch 'Feature' to 'feature',"The branch is listed as 'feature' afterwards and its upstream setting is kept, or a clear error is shown.",Medium,Not Tested,Edge case (case-only rename). GitRepoBranches.cpp:1224 renameBranch,New
+GIT-051,Git,Git - Branches - Local,Branch and Tag With the Same Name,"1. Create tag 'v1' on commit A and branch 'v1' on commit B
+2. Check out branch 'v1', then check out tag 'v1', then push the tag",Branch checkout moves HEAD to B on branch 'v1'. Tag checkout detaches at A. The pushed tag points to A.,Medium,Not Tested,Edge case. GitRepoBranches.cpp:45 checkoutBranch(type),New
+GIT-052,Git,Git - Branches - Local,Delete or Rename the Current Branch,"1. Right-click the checked-out branch and choose Delete branch
+2. Choose Rename branch and rename it",Delete is refused with a clear message. Rename succeeds and the renamed branch keeps its upstream.,Medium,Not Tested,"Related TC-022, TC-024",New
+GIT-053,Git,Git - Branches - Local,Pull a Branch That Is Not Checked Out,"1. Check out 'dev'
+2. From the branch menu pull 'main' whose upstream has new commits
+3. Repeat after making a local commit on 'main' that diverges",First pull fast-forwards 'main' without touching the working copy. Second pull fails with a message that a branch that is not checked out can only be fast-forwarded.,Medium,Not Tested,Edge case. GitRepoRemotes.cpp:418-462 PullBranchNotCheckedOutCannotFastForward,New
+GIT-054,Git,Git - Branches - Remote,View Remote Branches,"1. Open repository with remote
+2. Navigate to remote branches section","All remote branches listed (origin/*)
+Remote tracking status shown
+Outdated/ahead/behind status visible",High,Not Tested,,Existing TC-030
+GIT-055,Git,Git - Branches - Remote,Fetch from Remote,"1. Click Fetch
+2. Select remote (or fetch all)","Remote branches updated
+New remote branches appear
+No local changes made",High,Not Tested,,Existing TC-031
+GIT-056,Git,Git - Branches - Remote,Pull Changes,"1. Checkout branch with remote tracking
+2. Click Pull
+3. Confirm","Remote changes fetched and merged
+Local branch updated
+Conflicts handled if present",High,Not Tested,,Existing TC-032
+GIT-057,Git,Git - Branches - Remote,Pull with Rebase,"1. Configure pull with rebase
+2. Click Pull
+3. Observe rebase","Local commits replayed on top of remote
+Linear history maintained
+Conflicts shown if present",Medium,Not Tested,,Existing TC-033
+GIT-058,Git,Git - Branches - Remote,Checkout Remote Branch,"1. Right-click remote branch
+2. Select Checkout/Create tracking branch","Local tracking branch created
+Checked out automatically
+Appears in local branches list",High,Not Tested,,Existing TC-034
+GIT-059,Git,Git - Branches - Remote,Delete Remote Branch,"1. Right-click remote branch
+2. Select Delete Remote Branch
+3. Confirm","Branch deleted on remote server
+Removed from remote branches list
+Warning displayed before deletion",Medium,Not Tested,,Existing TC-035
+GIT-060,Git,Git - Branches - Remote,Set Upstream Branch,"1. Create local branch
+2. Right-click and set upstream
+3. Select remote branch","Upstream tracking configured
+Push/pull operations use upstream
+Status shows relationship",Medium,Not Tested,,Existing TC-036
+GIT-061,Git,Git - Commits - View,View Commit History,"1. Open repository
+2. Navigate to History/Log view","Chronological list of commits displayed
+Commit hash/message/author/date shown
+Graph shows branch relationships",High,Not Tested,,Existing TC-037
+GIT-062,Git,Git - Commits - View,View Commit Details,"1. Click on specific commit in history
+2. View details panel","Full commit message displayed
+Changed files listed
+Author/date/hash information shown",High,Not Tested,,Existing TC-038
+GIT-063,Git,Git - Commits - View,View Commit Diff,"1. Select commit
+2. View diff/changes","Diff for each file shown
+Added/deleted/modified lines highlighted
+Side-by-side or unified diff view",High,Not Tested,,Existing TC-039
+GIT-064,Git,Git - Commits - View,Search Commit History,"1. Use search/filter in history
+2. Search by message/author/hash","Matching commits displayed
+Search is fast even in large repos
+Can clear search/filter",Medium,Not Tested,,Existing TC-040
+GIT-065,Git,Git - Commits - View,Blame a File,1. Right-click a tracked file and choose Blame,"Each line shows its commit, author and date. Lines changed in the working copy are marked as not committed.",High,Not Tested,GitRepoDiff.cpp:1066 blame; RepoContainer.cpp:8528,New
+GIT-066,Git,Git - Commits - View,History Paging in a Large Repository,"1. Open a repository with more than 100000 commits
+2. Scroll to the end of the history list",Further pages load as you scroll and the total count is right. The UI stays responsive.,Medium,Not Tested,Edge case (huge repos). GitRepoHistory.cpp:383 getBranchHistory page/hasMore,New
+GIT-067,Git,Git - Commits - Create,Commit Staged Changes,"1. Stage files
+2. Enter commit message
+3. Click Commit","Commit created successfully
+Appears in history
+Staged files committed",High,Not Tested,,Existing TC-041
+GIT-068,Git,Git - Commits - Create,Commit with Empty Message,"1. Stage files
+2. Leave message empty
+3. Attempt commit","Validation error displayed
+Commit not created
+Prompted to enter message",Medium,Not Tested,,Existing TC-042
+GIT-069,Git,Git - Commits - Create,Commit with Sign-off,"1. Stage files
+2. Enter message
+3. Enable sign-off option
+4. Commit","Commit created with Signed-off-by line
+Author information included
+Appears in commit message",Low,Not Tested,,Existing TC-043
+GIT-070,Git,Git - Commits - Create,Amend Last Commit,"1. View last commit
+2. Stage new changes or modify message
+3. Select Amend option
+4. Commit","Last commit modified
+Commit hash changes
+History updated",Medium,Not Tested,,Existing TC-044
+GIT-071,Git,Git - Commits - Operations,Cherry-pick Commit,"1. Select commit from different branch
+2. Right-click and Cherry-pick
+3. Confirm","Commit changes applied to current branch
+New commit created
+Conflicts handled if present",Medium,Not Tested,,Existing TC-045
+GIT-072,Git,Git - Commits - Operations,Revert Commit,"1. Select commit to revert
+2. Right-click and Revert
+3. Confirm","Revert commit created
+Changes undone
+Original commit remains in history",Medium,Not Tested,,Existing TC-046
+GIT-073,Git,Git - Commits - Operations,Reset to Commit (Soft),"1. Right-click commit
+2. Select Reset > Soft
+3. Confirm","Branch pointer moved
+Changes kept in staging
+Working directory unchanged",High,Not Tested,,Existing TC-047
+GIT-074,Git,Git - Commits - Operations,Reset to Commit (Hard),"1. Right-click commit
+2. Select Reset > Hard
+3. Confirm warning","Branch pointer moved
+Working directory reset
+All local changes discarded",High,Not Tested,,Existing TC-048
+GIT-075,Git,Git - Commits - Operations,Create Tag from Commit,"1. Right-click commit
+2. Select Create Tag
+3. Enter tag name
+4. Confirm","Tag created at commit
+Appears in tags list
+Optionally pushed to remote",Medium,Not Tested,,Existing TC-049
+GIT-076,Git,Git - Commits - Operations,Checkout Specific Commit,"1. Right-click commit
+2. Select Checkout
+3. Confirm detached HEAD warning","Detached HEAD state entered
+Working directory at commit state
+Warning about detached state shown",Medium,Not Tested,,Existing TC-050
+GIT-077,Git,Git - Commits - Operations,Create Branch from Commit,"1. Right-click commit
+2. Select Create Branch
+3. Enter branch name","New branch created at commit
+Optionally checked out
+Appears in branches list",Medium,Not Tested,,Existing TC-051
+GIT-078,Git,Git - Commits - Operations,View Commit Files,"1. Select commit
+2. View files tree/list at that commit","All files in repository at commit time shown
+Can view file contents
+Can compare with other commits",Medium,Not Tested,,Existing TC-052
+GIT-079,Git,Git - Commits - Operations,Create Patch from Commit,"1. Right-click commit
+2. Select Create Patch/Export
+3. Choose save location","Patch file created (.patch or .diff)
+Contains all commit changes
+Can be applied elsewhere",Low,Not Tested,,Existing TC-053
+GIT-080,Git,Git - Commits - Operations,Reset to Commit (Mixed),"1. Select an older commit in history
+2. Right-click and select Reset > Mixed
+3. Confirm the reset","Branch pointer moves to selected commit
+Changes from later commits remain in working directory unstaged
+Staging area is cleared
+History and status refresh correctly",High,Not Tested,Complements existing soft and hard reset cases,Existing TC-169
+GIT-081,Git,Git - Commits - Operations,Cherry-pick With Conflicts,"1. Cherry-pick a commit that conflicts with the current branch
+2. Resolve, stage and commit
+3. Repeat and click Abort merge instead",Cherry-pick stops with a conflict error and CHERRY_PICK_HEAD exists. The resolved commit keeps the original author and message. Abort restores the previous state.,High,Not Tested,"Related TC-045. GitRepoMerge.cpp:57-60, 194; getIsMergeInProgress covers CHERRYPICK",New
+GIT-082,Git,Git - Commits - Operations,Cherry-pick a Merge Commit,1. Right-click a merge commit and choose Cherry-pick,An error toast says the commit cannot be cherry-picked (merge commits need a mainline). The working copy is unchanged.,Medium,Not Tested,Edge case. GitRepoMerge.cpp:226-229,New
+GIT-083,Git,Git - Commits - Operations,Cherry-pick a Commit Already Applied,"1. Cherry-pick commit C
+2. Cherry-pick C again",An error says the result is empty. No empty commit is created and no cherry-pick state is left.,Medium,Not Tested,Edge case. GitRepoMerge.cpp:99-104 CherryPickCommitIsEmpty,New
+GIT-084,Git,Git - Commits - Operations,Revert a Merge Commit,"1. Right-click a merge commit and choose Revert, confirm",An error toast 'Failed to revert commit.' explains merge commits are not supported. The working copy is unchanged.,Medium,Not Tested,Related TC-046. Edge case. GitRepoMerge.cpp:166-174,New
+GIT-085,Git,Git - Commits - Operations,Revert With Conflicts,"1. Revert an old commit whose lines were changed later
+2. Resolve and commit, or abort",Revert stops with conflicts and REVERT_HEAD exists. Resolving and committing ends it. Abort restores the state.,Medium,Not Tested,Edge case. GitRepoMerge.cpp:133,New
+GIT-086,Git,Git - Commits - Operations,Commit on Detached HEAD,"1. Check out a commit (detached HEAD)
+2. Make and commit a change
+3. Check out 'main', then create a branch from the detached commit using history","The commit is created on detached HEAD and the active branch display shows the detached state. After switching, the commit is still reachable in history (all branches) until a branch is created from it.",High,Not Tested,Edge case (detached HEAD). GitRepoWorkingCopy.cpp:116 checkoutCommit,New
+GIT-087,Git,Git - Commits - Operations,Push on Detached HEAD,"1. Check out a commit (detached HEAD)
+2. Click Push",A clear error says there is no branch to push. Nothing is sent.,Medium,Not Tested,Edge case (detached HEAD). GitRepoRemotes.cpp:877 PushFailedToReadBranchName,New
+GIT-088,Git,Git - Working Directory,Stage Individual File,"1. Modify file
+2. Right-click file in changes list
+3. Select Stage","File moves to staged section
+Ready for commit
+Other unstaged files unaffected",High,Not Tested,,Existing TC-054
+GIT-089,Git,Git - Working Directory,Stage All Changes,"1. Modify multiple files
+2. Click Stage All button","All modified files staged
+Appears in staged section
+Ready for commit",High,Not Tested,,Existing TC-055
+GIT-090,Git,Git - Working Directory,Unstage File,"1. Stage file
+2. Right-click staged file
+3. Select Unstage","File returns to unstaged section
+Changes preserved
+Not included in next commit",High,Not Tested,,Existing TC-056
+GIT-091,Git,Git - Working Directory,Discard Changes in File,"1. Modify file
+2. Right-click file
+3. Select Discard Changes
+4. Confirm","File reverted to last commit state
+Changes permanently lost
+Warning confirmation shown",High,Not Tested,,Existing TC-057
+GIT-092,Git,Git - Working Directory,View File Diff,"1. Modify file
+2. Click file in changes list","Diff view opens
+Changes highlighted
+Can view side-by-side or unified",High,Not Tested,,Existing TC-058
+GIT-093,Git,Git - Working Directory,Refresh Status,"1. Modify files outside Sourcerer
+2. Click Refresh or wait for auto-refresh","Changes detected and displayed
+File list updates
+Status accurate",Medium,Not Tested,,Existing TC-059
+GIT-094,Git,Git - Working Directory,Untracked Files,"1. Create new file in repository
+2. Observe in changes list","Untracked files shown separately
+Can stage untracked files
+Can add to .gitignore",Medium,Not Tested,,Existing TC-060
+GIT-095,Git,Git - Working Directory,Ignored Files,"1. Add pattern to .gitignore
+2. Create matching file
+3. Observe status","Ignored files not shown in changes
+.gitignore file appears if modified
+Can view ignored files if option enabled",Medium,Not Tested,,Existing TC-061
+GIT-096,Git,Git - Working Directory,Apply Patch File,"1. Create or obtain a valid .patch file
+2. Open a repository where the patch applies cleanly
+3. Select Apply Patch
+4. Choose the patch file","Patch is applied to the working directory
+Changed files appear in status
+No unrelated files are modified
+Success or clear failure message is shown",Medium,Not Tested,Covers GitRepoCommandType::ApplyPatch,Existing TC-171
+GIT-097,Git,Git - Working Directory,Create Patch from Selected Files,"1. Modify one or more files
+2. Select files in the working tree or index list
+3. Right-click and select Create File Patch","Patch content is generated only for selected files
+Patch viewer or save flow opens
+Patch can be applied to reproduce the selected changes",Medium,Not Tested,,Existing TC-172
+GIT-098,Git,Git - Working Directory,Ignore File from Context Menu,"1. Create an untracked file
+2. Right-click the file in working tree or index view
+3. Select Ignore > Ignore this file","Matching ignore entry is added to .gitignore
+File is no longer shown as untracked after refresh
+Existing .gitignore content is preserved",Medium,Not Tested,,Existing TC-173
+GIT-099,Git,Git - Working Directory,Ignore Files Recursively from Context Menu,"1. Create untracked files inside a folder tree
+2. Right-click one file in that folder
+3. Select Ignore > Ignore all files recursively inside file parent folder","Recursive ignore pattern is added to .gitignore
+Files under the selected parent folder are ignored
+Files outside that folder remain visible",Medium,Not Tested,,Existing TC-174
+GIT-100,Git,Git - Working Directory,Delete Selected Files from Changes View,"1. Create or modify multiple working tree files
+2. Select existing files in flat or tree changes view
+3. Right-click and select Delete
+4. Confirm deletion","Selected files are deleted from disk
+Repository status refreshes
+Diff viewer closes if it was open
+User cancellation leaves files untouched",High,Not Tested,,Existing TC-175
+GIT-101,Git,Git - Working Directory,Line Endings With core.autocrlf,"1. On Windows set core.autocrlf=true
+2. Clone a repository with LF files
+3. Open it and check the Changes view
+4. Edit one line and view the diff","No file shows as modified after the clone. The diff shows only the edited line, not every line.",High,Not Tested,Edge case (CRLF). GitRepoDiff.cpp:82 filters applied,New
+GIT-102,Git,Git - Working Directory,Line Endings From .gitattributes eol,"1. Add '*.sh text eol=lf' and '*.bat text eol=crlf' to .gitattributes
+2. Create both files, stage and commit",Both are stored with LF. After a fresh checkout .sh has LF and .bat has CRLF. No false modifications appear.,Medium,Not Tested,Edge case (CRLF),New
+GIT-103,Git,Git - Working Directory,Case-Only File Rename,"1. On Windows rename 'readme.md' to 'README.md'
+2. Stage and commit
+3. Check out the commit on Linux","The change shows as a rename, the commit contains only 'README.md', and the Linux checkout has one file.",Medium,Not Tested,Edge case (case-only rename). GitRepoWorkingCopy.cpp:220 RENAMES_HEAD_TO_INDEX,New
+GIT-104,Git,Git - Working Directory,Paths With Unicode and Spaces,"1. Create 'docs/Über Notes 日本.txt'
+2. Stage, diff, commit, blame, discard a change, ignore it",Every operation shows the correct name and works.,Medium,Not Tested,Edge case (unicode/space paths),New
+GIT-105,Git,Git - Working Directory,Stale index.lock Present,"1. Create an empty .git/index.lock
+2. Stage a file, commit, checkout a branch",Each operation fails with a message that names the lock file. After deleting the file the operations work.,High,Not Tested,Edge case (index.lock),New
+GIT-106,Git,Git - Working Directory,Large Ignored Folder,"1. Add 'node_modules/' with 100000 files to .gitignore
+2. Refresh status",Status loads within a few seconds and the folder is shown once as ignored.,Medium,Not Tested,Edge case (huge repos). GitRepoWorkingCopy.cpp:219 INCLUDE_IGNORED,New
+GIT-107,Git,Git - Working Directory,Git Hooks Are Present,"1. Add an executable pre-commit hook that exits 1
+2. Commit from Sourcerer","The behavior is documented: the commit is blocked like the git CLI, or the user is told hooks are not run.",Medium,Not Tested,libgit2 does not run hooks; no hook support in lib/GitRepo/src,New
+GIT-108,Git,Git - Working Directory,Sparse Checkout Repository,"1. Enable sparse checkout from the CLI so only 'src/' is present
+2. Open the repository in Sourcerer",Files outside 'src/' are not shown as deleted and no commit removes them.,Medium,Not Tested,Edge case. No sparse-checkout handling in GitRepo,New
+GIT-109,Git,Git - Working Directory,Open Repository Initialised by the CLI Without Commits,"1. Run 'git init' in a folder with existing files
+2. Open it in Sourcerer",An empty initial commit is created and the existing files stay untracked. Opening again does not add another commit.,Medium,Not Tested,"Edge case (unborn branch, by design). GitRepo.cpp:2425-2430; docs/GIT_TEST_PLAN.md line 91",New
+GIT-110,Git,Git - Stash,Create Stash,"1. Make uncommitted changes
+2. Click Stash Changes
+3. Optionally enter description
+4. Stash","Changes saved to stash
+Working directory cleaned
+Stash appears in stash list",High,Not Tested,,Existing TC-062
+GIT-111,Git,Git - Stash,Create Stash with Untracked Files,"1. Make changes including untracked files
+2. Enable 'Include untracked' option
+3. Stash","All changes including untracked files stashed
+Working directory completely clean
+Can restore later",Medium,Not Tested,,Existing TC-063
+GIT-112,Git,Git - Stash,Apply Stash,"1. View stash list
+2. Right-click stash
+3. Select Apply","Stash changes applied to working directory
+Stash remains in list
+Conflicts handled if present",High,Not Tested,,Existing TC-064
+GIT-113,Git,Git - Stash,Pop Stash,"1. View stash list
+2. Right-click stash
+3. Select Pop","Stash changes applied to working directory
+Stash removed from list
+Conflicts handled if present",High,Not Tested,,Existing TC-065
+GIT-114,Git,Git - Stash,Drop Stash,"1. View stash list
+2. Right-click stash
+3. Select Drop/Delete
+4. Confirm","Stash deleted permanently
+Removed from list
+Confirmation warning shown",Medium,Not Tested,,Existing TC-066
+GIT-115,Git,Git - Stash,View Stash Changes,"1. Select stash in list
+2. View changes/diff","Shows files changed in stash
+Diff view available
+Can see what was stashed",Medium,Not Tested,,Existing TC-067
+GIT-116,Git,Git - Stash,Clear All Stashes,"1. Have multiple stashes
+2. Select Clear All Stashes
+3. Confirm","All stashes deleted
+Stash list empty
+Strong confirmation required",Low,Not Tested,,Existing TC-068
+GIT-117,Git,Git - Stash,Apply Stash with Conflicts,"1. Create stash
+2. Modify same files
+3. Apply stash","Conflicts detected
+Conflict markers added
+User can resolve conflicts",Medium,Not Tested,,Existing TC-069
+GIT-118,Git,Git - Stash,Stash Without user.name in Git Config,"1. Remove user.name and user.email from global and repository git config, keep a Sourcerer profile
+2. Modify a file and create a stash",The stash is created and uses the Sourcerer profile.,Medium,Not Tested,Edge case. Suspected bug: GitRepoStashes.cpp:643 git_signature_default (StashFailedToGetDefaultSignature),New
+GIT-119,Git,Git - Stash,Apply Stash Restores Staged State,"1. Stage file A, modify file B without staging
+2. Stash, then apply the stash",File A is staged again and file B is modified but not staged.,Medium,Not Tested,Related TC-064. GitRepoStashes.cpp:105 GIT_STASH_APPLY_REINSTATE_INDEX,New
+GIT-120,Git,Git - Stash,Apply Stash When an Untracked File Now Exists,"1. Stash an untracked file 'new.txt'
+2. Create a different 'new.txt'
+3. Apply the stash",Apply fails with a clear error and the current 'new.txt' is not overwritten. The stash is kept.,Medium,Not Tested,Edge case. GitRepoStashes.cpp:119,New
+GIT-121,Git,Git - Tags,View Tags List,"1. Open repository with tags
+2. Navigate to Tags section","All tags displayed (lightweight and annotated)
+Tag names and commit shown
+Sorted appropriately",High,Not Tested,,Existing TC-070
+GIT-122,Git,Git - Tags,Create Lightweight Tag,"1. Right-click commit or use tag button
+2. Enter tag name
+3. Create lightweight tag","Tag created at commit
+Appears in tags list
+No additional message",Medium,Not Tested,,Existing TC-071
+GIT-123,Git,Git - Tags,Create Annotated Tag,"1. Right-click commit
+2. Create tag with message
+3. Enter tag name and message","Annotated tag created
+Tag message stored
+Author/date information included",Medium,Not Tested,,Existing TC-072
+GIT-124,Git,Git - Tags,Delete Local Tag,"1. Right-click tag
+2. Select Delete
+3. Confirm","Tag deleted locally
+Removed from tags list
+Can be recreated if needed",Medium,Not Tested,,Existing TC-073
+GIT-125,Git,Git - Tags,Delete Remote Tag,"1. Right-click tag
+2. Select Delete Remote Tag
+3. Confirm","Tag deleted from remote server
+Removed from remote tags
+Warning shown before deletion",Medium,Not Tested,,Existing TC-074
+GIT-126,Git,Git - Tags,Push Tag to Remote,"1. Create local tag
+2. Right-click tag
+3. Select Push to Remote","Tag pushed to remote
+Available to other users
+Confirmation shown",Medium,Not Tested,,Existing TC-075
+GIT-127,Git,Git - Tags,Push All Tags,"1. Create multiple local tags
+2. Select Push All Tags
+3. Confirm","All local tags pushed to remote
+Tags synchronized
+Summary of pushed tags shown",Low,Not Tested,,Existing TC-076
+GIT-128,Git,Git - Tags,Checkout Tag,"1. Right-click tag
+2. Select Checkout","Detached HEAD at tag
+Working directory at tagged state
+Warning about detached HEAD shown",Medium,Not Tested,,Existing TC-077
+GIT-129,Git,Git - Tags,Rename Tag,"1. Open repository with an existing local tag
+2. Right-click the tag
+3. Select Rename Tag
+4. Enter a new valid tag name
+5. Submit","Local tag is renamed
+Old tag name disappears from tag list
+New tag points to the same commit
+Invalid names are rejected with an error",Medium,Not Tested,,Existing TC-170
+GIT-130,Git,Git - Submodules,Add Submodule,"1. Right-click or use Submodules menu
+2. Select Add Submodule
+3. Enter repository URL and path
+4. Add","Submodule cloned
+.gitmodules file created/updated
+Submodule appears in list",Medium,Not Tested,,Existing TC-078
+GIT-131,Git,Git - Submodules,Initialize Submodules,"1. Clone repository with submodules
+2. Initialize submodules","Submodules cloned
+Submodule directories populated
+.git/modules updated",Medium,Not Tested,,Existing TC-079
+GIT-132,Git,Git - Submodules,Update Submodules,"1. Select Update Submodules
+2. Choose specific or all
+3. Update","Submodules updated to latest
+Local submodule refs updated
+Changes pulled",Medium,Not Tested,,Existing TC-080
+GIT-133,Git,Git - Submodules,Remove Submodule,"1. Right-click submodule
+2. Select Remove
+3. Confirm","Submodule removed from .gitmodules
+Submodule directory deleted
+Git config cleaned",Low,Not Tested,,Existing TC-081
+GIT-134,Git,Git - Submodules,View Submodule Status,"1. View submodules list
+2. Check status indicators","Shows if submodule is up-to-date
+Indicates commits ahead/behind
+Shows uninitialized state",Medium,Not Tested,,Existing TC-082
+GIT-135,Git,Git - Submodules,Open Submodule Repository,"1. Right-click submodule
+2. Select Open in New Window/Tab","Submodule opens as separate repository
+Can perform operations on submodule
+Changes trackable independently",Low,Not Tested,,Existing TC-083
+GIT-136,Git,Git - Submodules,Uninitialized Submodule After Clone,"1. Clone a repository with submodules without recursion
+2. Open the Submodules panel
+3. Run Update on a submodule","The submodule shows as not initialised. Update initialises it, clones it and checks out the recorded commit.",High,Not Tested,"Related TC-079, TC-080. Edge case. Suspected gap: no git_submodule_init/git_submodule_update call; updateSubmodule only stages the submodule HEAD (GitRepoSubmodules.cpp:692-755)",New
+GIT-137,Git,Git - Submodules,Delete Submodule With Local Changes,"1. Modify a file inside a submodule without committing
+2. Delete the submodule",The user is warned that the changes will be lost before the folder is removed.,Medium,Not Tested,Related TC-081. Edge case. GitRepoSubmodules.cpp:450-458 removeRecursively,New
+GIT-138,Git,Git - Submodules,Submodule With Detached HEAD,"1. In a submodule run 'git checkout <older sha>' from the CLI
+2. Refresh the Submodules panel
+3. Run Update",The status shows Outdated. Update records the new commit in the parent index (staged gitlink).,Medium,Not Tested,Edge case (detached). GitRepoSubmodules.cpp:740-748,New
+GIT-139,Git,Git - Remote Operations,Add Remote,"1. Open repository settings/remotes
+2. Add remote
+3. Enter name and URL","Remote added successfully
+Appears in remotes list
+Can fetch/push to remote",Medium,Not Tested,,Existing TC-084
+GIT-140,Git,Git - Remote Operations,Remove Remote,"1. View remotes list
+2. Right-click remote
+3. Select Remove
+4. Confirm","Remote removed
+No longer in remotes list
+Local branches/data unchanged",Medium,Not Tested,,Existing TC-085
+GIT-141,Git,Git - Remote Operations,Rename Remote,"1. Right-click remote
+2. Select Rename
+3. Enter new name","Remote renamed
+Tracking branches updated
+Operations continue working",Low,Not Tested,,Existing TC-086
+GIT-142,Git,Git - Remote Operations,Change Remote URL,"1. Right-click remote
+2. Select Change URL
+3. Enter new URL","Remote URL updated
+Can fetch/push to new location
+Existing data unchanged",Medium,Not Tested,,Existing TC-087
+GIT-143,Git,Git - Remote Operations,Push to Remote,"1. Make commits
+2. Click Push
+3. Select branch and remote","Commits pushed to remote
+Remote branch updated
+Success confirmation shown",High,Not Tested,,Existing TC-088
+GIT-144,Git,Git - Remote Operations,Push with Force,"1. Rewrite history locally
+2. Attempt force push
+3. Confirm warning","Force push succeeds
+Remote history rewritten
+Strong warning shown",Medium,Not Tested,,Existing TC-089
+GIT-145,Git,Git - Remote Operations,Push New Branch,"1. Create local branch with commits
+2. Push to remote
+3. Set upstream if prompted","New branch created on remote
+Tracking relationship established
+Branch appears in remote branches",High,Not Tested,,Existing TC-090
+GIT-146,Git,Git - Remote Operations,Pull from Remote,"1. Remote has new commits
+2. Click Pull
+3. Confirm merge/rebase","Remote commits fetched and integrated
+Local branch updated
+Conflicts handled",High,Not Tested,,Existing TC-091
+GIT-147,Git,Git - Remote Operations,Fetch All Remotes,"1. Have multiple remotes
+2. Select Fetch All","All remotes fetched
+Remote branches updated
+No local changes made",Medium,Not Tested,,Existing TC-092
+GIT-148,Git,Git - Remote Operations,Prune Remote Branches,"1. Delete branches on remote
+2. Prune remote-tracking branches","Deleted remote branches removed locally
+Remote tracking cleaned up
+Obsolete refs removed",Low,Not Tested,,Existing TC-093
+GIT-149,Git,Git - Remote Operations,Set Default Remote,"1. Open a repository with at least two remotes
+2. Open the remotes panel
+3. Right-click a non-default remote
+4. Select Set Default Remote
+5. Enter or confirm the remote branch name","Selected remote becomes the default remote
+Active branch upstream is configured for that remote
+Remotes panel highlights the default remote
+Future push/pull operations use the selected remote",Medium,Not Tested,Covers GitRepoCommandType::SetDefaultRemote and upstream overlay flow,Existing TC-161
+GIT-150,Git,Git - Remote Operations,Add Remote Target,"1. Open a repository with an existing remote
+2. Right-click the remote
+3. Select Add Target
+4. Enter target name, fetch URL, and push URL
+5. Submit","New target is added under the remote
+Fetch and push URLs are saved
+Remote target list refreshes without removing existing targets",Medium,Not Tested,Covers multiple targets per remote,Existing TC-162
+GIT-151,Git,Git - Remote Operations,Edit Remote Target,"1. Open a repository with a remote that has a target
+2. Right-click the target
+3. Select Edit Target
+4. Change fetch and push URLs
+5. Submit","Target URLs are updated
+Target name and parent remote are preserved
+Subsequent fetch/push uses the updated URLs when target is active",Medium,Not Tested,,Existing TC-163
+GIT-152,Git,Git - Remote Operations,Delete Remote Target,"1. Open a repository with a remote that has at least two targets
+2. Right-click a non-default or secondary target
+3. Select Delete Target
+4. Confirm deletion","Target is removed from the remote
+Remaining targets stay intact
+Remote list refreshes and no stale target remains visible",Medium,Not Tested,,Existing TC-164
+GIT-153,Git,Git - Remote Operations,Prevent Deleting Only Remote Target,"1. Open a repository with a remote that has exactly one target
+2. Right-click the only target
+3. Select Delete Target","Deletion is blocked
+Error message explains that the only target cannot be deleted
+Remote and target configuration remain unchanged",Medium,Not Tested,,Existing TC-165
+GIT-154,Git,Git - Remote Operations,Set Default Remote Target,"1. Open a repository with a remote that has multiple targets
+2. Right-click a non-default target
+3. Select Set Default Target","Selected target becomes default for that remote
+Target list updates its default indicator
+Existing remote and other targets remain unchanged",Medium,Not Tested,,Existing TC-166
+GIT-155,Git,Git - Remote Operations,Push Branch Without Upstream Prompts for Remote,"1. Create and checkout a local branch with no upstream
+2. Ensure at least one remote exists
+3. Click Push
+4. Select a remote and enter remote branch name in the prompt
+5. Submit","Push asks for remote and remote branch instead of failing
+Upstream is configured for the local branch
+Branch is pushed to the selected remote
+Success notification is shown",High,Not Tested,Covers issue #112,Existing TC-167
+GIT-156,Git,Git - Remote Operations,Push Branch Without Upstream and Without Remotes,"1. Open a repository with no remotes
+2. Create and checkout a local branch with commits
+3. Click Push","Push does not start silently
+Error message asks user to add a remote before pushing
+No upstream configuration is written",Medium,Not Tested,,Existing TC-168
+GIT-157,Git,Git - Remote Operations,Graphite Sync and Submit,"1. Authenticate gt (gt auth)
+2. Select Submit stack and confirm
+3. Merge the bottom pull request on GitHub
+4. Select Sync with trunk","Submit pushes the stack and creates or updates its pull requests
+Sync pulls the trunk and restacks the open branches
+Without authentication the gt error is shown",Medium,Not Tested,Needs a GitHub repository connected to Graphite,Existing TC-198
+GIT-158,Git,Git - Remote Operations,Push Rejected as Non-Fast-Forward,"1. Push a commit to the remote from another clone
+2. Commit locally and push",Push fails with a message that the remote has newer commits and a pull is needed. No credentials prompt appears.,High,Not Tested,Edge case (non-fast-forward). GitRepoRemotes.cpp:1065-1085 retries and clears credentials on error,New
+GIT-159,Git,Git - Remote Operations,Force Push to a Protected Branch,"1. On a server where 'main' is protected, rewrite a commit locally
+2. Push with force",Push fails and the server's rejection reason is shown. The local branch is unchanged.,High,Not Tested,Related TC-089. Edge case (protected branch). GitRepo.cpp:2498 pushUpdateReferenceCallback,New
+GIT-160,Git,Git - Remote Operations,Push Tag That Exists on Remote at Another Commit,"1. Create tag 'v2' locally on commit A while remote 'v2' points to commit B
+2. Push tag 'v2'",Push is refused with 'tag 'v2' already exists on the remote'. The remote tag is unchanged.,Medium,Not Tested,Related TC-075. GitRepoBranches.cpp:900-918 refuseMovingRemoteTags,New
+GIT-161,Git,Git - Remote Operations,Fetch When a Local Tag Differs From the Remote Tag,"1. Create local tag 'v3' on commit A while remote 'v3' points to commit B
+2. Fetch","The local tag is not silently moved. 'v3' still points to A, or the user is told it was replaced.",Medium,Not Tested,Edge case. Suspected: forced refspec '+refs/tags/*:refs/tags/*' at GitRepoRemotes.cpp:371 and 776 overwrites local tags,New
+GIT-162,Git,Git - Remote Operations,Network Drop During Clone,"1. Start cloning a large repository into a new folder
+2. Disconnect the network mid-transfer",Clone fails with an error toast and the created folders are removed. Cloning into an existing folder leaves that folder in place.,High,Not Tested,Related TC-138. Edge case. GitRepo.cpp:2654-2724 createdRoot cleanup,New
+GIT-163,Git,Git - Remote Operations,Close the App During Clone or Fetch,"1. Start a long clone
+2. Close the main window",The app closes without hanging or crashing. A later clone into the same folder works.,Medium,Not Tested,Edge case (cancel). No cancel in fetchProgressCallback: GitRepo.cpp:2534,New
+GIT-164,Git,Git - Remote Operations,Clone an Empty Remote Repository,"1. Create an empty repository on the server
+2. Clone it with Sourcerer
+3. Push","Clone and open work. The opened repository gets one empty initial commit (by design), and push creates it on the remote. The user can see this happened.",Medium,Not Tested,Edge case (empty repo/unborn branch). GitRepo.cpp:2425-2430 createInitialCommitWithoutStaging; docs/GIT_TEST_PLAN.md line 91,New
+GIT-165,Git,Git - Remote Operations,Clone Into Path With Spaces and Unicode,1. Clone into 'C:/Work/Proj ñ 日本/repo',"Clone succeeds. Status, diff and commit work in the new repository.",Medium,Not Tested,Edge case (unicode/space paths),New
+GIT-166,Git,Git - Remote Operations,Open and Fetch a Shallow Clone,"1. Create a clone with 'git clone --depth 1' from the CLI
+2. Open it in Sourcerer, view history, fetch and pull",History shows the available commits without errors. Fetch and pull succeed or show a clear message that shallow clones are not supported.,Medium,Not Tested,Edge case (shallow clone). No depth support in GitRepoRemotes.cpp,New
+GIT-167,Git,Git - Remote Operations,Fetch Very Large Repository,1. Clone and fetch a repository with more than 1 million commits and 5 GB pack,Progress updates in the toast. The UI stays responsive. History loads page by page.,Medium,Not Tested,Related TC-130. Edge case (huge repos). GitHistory hasMore/total paging,New
+GIT-168,Git,Git - Credentials - HTTPS,Save HTTPS Credentials,"1. Clone/fetch private HTTPS repository
+2. Enter username and password
+3. Choose to save credentials","Credentials saved securely
+Future operations don't prompt
+Can manage in credentials manager",High,Not Tested,,Existing TC-094
+GIT-169,Git,Git - Credentials - HTTPS,Update Saved Credentials,"1. Access credential manager
+2. Update existing HTTPS credentials
+3. Save","Updated credentials used
+Authentication succeeds
+Old credentials replaced",Medium,Not Tested,,Existing TC-095
+GIT-170,Git,Git - Credentials - HTTPS,Remove Saved Credentials,"1. Access credential manager
+2. Remove HTTPS credentials
+3. Confirm","Credentials removed
+Next operation prompts for credentials
+No authentication artifacts remain",Medium,Not Tested,,Existing TC-096
+GIT-171,Git,Git - Credentials - HTTPS,Wrong Password Five Times,"1. Fetch from a private HTTPS remote
+2. Enter a wrong password in each prompt",Each failure shows 'Invalid credentials'. After the 5th rejection no new prompt appears and the fetch fails with an error toast.,High,Not Tested,Related TC-010. GitRepoCredentials.cpp:763-773 MAX_CREDENTIAL_ATTEMPTS = 5,New
+GIT-172,Git,Git - Credentials - HTTPS,Cancel the Credentials Prompt,"1. Fetch from a private HTTPS remote without stored credentials
+2. Click Cancel in the credentials overlay",The fetch stops at once with an error toast. No further prompt appears and nothing is stored.,High,Not Tested,Edge case (cancel prompt). GitRepoCredentials.cpp:534-563 GetCredentialsCancel,New
+GIT-173,Git,Git - Credentials - HTTPS,Credentials Not Stored When Unchecked,"1. Fetch from a private remote, enter valid credentials with 'Store credentials' unchecked
+2. Restart Sourcerer and fetch again",After the restart the prompt appears again. The Credentials manager does not list the repository.,Medium,Not Tested,GitCredentialsOverlayWidget.cpp:94,New
+GIT-174,Git,Git - Credentials - HTTPS,Credentials After Moving the Repository Folder,"1. Store credentials for a repository
+2. Close it, move or rename its folder, open it from the new place, fetch","Behavior is clear: either the stored credentials are found, or the user is prompted and the old entry stays visible in the Credentials manager.",Medium,Not Tested,Edge case. Key derived from the repository path: GitCredentialStorage.cpp deriveRepoKey,New
+GIT-175,Git,Git - Credentials - HTTPS,OS Keychain Unavailable,"1. On Linux without a running secret service (or with the keychain locked), start Sourcerer
+2. Fetch from a private remote and store credentials",The app does not crash. The fetch works with the entered credentials. A log entry or message says credentials could not be stored.,Medium,Not Tested,"Edge case. GitCredentialStorage.cpp:132-138 getEncryptionKey throws, caught",New
+GIT-176,Git,Git - Credentials - HTTPS,Network Drop During Authenticated Fetch,"1. Store valid credentials and start a fetch of a large repository
+2. Disconnect the network mid-transfer",The fetch fails with a network error. No 'Invalid credentials' message or prompt appears and the stored credentials still work after reconnecting.,High,Not Tested,"Edge case (network drop). Suspected bug: GitRepoRemotes.cpp:389-396 (pull), 780-788 (fetch) and 1076-1082 (push) clear cached credentials and send the invalid-credentials signal on any error",New
+GIT-177,Git,Git - Credentials - HTTPS,Free Plan With Private HTTPS Repository,"1. Use a free-plan installation
+2. Clone a private HTTPS repository","The user gets a clear message that the clone needs credentials or a commercial plan, not a generic failure.",Medium,Not Tested,Edge case. GitRepo.cpp:2694 credentials callback is null on the free plan,New
+GIT-178,Git,Git - Credentials - SSH,Configure SSH Key,"1. Generate or select SSH key
+2. Add to SSH agent or configure in settings
+3. Test connection","SSH key configured
+Can authenticate with SSH URLs
+Public key displayed for copying",High,Not Tested,,Existing TC-097
+GIT-179,Git,Git - Credentials - SSH,Multiple SSH Keys,"1. Configure multiple SSH keys
+2. Associate with different hosts
+3. Use in operations","Correct key used per host
+All SSH operations work
+Key selection automatic",Medium,Not Tested,,Existing TC-098
+GIT-180,Git,Git - Credentials - SSH,SSH Key Passphrase Cached for the Session,"1. Use an SSH key with a passphrase
+2. Fetch and enter the passphrase
+3. Fetch again",The second fetch does not prompt. After 'clear cached credentials' or a restart the prompt appears again.,Medium,Not Tested,GitRepoCredentials.cpp:366-374 gSshPassphrases,New
+GIT-181,Git,Git - Credentials - SSH,Wrong SSH Key Passphrase,"1. Fetch with an encrypted SSH key
+2. Enter a wrong passphrase 5 times",Each wrong entry shows 'Invalid credentials' and asks again. After the 5th the fetch fails without contacting the server again.,High,Not Tested,Edge case (wrong passphrase). GitRepoCredentials.cpp:380-396,New
+GIT-182,Git,Git - Credentials - SSH,Cancel SSH Passphrase Prompt,"1. Fetch with an encrypted SSH key
+2. Click Cancel in the passphrase prompt",The fetch stops with an error toast and no further prompt.,Medium,Not Tested,Edge case (cancel prompt). GitRepoCredentials.cpp:176-230,New
+GIT-183,Git,Git - Credentials - SSH,SSH Key Not Authorized on the Server,"1. Assign a key that the server does not accept
+2. Fetch over SSH",The fetch fails within a bounded time with an authentication error. It does not loop or hang.,High,Not Tested,Edge case. SSH branch of credentialsAcquireCallback has no attempt counter: GitRepoCredentials.cpp:724-757,New
+GIT-184,Git,Git - Credentials - SSH,SCP-Style URL With a Non-git User,"1. Add remote 'alice@server.test:repos/app.git'
+2. Fetch from it",The URL is treated as SSH: key authentication is used and the commercial-plan rule for SSH applies.,Medium,Not Tested,"Edge case. Suspected bug: GitRepoCredentials.cpp:726-728 and GitRepo.cpp:2309 isSshOrGitUrl only recognise 'git@', 'ssh://', 'git://'",New
+GIT-185,Git,Git - Credentials - SSH,Generate New SSH Key,"1. Open the SSH keys manager, click 'Generate new key'
+2. Enter a name and passphrase and confirm",Private and public key files are created in ~/.ssh (private key readable by the owner only). The public key line starts 'ssh-rsa'. The key appears in the list.,Medium,Not Tested,GitKeyStorage.cpp:290-360 RSA 4096; restrictToOwner:96,New
+GIT-186,Git,Git - Settings,Configure Git User Name/Email,"1. Open settings
+2. Navigate to Git configuration
+3. Set user.name and user.email
+4. Save","Git user identity configured
+Used in commits
+Validation for email format",High,Not Tested,,Existing TC-107
+GIT-187,Git,Git - Settings,GitLab Flow Settings,"1. Open Settings and find the GitLab Flow settings
+2. Change the environment branches to staging,production
+3. Clear the main branch value
+4. Promote from main","Promote targets staging
+Empty values fall back to the defaults main, pre-production,production and -stable",Medium,Not Tested,,Existing TC-181
+GIT-188,Git,Git - Settings,GitHub Flow Main Branch Setting,"1. Open Settings and change the GitHub Flow main branch to trunk
+2. Start a GitHub Flow branch
+3. Clear the setting","Branch is created from trunk
+Empty value falls back to main",Low,Not Tested,,Existing TC-185
+GIT-189,Git,Git - Error Handling,Unexpected Git Error,"1. Trigger unusual git error
+2. Observe error handling","Error message shown
+Includes helpful context
+Option to view full error/log",Medium,Not Tested,,Existing TC-141
+GIT-190,Git,Git - Error Handling,Invalid Git Configuration,"1. Have malformed .git/config
+2. Open repository","Error detected and reported
+Recovery suggestions provided
+Doesn't crash application",Medium,Not Tested,,Existing TC-143
+GIT-191,Git,Git - Bisect,Start Bisect by Marking a Bad Commit,"1. Open a repository with at least 20 linear commits and no bisect in progress
+2. In the history view, right-click the newest commit
+3. Choose Bisect > Mark as bad",Toast 'Mark a good commit to continue bisecting.' appears. Nothing is checked out. The commit shows the Bad mark in history. .git/BISECT_START and refs/bisect/bad exist.,High,Not Tested,"GitRepoBisect.cpp:339 bisect(), waitingForGood; GitRepoManagerBridgeImpl.cpp:4526",New
+GIT-192,Git,Git - Bisect,Complete Bisect Session to First Bad Commit,"1. Mark the newest commit as bad
+2. Right-click an old commit known to be good and choose Bisect > Mark as good
+3. For each commit that is checked out, test it and mark it good or bad
+4. Continue until the session ends","After each mark a toast reads 'Bisecting: N revisions left to test (about M steps). Checked out <sha7>: <summary>', HEAD is detached at that commit and history shows it as Current. At the end a toast reads '<sha7> is the first bad commit: <summary>'.",High,Not Tested,"GitRepoBisect.cpp:178 bisectAdvance, bisectFinish; BisectMark::Current in getBisectMarks:547",New
+GIT-193,Git,Git - Bisect,Bisect With Only Skipped Commits Left,"1. Start a bisect with one bad and one good commit 4 commits apart
+2. Choose Bisect > Skip on every commit that is checked out",Toast reads 'Only skipped commits are left to test. The first bad commit is <sha7> or one of the skipped commits.' Skipped commits show the Skip mark.,Medium,Not Tested,Edge case. GitRepoBisect.cpp:314-318 status.ambiguous,New
+GIT-194,Git,Git - Bisect,Mark Good Commit Newer Than Bad Commit,"1. Mark an old commit as bad
+2. Mark a newer descendant commit as good",An error toast says the range is invalid (BisectInvalidRange). HEAD does not move. The session stays active and Reset bisect still works.,Medium,Not Tested,Edge case. GitRepoBisect.cpp:226-230,New
+GIT-195,Git,Git - Bisect,Reset Bisect Returns to the Original Branch,"1. Check out branch 'main'
+2. Run a bisect session for a few steps
+3. Choose Bisect > Reset bisect",Toast 'Bisect finished. The original state has been restored.' 'main' is checked out again (not detached). refs/bisect/* and every .git/BISECT_* file are removed. History marks disappear.,High,Not Tested,GitRepoBisect.cpp:356-420 Reset branch,New
+GIT-196,Git,Git - Bisect,Reset Bisect Started From a Detached HEAD,"1. Check out a specific commit (detached HEAD)
+2. Start a bisect and test two steps
+3. Choose Bisect > Reset bisect",HEAD is detached at the same commit as before the bisect started. No branch is created or moved.,Medium,Not Tested,Edge case (detached HEAD). GitRepoBisect.cpp:464-468 start = sha,New
+GIT-197,Git,Git - Bisect,Reset Bisect When No Bisect Is in Progress,"1. Open a repository with no bisect session
+2. Right-click any commit and choose Bisect > Reset bisect",An error toast says no bisect is in progress. HEAD and the working copy do not change.,Low,Not Tested,Edge case. GitRepoBisect.cpp:357-361 BisectNotInProgress,New
+GIT-198,Git,Git - Bisect,Start Bisect While a Merge Is in Progress,"1. Start a merge that produces conflicts and leave it unresolved
+2. Right-click a commit and choose Bisect > Mark as bad",An error toast says another operation is in progress (BisectRepositoryBusy). No BISECT_* files are written and the merge state is unchanged.,Medium,Not Tested,Edge case. GitRepoBisect.cpp:448-454,New
+GIT-199,Git,Git - Bisect,Bisect Checkout Blocked by Local Changes,"1. Modify a tracked file that differs between the bad and good commits, do not commit
+2. Mark a bad commit and then a good commit",An error toast says the checkout failed. The local modification is kept. History is refreshed and shows the marks that were recorded. Reset bisect then restores the original branch.,High,Not Tested,Edge case. GitRepoBisect.cpp:323-327 BisectFailedToCheckout; GitRepoManagerBridgeImpl.cpp:4566 'A failed checkout can leave the session active',New
+GIT-200,Git,Git - Bisect,Bisect Session Shared With the Git Command Line,"1. Start a bisect in Sourcerer and mark one good and one bad commit
+2. In a terminal run 'git bisect log', then 'git bisect good'
+3. Return to Sourcerer and refresh, then close and reopen the repository","'git bisect log' lists the Sourcerer marks. After the CLI step Sourcerer shows the new mark and the new current commit. After reopening, the session and marks are still shown.",Medium,Not Tested,"GitRepo.h:346-350 state kept in refs/bisect/*, BISECT_START, BISECT_LOG, BISECT_TERMS",New
+GIT-201,Git,Git - Bisect,Reset Bisect After the Original Branch Was Deleted,"1. Check out branch 'temp' and start a bisect
+2. While HEAD is detached, delete branch 'temp' from the command line
+3. Choose Bisect > Reset bisect",The session ends: refs/bisect/* and BISECT_* files are removed and the user is told the original branch no longer exists. The repository is not left stuck in a bisect state.,Medium,Not Tested,"Edge case. Suspected bug: GitRepoBisect.cpp:376-405 treats the missing branch name as a SHA, git_oid_fromstr fails and Reset returns before cleaning up, so every later Reset fails the same way",New
+GIT-202,Git,Git - Bisect,Bisect Over a History With Merge Commits,"1. Open a repository where the bad and good commits are separated by several merged feature branches
+2. Run a bisect to the end","Every checked-out commit lies between the good and bad commits. The session ends with a first bad commit, and the number of steps is about log2 of the candidates.",Medium,Not Tested,"GitRepoBisect.cpp:256-290 merge weights, EXACT_MERGE_WEIGHT_LIMIT 5000",New
+GIT-203,Git,Git - Worktrees,Add Worktree With a New Branch,"1. Open the Worktrees panel and choose Add worktree
+2. Keep the suggested folder '<repo>-' and append a name
+3. Choose 'create branch', enter 'feature/wt1' and pick base branch 'main'
+4. Choose the branch kind when asked and submit","The folder is created with 'feature/wt1' checked out at the tip of 'main'. The panel lists the main worktree first, then the new one with its branch and 7-char head SHA.",High,Not Tested,GitRepoWorktrees.cpp:190 addWorktree; RepoContainer.cpp:2455 onAddWorktree,New
+GIT-204,Git,Git - Worktrees,Add Worktree for an Existing Branch,"1. Create branch 'release' that is not checked out anywhere
+2. Add a worktree, choose existing branch 'release'","The worktree is created with 'release' checked out. In Local Branches, 'release' can no longer be checked out, renamed or deleted (actions disabled with tooltip 'Checked out in worktree ...').",High,Not Tested,RepoContainer.cpp:4634-4648,New
+GIT-205,Git,Git - Worktrees,Add Worktree for a Branch Already Checked Out,"1. Open Add worktree
+2. Choose the current branch (not 'create branch') and submit
+3. Repeat with a branch checked out in another linked worktree",Error toast 'Branch '<b>' is already checked out in '<path>'. Choose another branch or create a new one.' The dialog stays open. No folder is created.,Medium,Not Tested,Edge case. RepoContainer.cpp:2487-2499,New
+GIT-206,Git,Git - Worktrees,Add Worktree Into a Non-Empty Folder,"1. Create a folder that contains a file
+2. Add a worktree into that folder with 'create branch' and a new name",Error toast 'Failed to add worktree.' The existing file is untouched. The new branch is not left behind in Local Branches.,Medium,Not Tested,Edge case. GitRepoWorktrees.cpp:281-310 cleanupBranch,New
+GIT-207,Git,Git - Worktrees,Add Two Worktrees Whose Folders Have the Same Name,"1. Add a worktree at C:/tmp/a/wt
+2. Add another worktree at C:/tmp/b/wt","Either both worktrees are created and listed separately, or the second add fails with a clear message and leaves no branch or folder behind.",Medium,Not Tested,Edge case. Worktree admin name is the folder base name: GitRepoManagerBridgeImpl.cpp:802,New
+GIT-208,Git,Git - Worktrees,Worktree Path With Spaces and Unicode,"1. Add a worktree at a folder like 'C:/tmp/Proj Wörk ñ 日本'
+2. Open it, change a file, stage and commit","The worktree is created, listed with the correct path, opens in a new tab and the commit succeeds.",Medium,Not Tested,Edge case (unicode/space paths). GitRepoWorktrees.cpp normalizeWorktreePath,New
+GIT-209,Git,Git - Worktrees,Open a Linked Worktree,"1. Click a linked worktree in the panel
+2. Click the worktree of the current tab",The linked worktree opens in its own repository tab. Clicking the current worktree does nothing.,Medium,Not Tested,RepoContainer.cpp:7980 onWorktreeSelected,New
+GIT-210,Git,Git - Worktrees,Worktree Folder Deleted Outside the App,"1. Add a worktree, close the app
+2. Delete the worktree folder in the file manager
+3. Reopen, click the worktree, then choose Remove worktree",Clicking shows error toast 'Worktree folder '<path>' does not exist.' Remove succeeds and the entry disappears (admin data pruned).,Medium,Not Tested,Edge case (missing path). RepoContainer.cpp:7990-7996; GitRepoWorktrees.cpp:357 validate,New
+GIT-211,Git,Git - Worktrees,"Lock, Unlock and Remove a Locked Worktree","1. Lock a linked worktree from its context menu
+2. Lock it again from the command line ('git worktree lock') and refresh
+3. Choose Remove worktree",Locking shows the worktree as locked. A second lock is not an error. The remove dialog adds 'The worktree is locked and will be removed anyway.' After Yes the folder and admin data are gone.,Medium,Not Tested,Edge case (locked path). GitRepoWorktrees.cpp:407-449; RepoContainer.cpp:8017,New
+GIT-212,Git,Git - Worktrees,Remove an Unlocked Worktree With Uncommitted Changes,"1. Add a worktree and modify a file in it, do not commit
+2. Choose Remove worktree and confirm","The confirmation text matches the result. Either the folder and changes are removed as the dialog says, or the dialog warns that the worktree has changes and the remove is refused.",High,Not Tested,"Edge case. Suspected inconsistency: dialog RepoContainer.cpp:8014 says changes are deleted, but force is false for unlocked worktrees and GitRepoWorktrees.cpp:357-378 refuses with RemoveWorktreeHasChanges",New
+GIT-213,Git,Git - Worktrees,Remove or Lock the Main Worktree,"1. Right-click the main worktree in the panel
+2. Try Remove worktree, then Lock","The actions are disabled, or an error toast says the main worktree cannot be removed or locked. Nothing is deleted.",Medium,Not Tested,"Edge case. GitRepoWorktrees.cpp:349-352 RemoveWorktreeMainNotAllowed, LockWorktreeMainNotAllowed",New
+GIT-214,Git,Git - Worktrees,Branch Used by a Worktree in Local Branches,"1. Create a worktree for branch 'wt-branch'
+2. In Local Branches click 'wt-branch'
+3. Right-click 'wt-branch'","Clicking shows error toast 'Branch 'wt-branch' is checked out in worktree '<path>'.' and the highlight returns to the real active branch. Checkout, Rename and Delete are disabled with the tooltip naming the worktree.",Medium,Not Tested,"RepoContainer.cpp:4577-4592, 4634-4648",New
+GIT-215,Git,Git - LFS,Add File to LFS From Changes View,"1. Copy a new 20 MB 'video.mp4' into the working copy
+2. Right-click it and choose LFS > Add
+3. Stage .gitattributes and the file, commit",.gitattributes gets '*.mp4 filter=lfs diff=lfs merge=lfs -text'. The committed blob is an LFS pointer ('git show HEAD:video.mp4' prints version/oid/size). The working file keeps its real content. The object is in .git/lfs/objects.,High,Not Tested,GitRepoManagerBridgeImpl.cpp:6846 addFilesToLfs; GitLfs.cpp CleanStream,New
+GIT-216,Git,Git - LFS,Add File Without Extension and With a Space to LFS,"1. Create a file named 'big data' (no extension)
+2. Right-click it and choose LFS > Add
+3. Stage and commit it, then run 'git check-attr filter -- ""big data""'","The .gitattributes entry matches exactly that file (space escaped, e.g. 'big[[:space:]]data'), and check-attr reports 'filter: lfs'.",Medium,Not Tested,"Edge case (space path). Suspected bug: GitRepoManagerBridgeImpl.cpp:88-96 writes the raw name, so 'big data filter=lfs ...' is parsed as pattern 'big'",New
+GIT-217,Git,Git - LFS,Remove File Pattern From LFS,"1. Track '*.psd' in LFS with two .psd files
+2. Right-click one .psd file and choose LFS > Remove","The '*.psd' line is removed from .gitattributes, so both files are no longer LFS-tracked. Comments and other lines are kept. Files stay on disk.",Medium,Not Tested,GitRepoManagerBridgeImpl.cpp:6935 removeFilesFromLfs,New
+GIT-218,Git,Git - LFS,Push Commit With LFS Objects,"1. Commit an LFS-tracked file
+2. Push to a remote that has an LFS server
+3. Clone the repository in another folder","The push succeeds and uploads the object before refs. The fresh clone has the real file content, not the pointer.",High,Not Tested,GitRepoRemotes.cpp:1020 Lfs::uploadLocalObjects; GitLfs.cpp:1689 downloadObject,New
+GIT-219,Git,Git - LFS,Checkout LFS File When the LFS Server Is Unreachable,1. Clone a repository with LFS files while the LFS endpoint is blocked (firewall or wrong lfs.url),The clone fails with a clear message that the LFS object download failed. No half-cloned folder is left. The app stays responsive.,High,Not Tested,Edge case (network drop). GitLfs.cpp:1747-1754; GitRepo.cpp:2713-2724 cleanup,New
+GIT-220,Git,Git - LFS,Checkout of an LFS-Pattern File Stored Without a Pointer,"1. From the CLI without git-lfs, commit 'x.bin' while .gitattributes tracks '*.bin' with LFS (content stored raw)
+2. Open the repository in Sourcerer and check out that commit or branch","The checkout succeeds and the file has its stored content, like git-lfs which passes non-pointer content through.",Medium,Not Tested,Edge case (binary/LFS pointer). Suspected bug: GitLfs.cpp:1210-1216 SmudgeStream fails with 'Invalid LFS pointer version' for non-pointer content,New
+GIT-221,Git,Git - LFS,Stage a File That Already Holds an LFS Pointer,"1. Make an LFS-tracked file whose working content is the pointer text (e.g. after a failed download)
+2. Stage and commit it",The pointer is committed unchanged. No new LFS object containing the pointer text is created in .git/lfs/objects.,Medium,Not Tested,"Edge case (LFS pointer). Suspected bug: GitLfs.cpp:1124-1178 CleanStream hashes any content, so a pointer becomes a pointer-to-pointer",New
+GIT-222,Git,Git - LFS,Very Large LFS File,"1. Track a 3 GB file with LFS
+2. Stage, commit, push, then clone in another folder",All steps finish. Memory use stays bounded and the cloned file matches the original checksum.,Medium,Not Tested,Edge case (huge files). GitLfs.cpp:1199 SmudgeStream keeps the whole object in a QByteArray with an int length cast,New
+GIT-223,Git,Git - LFS,LFS Over an SSH Remote,"1. Use an SSH remote whose server supports git-lfs-authenticate
+2. Commit an LFS file, push, then clone in another folder",Push uploads and clone downloads the object through the endpoint returned by git-lfs-authenticate.,Medium,Not Tested,GitLfs.cpp:672 runSshGitLfsAuthenticate,New
+GIT-224,Git,Git - Commits - Signing,Sign Commit With GPG,"1. Enable commit signing in settings, format OpenPGP, set the key id
+2. Stage a change, check 'Sign commit' in the commit menu, commit
+3. Open the commit details and click the copy-signature button",Commit details show 'Signed: Yes' with the OK icon. The clipboard holds a block starting '-----BEGIN PGP SIGNATURE-----'. 'git log --show-signature -1' reports a good signature.,High,Not Tested,GitRepoSigning.cpp:300 createCommitSignature (gpg --detach-sign); RepoContainer.cpp:11008,New
+GIT-225,Git,Git - Commits - Signing,Sign Commit With SSH Key,"1. Set signing format 'ssh' and the key path to '~/.ssh/id_ed25519.pub'
+2. Commit with 'Sign commit' checked",The private key next to the .pub is used. The signature starts '-----BEGIN SSH SIGNATURE-----'. 'git verify-commit' with an allowed_signers file reports good.,High,Not Tested,"GitRepoSigning.cpp:166-200 .pub to private key, ssh-keygen -Y sign",New
+GIT-226,Git,Git - Commits - Signing,SSH Signing With Passphrase-Protected Key,"1. Set signing format 'ssh' with a key that has a passphrase
+2. Commit with 'Sign commit' checked",Error 'SSH commit signing does not support passphrase-protected private keys.' No commit is created and staged changes stay staged.,Medium,Not Tested,Edge case (passphrase). GitRepoSigning.cpp:202-209,New
+GIT-227,Git,Git - Commits - Signing,Signing Program Not Installed,"1. Set the signing program to a path that does not exist (or uninstall gpg)
+2. Commit with signing",Error 'Failed to start '<program>' ...'. No commit is created and staged changes stay staged.,Medium,Not Tested,Edge case. GitRepoSigning.cpp:261-270 runProcess,New
+GIT-228,Git,Git - Commits - Signing,GPG Passphrase Prompt Cancelled,"1. Use a GPG key with a passphrase and no cached agent entry
+2. Commit with signing
+3. Cancel the pinentry dialog",The commit fails with a 'Signing command 'gpg' failed' message. The app does not hang and the staged changes stay staged.,High,Not Tested,"Edge case (cancel prompt). GitRepoSigning.cpp:272 waitForFinished(-1) has no timeout, so a pinentry that never returns blocks the worker",New
+GIT-229,Git,Git - Commits - Signing,Amend and Sign,"1. Make a commit without signing
+2. Use 'Amend and Sign' with signing enabled",The amended commit replaces the old one and shows 'Signed: Yes'.,Medium,Not Tested,RepoContainer.cpp:920 'Amend and Sign'; GitRepo.h:90 amend(signCommit),New
+GIT-230,Git,Git - Commits - Signing,Rebase and Squash With Signing,"1. Enable signing and check 'Sign commit'
+2. Drag a branch with 3 commits onto 'main' and choose the rebase option
+3. Repeat with 'Squash and merge'",Every rebased commit and the squash commit show 'Signed: Yes'.,Medium,Not Tested,GitRepoSigning.cpp:404 commitRebaseSigningCallback; RepoContainer.cpp:4542,New
+GIT-231,Git,Git - Commits - Signing,Merge Commit With Sign Commit Checked,"1. Enable signing and check 'Sign commit'
+2. Drag branch 'feature' onto 'main' and choose Merge (non fast-forward)","The merge commit is signed, like other commits made while 'Sign commit' is checked, or the UI states that merge commits are not signed.",Medium,Not Tested,Suspected gap: merge() takes no sign flag (GitRepoMerge.cpp:259) and the drag-drop merge ignores signCommit (RepoContainer.cpp:4550),New
+GIT-232,Git,Git - Commits - Signing,Signature Display for Unsigned and Tampered Commits,"1. Select an unsigned commit in history
+2. Create a commit from the CLI with a signature from an unknown or revoked key and select it",Unsigned: 'Signed: No' with the cancel icon and no copy button. Signed by an untrusted key: the label does not suggest the signature was verified.,Low,Not Tested,"Edge case. GitRepoSigning.cpp:54-96 only extracts the signature type, no verification",New
+GIT-233,Git,Git - Credentials - SSH Host Keys,Trust SSH Host Key on First Use,"1. Remove the host from ~/.ssh/known_hosts and from the trusted list
+2. Fetch from an SSH remote on that host
+3. Open the SSH keys manager","The fetch succeeds. 'Trusted SSH host keys' lists the host with 'SHA256:...' fingerprint, Trusted since time and status 'Trusted'.",High,Not Tested,GitRepoCertificates.cpp:311 checkHostKey; PinnedCertificatesWidget.cpp:41,New
+GIT-234,Git,Git - Credentials - SSH Host Keys,SSH Host Key Changed,"1. Pin the key of a host by fetching once
+2. Replace the server host key
+3. Fetch again
+4. In the SSH keys manager select the host and click 'Trust new key'
+5. Fetch again","The second fetch fails with a message naming the host, the new SHA256 fingerprint and 'trust the new one in the SSH keys manager'. Status shows 'Changed, refused on <time>'. 'Trust new key' shows both fingerprints. After confirming, the next fetch succeeds.",High,Not Tested,Edge case (host key change). GitRepoCertificates.cpp:338-343; trustRejectedCertificate:476,New
+GIT-235,Git,Git - Credentials - SSH Host Keys,Forget a Trusted SSH Host Key,"1. Select a host in 'Trusted SSH host keys' and click Forget, confirm
+2. Fetch from that host",The host disappears from the list. The next fetch pins the key again without error.,Medium,Not Tested,GitRepoCertificates.cpp:465 forgetPinnedCertificate,New
+GIT-236,Git,Git - Credentials - SSH Host Keys,Known Hosts Entry Differs From Server Key,"1. Put an outdated key for the host into ~/.ssh/known_hosts
+2. Remove any pin for the host in Sourcerer
+3. Fetch from that host","The connection is refused as a changed host key, with the host and fingerprint in the message.",High,Not Tested,"Edge case (security). docs/GIT_TEST_PLAN.md §6 item 5 'SSH caveat': libgit2 reports missing and different keys the same way, so the changed key is trusted on first use",New
+GIT-237,Git,Git - Credentials - Certificates,Trust Self-Signed HTTPS Certificate on First Use,"1. Run an HTTPS Git server with a self-signed certificate
+2. Clone from it
+3. Open the Credentials manager","The clone succeeds. 'Trusted server certificates' lists the host with a colon-separated SHA-256 fingerprint, Trusted since time and status 'Trusted'.",High,Not Tested,GitRepoCertificates.cpp:271 checkX509,New
+GIT-238,Git,Git - Credentials - Certificates,Self-Signed Certificate Replaced,"1. Clone once from the self-signed server
+2. Replace the server certificate with a new self-signed one
+3. Fetch
+4. Click 'Trust new certificate' and confirm
+5. Fetch again","The first fetch fails with 'The self-signed TLS certificate of <host> is not the one trusted before (now SHA-256 ...)'. After trusting, the fetch succeeds.",High,Not Tested,Edge case. GitRepoCertificates.cpp:298-305; PinnedCertificatesWidget.cpp:180,New
+GIT-239,Git,Git - Credentials - Certificates,Forget Pinned Certificate,"1. Select a host in 'Trusted server certificates', click Forget and confirm
+2. Fetch from that host",The pin is removed and the next fetch pins the current certificate.,Medium,Not Tested,PinnedCertificatesWidget.cpp:208,New
+GIT-240,Git,Git - Credentials - Certificates,Expired CA-Issued Certificate,1. Fetch from an HTTPS server whose CA-issued certificate has expired,The fetch fails with 'The TLS certificate of <host> is not trusted: certificate has expired.' Nothing is pinned.,High,Not Tested,Edge case (expired cert). GitRepoCertificates.cpp:94-124 verificationFailure,New
+GIT-241,Git,Git - Credentials - Certificates,Certificate Issued for Another Host,1. Fetch through a host name that the CA-issued certificate does not cover,The fetch fails with '... is not trusted: it was issued for another host.',Medium,Not Tested,Edge case. GitRepoCertificates.cpp:101-103,New
+GIT-242,Git,Git - Credentials - Certificates,Certificate From a Private CA,"1. Fetch from a server whose certificate is signed by a private CA not in the OS store
+2. Install the CA in the OS trust store, restart Sourcerer, fetch again",First fetch fails with '... its issuer is not trusted' (or the OpenSSL reason). After installing the CA the fetch succeeds.,Medium,Not Tested,GitRepoCertificates.cpp:63 systemRootCertificates read once per process,New
+GIT-243,Git,Git - Branches - Merge and Rebase,Rebase Option Label in Drag-and-Drop Menu,1. Drag one local branch onto another,"The menu reads 'Merge', 'Rebase and merge', 'Squash and merge'.",Low,Not Tested,Bug: typo 'Rebase abd merge' at RepoContainer.cpp:4498,New
+GIT-244,Git,Git - Branches - Merge and Rebase,Rebase With Conflicts Then Continue,"1. Create conflicting commits on 'feature' and 'main'
+2. Drag 'feature' onto 'main' and choose the rebase option
+3. Resolve the conflict in the merge view, stage and commit",The rebase stops at the conflicting commit and the repository shows a rebase in progress. After the commit the remaining commits are applied and 'feature' sits on top of 'main'.,High,Not Tested,"Edge case (conflict mid-operation). GitRepoMerge.cpp:798-806, commitRebase:1081",New
+GIT-245,Git,Git - Branches - Merge and Rebase,Abort Rebase in the Middle,"1. Start a rebase that stops on a conflict
+2. Click Abort rebase",The original branch tip and working copy are restored. No rebase is in progress.,High,Not Tested,GitRepoMerge.cpp:1241 abortRebase,New
+GIT-246,Git,Git - Branches - Merge and Rebase,Rebase Branch Containing an Already Applied Commit,"1. Cherry-pick commit C from 'feature' onto 'main'
+2. Drag 'feature' onto 'main' and choose the rebase option","The rebase succeeds and skips C, like 'git rebase'.",High,Not Tested,Edge case. Suspected bug: GitRepoMerge.cpp:794-808 treats GIT_EAPPLIED from git_rebase_commit as a failure and aborts (commitRebase:1197 handles it),New
+GIT-247,Git,Git - Branches - Merge and Rebase,Squash and Merge With Conflicts,"1. Create conflicting changes on two branches
+2. Drag one onto the other and choose 'Squash and merge'","An error says there are conflicts. The working copy state is clear: either the conflicts are shown for resolution, or the destination is restored. No merge or rebase state is left that blocks later operations.",Medium,Not Tested,Edge case. GitRepoMerge.cpp:975-985 cleans the state after conflicts,New
+GIT-248,Git,Git - Branches - Merge and Rebase,Merge Branches With Unrelated Histories,"1. Fetch a branch with no common ancestor (e.g. an orphan branch)
+2. Drag it onto 'main' and choose Merge",An error says the histories are unrelated. Nothing is checked out or merged.,Medium,Not Tested,Edge case. GitRepoMerge.cpp:307-318 MergeUnrelatedHistories; no UI sets allowUnrelatedHistories,New
+GIT-249,Git,Git - Branches - Merge and Rebase,Merge Onto a Branch That Is Not Checked Out,"1. Check out 'dev'
+2. Drag 'feature' onto 'main' and choose Merge","After the merge, 'main' is the checked-out branch and contains 'feature'. The UI shows 'main' as active.",Medium,Not Tested,GitRepoMerge.cpp:335-351 checks out the destination and sets HEAD,New
+GIT-250,Git,Git - Branches - Merge and Rebase,Fast-Forward Merge Blocked by Local Changes,"1. Modify a file locally that the incoming branch also changes
+2. Merge the branch (fast-forward)",The merge stops with an error. The local modification is kept and the branch is not moved.,Medium,Not Tested,Edge case. docs/GIT_TEST_PLAN.md line 477; GitRepoMerge.cpp:431 SAFE checkout,New
+GIT-251,Git,Git - Branches - Merge and Rebase,Abort Merge Keeps Unrelated Local Changes,"1. Modify file A locally without staging
+2. Start a merge that conflicts in file B
+3. Click Abort merge","The merge is aborted. Record whether file A's local change survives; if it is lost, the user was warned before.",Medium,Not Tested,Edge case. GitRepoWorkingCopy.cpp:1303-1340 abortMerge uses GIT_RESET_HARD,New
+GIT-252,Git,Git - Branches - Merge and Rebase,Resolve Conflict With Merge View Markers,"1. Create a merge with 3 conflicting hunks in one file
+2. Open the file in the three-way merge view
+3. Use 'our change', 'their change', and 'add ours after theirs' on different hunks
+4. Move between conflicts with the navigation and save","The label shows 'Conflict 1 of 3' and updates while navigating. The result contains exactly the chosen hunks in the chosen order. After saving and staging, the file is no longer conflicted.",High,Not Tested,Related TC-026. MergeDiffView.cpp:836-880; RepoContainer.cpp:1634,New
+GIT-253,Git,Git - Branches - Merge and Rebase,Binary File Conflict,"1. Change the same image on two branches
+2. Merge them",The file is listed as conflicted. The user can keep one side (ours or theirs) and commit. The text merge view is not offered for binary content.,Medium,Not Tested,Edge case (binary). GitRepo.cpp:1867 markConflictedFiles,New
+GIT-254,Git,Git - Branches - Merge and Rebase,Modify-Delete Conflict,"1. Delete a file on 'main' and modify it on 'feature'
+2. Merge 'feature' into 'main'",The file is shown as conflicted. Keeping or deleting it and committing ends the merge.,Medium,Not Tested,Edge case. GitRepoWorkingCopy.cpp:1158 listConflictsForAFile,New
+GIT-255,Git,Git - Branches - Merge and Rebase,Pull With Rebase Stops on Conflict,"1. Make a local commit that conflicts with a new remote commit
+2. Choose 'Pull with rebase'
+3. Resolve and commit, or abort","Pull stops with a conflict message (PullRebaseFailedWithConflicts) and a rebase is in progress. Commit continues it, Abort restores the local commit.",High,Not Tested,Related TC-033. Edge case. GitRepoRemotes.cpp:505-600,New
+GIT-256,Git,Git - Branches - Merge and Rebase,Pull or Pull-Rebase Without user.name in Git Config,"1. Remove user.name and user.email from global and repository git config, keep a Sourcerer profile
+2. Make a local commit and pull with rebase while the remote has new commits",The pull succeeds and uses the Sourcerer profile as committer.,Medium,Not Tested,Edge case. Suspected bug: GitRepoRemotes.cpp:515 uses git_signature_default (PullFailedToGetDefaultSignature),New
+GIT-257,Git,Git - Workflows - Git Flow,"Classic Git Flow Start Feature, Release and Hotfix","1. Select the Git Flow workflow
+2. Start feature 'login', release '1.2', hotfix '1.2.1'
+3. Start feature 'feature/search'","Branches 'feature/login', 'release/1.2', 'hotfix/1.2.1' and 'feature/search' (prefix not doubled) are created and checked out.",High,Not Tested,"GitRepoWorkflows.cpp:32-47 gitFlowBranchName, 178 startGitFlowBranch",New
+GIT-258,Git,Git - Workflows - Git Flow,Classic Git Flow Finish Release,"1. Start release '1.3', commit on it
+2. Finish the release","'release/1.3' is merged into the primary branch, tag '1.3' is created on it, the release is merged into develop and 'release/1.3' is deleted.",High,Not Tested,GitRepoWorkflows.cpp:224 finishGitFlowBranch,New
+GIT-259,Git,Git - Workflows - Git Flow,Finish Release When the Tag Already Exists,"1. Create tag '1.4'
+2. Start release '1.4' and finish it",The finish is refused before any merge with a 'tag exists' error. Branches are unchanged.,Medium,Not Tested,Edge case. GitRepoWorkflows.cpp:254-269 GitFlowTagExists,New
+GIT-260,Git,Git - Workflows - Git Flow,Finish Release With Conflict on Develop,"1. Start release '1.5' and change a line that develop also changes
+2. Finish the release","The user learns which step stopped: primary merged and tagged, develop merge conflicted. The release branch is not deleted and conflicts can be resolved or aborted.",Medium,Not Tested,Edge case (conflict mid-operation). GitRepoWorkflows.cpp:300-326,New
+GIT-261,Git,Git - Workflows - Git Flow,Finish Feature With Conflicts,"1. Start a feature that conflicts with develop
+2. Finish it",Finish stops with conflicts. The feature branch is not deleted.,Medium,Not Tested,Edge case. GitRepoWorkflows.cpp:294-298,New
+GIT-262,Git,Git - Workflows - GitLab and GitHub Flow,GitLab Flow Cherry-pick to Release With Conflicts,"1. Start release branch 'release/2.0'
+2. Cherry-pick a commit that conflicts with it",A message says the cherry-pick to 'release/2.0' produced conflicts. The release branch stays checked out with the conflicts for resolution.,Medium,Not Tested,Related TC-180. GitRepo.h:384-390; GitRepoManagerBridgeImpl.cpp:4787,New
+GIT-263,Git,Git - Workflows - GitLab and GitHub Flow,GitLab Flow Promote to a Missing Environment Branch,"1. Configure the environment chain main > staging > production with no 'production' branch
+2. Promote 'staging'",'production' is created from 'staging'. Promoting again with a conflict stops with a conflict message.,Medium,Not Tested,Related TC-178. GitRepo.h:373-378,New
+GIT-264,Git,Git - Workflows - GitLab and GitHub Flow,GitHub Flow Finish With Conflicts,"1. Start a GitHub Flow branch that conflicts with main
+2. Finish it",Finish stops with conflicts. The branch is not deleted.,Medium,Not Tested,Related TC-183. Edge case. GitRepoWorkflows.cpp:646,New
+GIT-265,Git,Git - Workflows - GitLab and GitHub Flow,Workflow Actions With Uncommitted Changes,"1. Modify a tracked file
+2. Run Finish on a git-flow-next feature whose parent changes that file",The action stops with a clear message. The local modification is kept.,Medium,Not Tested,Edge case. GitRepoWorkflows.cpp:927 finishGitFlowNextBranch,New
+GIT-266,Git,Git - Workflows - GitLab and GitHub Flow,git-flow-next Update With Conflicts,"1. Start a git-flow-next feature, then change the same lines on its parent
+2. Run Update on the feature",Update stops with conflicts that can be resolved or aborted. The feature branch is not moved otherwise.,Medium,Not Tested,Related TC-191. GitRepoWorkflows.cpp:1031 updateGitFlowNextBranch,New
+GIT-267,Git,Git - Working Directory - Patches,Create Patch From Commit With a Binary Change,"1. Commit a changed PNG
+2. Create patch from that commit
+3. Apply the patch on the parent commit in another clone","The patch carries the binary change and applying it recreates the PNG, or the user is told binary changes are not included.",Medium,Not Tested,Related TC-053. Edge case (binary). GitRepoDiff.cpp:700 default diff options (no GIT_DIFF_SHOW_BINARY),New
+GIT-268,Git,Git - Working Directory - Patches,Apply Patch With Non-ASCII Paths,"1. Create a patch with 'git diff' that changes 'docs/größe.txt' (paths quoted by git)
+2. Apply it from the history menu",The patch is applied to the right file.,Medium,Not Tested,Edge case (unicode). PatchFileUtils.cpp:12-31 patchTargetFiles only reads unquoted '+++ b/' lines,New
+GIT-269,Git,Git - Working Directory - Patches,Apply Patch That Does Not Fit,1. Apply a patch whose context lines do not match the files,Error toast 'Failed to apply patch.'. No file is partially changed.,Medium,Not Tested,Related TC-171. GitRepoWorkingCopy.cpp:1102-1150 GIT_APPLY_LOCATION_WORKDIR,New

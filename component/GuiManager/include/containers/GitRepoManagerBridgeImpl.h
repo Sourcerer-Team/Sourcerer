@@ -17,7 +17,7 @@ public:
   RepoFeatures features() const override;
 
   void blame(const QWeakPointer<RepoContainer> &guard,
-             const QStringList &files) override;
+             const QStringList &files, const QString &commit) override;
 
   // Shows a blame report in the blame view of container.
   static void showBlameReport(RepoContainer &container,
@@ -240,6 +240,11 @@ public:
                        const QString &submoduleName) override;
   qint64 getFileSizeFromCommit(const QString &filePath,
                                const QString &commit) override;
+  // LFS patterns are edited in .gitattributes.
+  void addFilesToLfs(const QWeakPointer<RepoContainer> &guard,
+                     const QStringList &files) override;
+  void removeFilesFromLfs(const QWeakPointer<RepoContainer> &guard,
+                          const QStringList &files) override;
 
 private:
   // Runs a Git Flow or GitLab Flow command and reports the outcome in toasts.
