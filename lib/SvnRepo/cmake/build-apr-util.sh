@@ -20,12 +20,16 @@ rm -rf "$work_dir"
 mkdir -p "$work_dir"
 cp -R "$src_dir/." "$work_dir/"
 find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec perl -pi -e 's/\r$//' {} +
+# The sources may be checked out without executable bits (e.g. from Windows),
+# but buildconf runs helper scripts such as build/buildcheck.sh directly.
+find "$work_dir" -type f -exec sh -c 'for f; do head -c 2 "$f" | grep -q "^#!" && chmod +x "$f"; done; true' sh {} +
 
 apr_build_copy="$build_dir/apr-src"
 rm -rf "$apr_build_copy"
 mkdir -p "$apr_build_copy"
 cp -R "$apr_src_dir/build" "$apr_build_copy/"
 find "$apr_build_copy/build" -type f -exec perl -pi -e 's/\r$//' {} +
+find "$apr_build_copy/build" -type f -exec sh -c 'for f; do head -c 2 "$f" | grep -q "^#!" && chmod +x "$f"; done; true' sh {} +
 
 cd "$work_dir"
 sh ./buildconf --with-apr="$apr_build_copy"
