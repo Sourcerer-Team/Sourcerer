@@ -31,6 +31,11 @@ autoreconf --force --install --verbose -Wno-portability
 
 cd "$build_dir"
 set -- --enable-shared --disable-static --prefix="$install_dir"
+# Otherwise "make install" also writes a SASL2.framework into
+# /Library/Frameworks, which needs root.
+if [ "$(uname -s)" = Darwin ]; then
+    set -- "$@" --disable-macos-framework
+fi
 if [ -n "$openssl_dir" ]; then
     set -- "$@" --with-openssl="$openssl_dir"
 fi
