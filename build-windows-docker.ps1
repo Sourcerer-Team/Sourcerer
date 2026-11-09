@@ -102,8 +102,21 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
 
 Write-Host "CPUS set to: $env:CPUS"
 
+# Hyper-V isolated containers commit their whole memory limit up front from the host's
+# RAM + page file. A fixed 16g fails on hosts with ~16 GB total (e.g. GitHub-hosted runners)
+# with "The paging file is too small". Use ~70% of physical memory, capped at 16 GB.
+if ($env:CONTAINER_MEMORY) {
+    $ContainerMemory = $env:CONTAINER_MEMORY
+} else {
+    $TotalMemGB = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+    $MemGB = [math]::Max(2, [math]::Min(16, [math]::Floor($TotalMemGB * 0.7)))
+    $ContainerMemory = "${MemGB}g"
+}
+
+Write-Host "Container memory set to: $ContainerMemory"
+
 # Run the complete build process in Docker container (build project + create installer)
-docker run --isolation=hyperv --cpus $CPUS --memory 16g --rm `
+docker run --isolation=hyperv --cpus $CPUS --memory $ContainerMemory --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `
