@@ -54,6 +54,7 @@ AboutDialog::AboutDialog(QWidget *parent)
   ui->buildDateLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
   // Copyright
+  /*
   ui->copyrightLabel->setText(
       tr("Copyright © %1 Sourcerer").arg(QDate::currentDate().year()));
   ui->copyrightLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -66,6 +67,7 @@ AboutDialog::AboutDialog(QWidget *parent)
   ui->websiteLabel->setTextInteractionFlags(Qt::TextBrowserInteraction |
                                             Qt::TextSelectableByMouse);
   ui->websiteLabel->setOpenExternalLinks(true);
+  */
 
   // Add License button to the button box
   QPushButton *licenseButton =
