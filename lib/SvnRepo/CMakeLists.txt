@@ -78,13 +78,17 @@ file(MAKE_DIRECTORY
     ${CYRUS_SASL_BUILD_DIR}
 )
 
+# Point configure at the OpenSSL CMake found; on macOS it is keg-only
+# in Homebrew and not on the default include path.
+get_filename_component(CYRUS_SASL_OPENSSL_ROOT ${OPENSSL_INCLUDE_DIR} DIRECTORY)
+
 if(APPLE)
   set(CYRUS_SASL_SET_ID COMMAND install_name_tool -id @rpath/${CYRUS_SASL_SONAME} ${CYRUS_SASL_LIBRARY})
 endif()
 
 add_custom_command(
     OUTPUT ${CYRUS_SASL_LIBRARY}
-    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR} ${CYRUS_SASL_BUILD_DIR} ${CYRUS_SASL_INSTALL_DIR}
+    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR} ${CYRUS_SASL_BUILD_DIR} ${CYRUS_SASL_INSTALL_DIR} ${CYRUS_SASL_OPENSSL_ROOT}
     COMMAND ${CMAKE_COMMAND} -E copy ${CYRUS_SASL_INSTALL_DIR}/lib/${CYRUS_SASL_SONAME} ${SOURCERER_SHARED_LIB_DIR}
     ${CYRUS_SASL_SET_ID}
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR}/autogen.sh ${CYRUS_SASL_SOURCE_DIR}/configure.ac

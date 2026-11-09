@@ -4,6 +4,7 @@ set -e
 src_dir=$1
 build_dir=$2
 install_dir=$3
+openssl_dir=$4
 
 mkdir -p "$build_dir"
 mkdir -p "$install_dir/include"
@@ -29,7 +30,11 @@ cd "$work_dir"
 autoreconf --force --install --verbose -Wno-portability
 
 cd "$build_dir"
-sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir"
+set -- --enable-shared --disable-static --prefix="$install_dir"
+if [ -n "$openssl_dir" ]; then
+    set -- "$@" --with-openssl="$openssl_dir"
+fi
+sh "$work_dir/configure" "$@"
 
 make -C include install prefix="$install_dir"
 make -C common
