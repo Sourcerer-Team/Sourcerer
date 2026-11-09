@@ -276,6 +276,7 @@ void TitleBarMenuButton::createActions() {
   connect(_sshKeysAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSshKeys);
 
+  /*
   _bugReportAction = new QAction(this);
   _bugReportAction->setText(tr("Report bug"));
   connect(_bugReportAction, &QAction::triggered, this,
@@ -285,7 +286,7 @@ void TitleBarMenuButton::createActions() {
   _releaseNotesAction->setText(tr("Release notes"));
   connect(_releaseNotesAction, &QAction::triggered, this,
           &TitleBarMenuButton::releaseNotes);
-
+  */
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
   connect(_aboutAction, &QAction::triggered, this,
@@ -374,8 +375,8 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_sshKeysAction);
   menu->addSeparator();
   menu->addAction(_settingsAction);
-  menu->addAction(_bugReportAction);
-  menu->addAction(_releaseNotesAction);
+  //menu->addAction(_bugReportAction);
+  //menu->addAction(_releaseNotesAction);
   menu->addAction(_aboutAction);
 
   const auto menuColor =

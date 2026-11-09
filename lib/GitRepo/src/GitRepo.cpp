@@ -2257,6 +2257,10 @@ bool isCommercialPlan() {
   }
 #endif
 
+  return true;
+
+  /*
+
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
@@ -2304,6 +2308,7 @@ bool isCommercialPlan() {
 
   return !creationTimeInTheFuture && !storageExpired && !jwtExpired &&
          (claims.plan == "Pro" || claims.plan == "Business");
+  */
 }
 
 bool isSshOrGitUrl(const QString &url) {
