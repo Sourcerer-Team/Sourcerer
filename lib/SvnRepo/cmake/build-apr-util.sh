@@ -19,13 +19,13 @@ work_dir="$build_dir/src"
 rm -rf "$work_dir"
 mkdir -p "$work_dir"
 cp -R "$src_dir/." "$work_dir/"
-find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec sed -i 's/\r$//' {} +
+find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec perl -pi -e 's/\r$//' {} +
 
 apr_build_copy="$build_dir/apr-src"
 rm -rf "$apr_build_copy"
 mkdir -p "$apr_build_copy"
 cp -R "$apr_src_dir/build" "$apr_build_copy/"
-find "$apr_build_copy/build" -type f -exec sed -i 's/\r$//' {} +
+find "$apr_build_copy/build" -type f -exec perl -pi -e 's/\r$//' {} +
 
 cd "$work_dir"
 sh ./buildconf --with-apr="$apr_build_copy"
@@ -35,8 +35,8 @@ LDFLAGS="${LDFLAGS} -L${expat_build_dir}"
 export CPPFLAGS
 export LDFLAGS
 sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir" --with-apr="$apr_install_dir"
-sed -i "s|^INCLUDES = |INCLUDES = -I${expat_src_dir}/lib |" "$build_dir/Makefile"
-sed -i "s|^APRUTIL_EXPORT_INCLUDES=\"\"|APRUTIL_EXPORT_INCLUDES=\"-I${expat_src_dir}/lib\"|" "$build_dir/export_vars.sh"
+perl -pi -e "s|^INCLUDES = |INCLUDES = -I${expat_src_dir}/lib |" "$build_dir/Makefile"
+perl -pi -e "s|^APRUTIL_EXPORT_INCLUDES=\"\"|APRUTIL_EXPORT_INCLUDES=\"-I${expat_src_dir}/lib\"|" "$build_dir/export_vars.sh"
 
 cat > "$build_dir/libtool" <<'EOF'
 #!/bin/sh

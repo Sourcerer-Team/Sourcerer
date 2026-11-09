@@ -15,7 +15,7 @@ work_dir="$build_dir/src"
 rm -rf "$work_dir"
 mkdir -p "$work_dir"
 cp -R "$src_dir/." "$work_dir/"
-find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec sed -i 's/\r$//' {} +
+find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec perl -pi -e 's/\r$//' {} +
 
 cd "$work_dir"
 sh ./buildconf --with-apr="$work_dir"
