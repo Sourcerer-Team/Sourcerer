@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // End to end tests of the SvnRepoManager component: requests are sent as
 // events and answered by the component's worker threads, as the Subversion
 // bridge does. See docs/SVN_TEST_PLAN.md section 5; QEXPECT_FAIL markers name

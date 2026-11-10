@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // LFS with the lfs extension: tracked patterns in .hglfs, objects in the
 // store.
 

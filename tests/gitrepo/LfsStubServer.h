@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // A minimal Git LFS server for the LFS tests: the batch API

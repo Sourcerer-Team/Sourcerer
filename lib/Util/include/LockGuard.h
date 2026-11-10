@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef LOCKGUARD_H
 #define LOCKGUARD_H
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Remotes ([paths]), synchronization, remote names and upstreams.
 
 #include "HgRc.h"

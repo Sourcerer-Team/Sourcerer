@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // The work of every HgRepoManager command, run on the repository's worker
 // thread (or a task thread for clone and init).
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Subrepos: .hgsub, .hgsubstate and the state of their checkouts.
 
 #include "HgRepo.h"

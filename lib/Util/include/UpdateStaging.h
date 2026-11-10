@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // Header-only helpers shared by the application (UpdateManager, main.cpp) and

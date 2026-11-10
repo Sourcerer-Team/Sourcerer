@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // Client of the Mercurial command server ("hg serve --cmdserver pipe"). Not

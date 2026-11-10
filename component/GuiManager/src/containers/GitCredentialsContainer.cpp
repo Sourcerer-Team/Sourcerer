@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "containers/GitCredentialsContainer.h"
 #include "ui_GitCredentialsContainer.h"
 #include "widgets/PinnedCertificatesWidget.h"

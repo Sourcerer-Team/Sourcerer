@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/LocalGitBranchesPage.h"
 #include "delegates/GraphiteBranchDelegate.h"
 #include "widgets/MoveProxy.h"

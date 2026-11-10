@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Worktrees, built on the share extension, with a registry kept by Sourcerer
 // in the main repository.
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "containers/GitRepoManagerBridgeImpl.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"

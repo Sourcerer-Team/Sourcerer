@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Helpers shared by the GitRepo test suites: the git executable for setting
 // up repositories, file access and an isolated git configuration.
 

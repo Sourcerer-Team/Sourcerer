@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef BLOCKING_QUEUE_H
 #define BLOCKING_QUEUE_H
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // A TLS server on the loopback addresses (IPv4 and IPv6) that presents a
 // certificate, answers every request with 404 and closes: enough for a
 // client to reach its server certificate check, without a Subversion server

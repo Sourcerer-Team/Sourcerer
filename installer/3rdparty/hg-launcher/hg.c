@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Relocatable hg.exe for the Windows package.
 //
 // The bundled Mercurial lives in <dir of hg.exe>\python, a full Python with

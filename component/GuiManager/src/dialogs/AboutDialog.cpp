@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "dialogs/AboutDialog.h"
 #include "dialogs/ui_AboutDialog.h"
 

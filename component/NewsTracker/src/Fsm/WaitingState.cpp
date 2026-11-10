@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "Fsm/WaitingState.h"
 #include "Fsm/NewsTrackerEvent.h"
 #include "Fsm/NewsTrackerFsm.h"

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // Git's smart HTTP protocol (`git http-backend`) behind HTTP Basic

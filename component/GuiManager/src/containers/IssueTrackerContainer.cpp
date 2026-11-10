@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "containers/IssueTrackerContainer.h"
 #include "WebEngineProfile.h"
 

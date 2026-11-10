@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Named branches, bookmarks, tags, merging and history editing.
 
 #include "HgRepo.h"

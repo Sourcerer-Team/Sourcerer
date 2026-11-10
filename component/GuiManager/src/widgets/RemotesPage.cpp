@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/RemotesPage.h"
 #include "MousePositionCorrection.h"
 #include "widgets/ui_RemotesPage.h"

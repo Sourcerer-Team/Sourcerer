@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "GitCredentialStorage.h"
 
 #ifdef SOURCERER_GITREPO_TESTING

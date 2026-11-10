@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // End to end tests of HgRepo against local repositories, using the hg
 // executable installed on the machine.
 

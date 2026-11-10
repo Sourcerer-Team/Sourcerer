@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Status, staging and commits of the working directory.
 
 #include "HgRepo.h"

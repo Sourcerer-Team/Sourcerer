@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "containers/SettingsContainer.h"
 #include "containers/ui_SettingsContainer.h"
 

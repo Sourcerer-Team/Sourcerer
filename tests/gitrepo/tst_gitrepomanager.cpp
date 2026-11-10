@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // End to end tests of the GitRepoManager component: requests are sent as
 // events and answered by the component's worker threads, as RepoContainer
 // does. See docs/GIT_TEST_PLAN.md, section 4.

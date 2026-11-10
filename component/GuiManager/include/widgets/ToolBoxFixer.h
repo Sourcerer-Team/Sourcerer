@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef TOOLBOXFIXER_H
 #define TOOLBOXFIXER_H
 
