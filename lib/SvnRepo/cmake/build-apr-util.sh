@@ -141,6 +141,12 @@ case "$mode" in
                     libs="$libs $1 $2"
                     shift 2
                     ;;
+                -arch)
+                    # Keep the target architecture on the link line (universal macOS
+                    # builds pass it through CC).
+                    libs="$libs $1 $2"
+                    shift 2
+                    ;;
                 *)
                     shift
                     ;;
@@ -238,6 +244,13 @@ for generated in "$build_dir/Makefile" "$build_dir/apu-1-config" "$build_dir/bui
         perl -0pi -e 's/\r\n/\n/g; s/\r/\n/g' "$generated"
     fi
 done
+
+# apr-util compiles with the CC recorded in APR's apr_rules.mk (copied to
+# build/rules.mk). For universal macOS builds APR's last configure run was for
+# a different architecture, so use the compiler this configure run was given.
+if [ -n "$CC" ]; then
+    APU_CC="$CC" perl -pi -e 's/^CC=.*/CC=$ENV{APU_CC}/' "$build_dir/build/rules.mk"
+fi
 
 make install
 
