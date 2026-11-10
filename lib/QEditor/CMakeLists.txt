@@ -42,6 +42,24 @@ file(GLOB TREE_SITTER_LANGUAGE_INCLUDE_DIRS CONFIGURE_DEPENDS
      ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter/*/src
      ${CMAKE_CURRENT_SOURCE_DIR}/tree-sitter/*/*/src)
 
+# The generated tree-sitter parser.c files are huge (hundreds of thousands of
+# lines) and each one can need several GB of compiler memory. Compile them in
+# their own object library with a dedicated Ninja job pool so only a few run at
+# once, regardless of the overall build parallelism.
+set(SOURCERER_GRAMMAR_JOBS 2 CACHE STRING
+    "Max number of tree-sitter grammars compiled in parallel (Ninja only)")
+set_property(GLOBAL APPEND PROPERTY JOB_POOLS
+             tree_sitter_grammars=${SOURCERER_GRAMMAR_JOBS})
+
+add_library(QEditorGrammars OBJECT ${TREE_SITTER_LANGUAGE_SOURCES})
+set_target_properties(QEditorGrammars PROPERTIES
+  JOB_POOL_COMPILE tree_sitter_grammars
+  POSITION_INDEPENDENT_CODE ON)
+target_include_directories(QEditorGrammars PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../tree-sitter/lib/include
+  ${TREE_SITTER_LANGUAGE_INCLUDE_DIRS}
+)
+
 qt_add_library(QEditor STATIC
   include/Qsci/qsciglobal.h
   include/Qsci/qscilexer.h
@@ -58,7 +76,7 @@ qt_add_library(QEditor STATIC
   include/Qsci/qscilexertypescript.h
   include/Qsci/qsciscintilla.h
   src/QEditor.cpp
-  ${TREE_SITTER_LANGUAGE_SOURCES}
+  $<TARGET_OBJECTS:QEditorGrammars>
 )
 
 target_include_directories(QEditor PUBLIC
