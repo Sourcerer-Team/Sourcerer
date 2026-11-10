@@ -64,6 +64,28 @@ add_custom_command(
 )
 
 else()
+# The autotools-based dependencies (APR, apr-util, Cyrus SASL) are built by
+# shell scripts. On macOS build-universal.sh runs them once per architecture
+# in CMAKE_OSX_ARCHITECTURES and merges the library with lipo; elsewhere they
+# run directly. Sets <out_var> to the command prefix for building <library>.
+function(svnrepo_autotools_runner out_var library)
+  if(APPLE)
+    set(archs "${CMAKE_OSX_ARCHITECTURES}")
+    if(NOT archs)
+      set(archs native)
+    endif()
+    string(REPLACE ";" "," archs "${archs}")
+    set(deployment_target "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    if(NOT deployment_target)
+      set(deployment_target default)
+    endif()
+    set(${out_var} sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-universal.sh
+        ${archs} ${deployment_target} ${library} PARENT_SCOPE)
+  else()
+    set(${out_var} sh PARENT_SCOPE)
+  endif()
+endfunction()
+
 set(CYRUS_SASL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/cyrus-sasl-build)
 if(APPLE)
   set(CYRUS_SASL_SONAME libsasl2.3.dylib)
@@ -86,12 +108,13 @@ if(APPLE)
   set(CYRUS_SASL_SET_ID COMMAND install_name_tool -id @rpath/${CYRUS_SASL_SONAME} ${CYRUS_SASL_LIBRARY})
 endif()
 
+svnrepo_autotools_runner(CYRUS_SASL_RUN ${CYRUS_SASL_SONAME})
 add_custom_command(
     OUTPUT ${CYRUS_SASL_LIBRARY}
-    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR} ${CYRUS_SASL_BUILD_DIR} ${CYRUS_SASL_INSTALL_DIR} ${CYRUS_SASL_OPENSSL_ROOT}
+    COMMAND ${CYRUS_SASL_RUN} ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR} ${CYRUS_SASL_BUILD_DIR} ${CYRUS_SASL_INSTALL_DIR} ${CYRUS_SASL_OPENSSL_ROOT}
     COMMAND ${CMAKE_COMMAND} -E copy ${CYRUS_SASL_INSTALL_DIR}/lib/${CYRUS_SASL_SONAME} ${SOURCERER_SHARED_LIB_DIR}
     ${CYRUS_SASL_SET_ID}
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR}/autogen.sh ${CYRUS_SASL_SOURCE_DIR}/configure.ac ${CYRUS_SASL_SOURCE_DIR}/lib/Makefile.am
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-universal.sh ${CYRUS_SASL_SOURCE_DIR}/autogen.sh ${CYRUS_SASL_SOURCE_DIR}/configure.ac ${CYRUS_SASL_SOURCE_DIR}/lib/Makefile.am
     VERBATIM
 )
 
@@ -190,11 +213,12 @@ endif()
 set(APR_LIBRARY ${SOURCERER_SHARED_LIB_DIR}/${APR_SONAME})
 set(APR_UTIL_LIBRARY ${SOURCERER_SHARED_LIB_DIR}/${APR_UTIL_SONAME})
 
+svnrepo_autotools_runner(APR_RUN ${APR_SONAME})
 add_custom_command(
     OUTPUT ${APR_LIBRARY}
-    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr.sh ${CMAKE_CURRENT_LIST_DIR}/../apr ${APR_BUILD_DIR} ${APR_INSTALL_DIR}
+    COMMAND ${APR_RUN} ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr.sh ${CMAKE_CURRENT_LIST_DIR}/../apr ${APR_BUILD_DIR} ${APR_INSTALL_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${APR_INSTALL_DIR}/lib/${APR_SONAME} ${SOURCERER_SHARED_LIB_DIR}
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr.sh ${CMAKE_CURRENT_LIST_DIR}/../apr/buildconf ${CMAKE_CURRENT_LIST_DIR}/../apr/configure.in
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-universal.sh ${CMAKE_CURRENT_LIST_DIR}/../apr/buildconf ${CMAKE_CURRENT_LIST_DIR}/../apr/configure.in
     VERBATIM
 )
 
@@ -205,9 +229,14 @@ set_target_properties(apr-1 PROPERTIES
     IMPORTED_LOCATION ${APR_LIBRARY}
     IMPORTED_SONAME ${APR_SONAME_PREFIX}${APR_SONAME}
     INTERFACE_INCLUDE_DIRECTORIES ${APR_INSTALL_DIR}/include/apr-1
-    # Matches EXTRA_LIBS detected by APR's configure (see apr-build/build/apr_rules.mk)
-    INTERFACE_LINK_LIBRARIES "uuid;crypt;pthread;${CMAKE_DL_LIBS}"
 )
+# Matches EXTRA_LIBS detected by APR's configure (see apr-build/build/apr_rules.mk).
+# On macOS uuid and crypt live in libSystem, so configure only adds pthread.
+if(APPLE)
+  set_target_properties(apr-1 PROPERTIES INTERFACE_LINK_LIBRARIES "pthread;${CMAKE_DL_LIBS}")
+else()
+  set_target_properties(apr-1 PROPERTIES INTERFACE_LINK_LIBRARIES "uuid;crypt;pthread;${CMAKE_DL_LIBS}")
+endif()
 if(UNIX AND NOT WIN32)
   set_target_properties(apr-1 PROPERTIES
       INTERFACE_COMPILE_DEFINITIONS "PATH_MAX=4096"
@@ -215,11 +244,12 @@ if(UNIX AND NOT WIN32)
 endif()
 add_dependencies(apr-1 apr-build)
 
+svnrepo_autotools_runner(APR_UTIL_RUN ${APR_UTIL_SONAME})
 add_custom_command(
     OUTPUT ${APR_UTIL_LIBRARY}
-    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr-util.sh ${CMAKE_CURRENT_LIST_DIR}/../apr-util ${APR_UTIL_BUILD_DIR} ${APR_UTIL_INSTALL_DIR} ${APR_INSTALL_DIR} ${CMAKE_CURRENT_LIST_DIR}/../apr ${CMAKE_CURRENT_LIST_DIR}/../libexpat/expat $<TARGET_FILE_DIR:expat>
+    COMMAND ${APR_UTIL_RUN} ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr-util.sh ${CMAKE_CURRENT_LIST_DIR}/../apr-util ${APR_UTIL_BUILD_DIR} ${APR_UTIL_INSTALL_DIR} ${APR_INSTALL_DIR} ${CMAKE_CURRENT_LIST_DIR}/../apr ${CMAKE_CURRENT_LIST_DIR}/../libexpat/expat $<TARGET_FILE_DIR:expat>
     COMMAND ${CMAKE_COMMAND} -E copy ${APR_UTIL_INSTALL_DIR}/lib/${APR_UTIL_SONAME} ${SOURCERER_SHARED_LIB_DIR}
-    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr-util.sh ${CMAKE_CURRENT_LIST_DIR}/../apr-util/buildconf ${CMAKE_CURRENT_LIST_DIR}/../apr-util/configure.in ${APR_LIBRARY} expat
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-apr-util.sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-universal.sh ${CMAKE_CURRENT_LIST_DIR}/../apr-util/buildconf ${CMAKE_CURRENT_LIST_DIR}/../apr-util/configure.in ${APR_LIBRARY} expat
     VERBATIM
 )
 

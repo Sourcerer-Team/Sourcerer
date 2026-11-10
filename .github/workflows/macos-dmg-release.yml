@@ -55,6 +55,15 @@ jobs:
       - name: Install build tools
         run: brew install ninja openssl@3 pcre2 curl gettext autoconf automake libtool
 
+      # The x86_64 slices of APR, apr-util and Cyrus SASL are configured with
+      # autotools, which runs test programs it compiles; on this Apple Silicon
+      # runner those need Rosetta.
+      - name: Install Rosetta
+        run: |
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+
       - name: Import Developer ID certificate
         if: ${{ env.MACOS_CERTIFICATE != '' }}
         run: |
