@@ -39,7 +39,10 @@ fi
 if [ -n "$openssl_dir" ]; then
     set -- "$@" --with-openssl="$openssl_dir"
 fi
-sh "$work_dir/configure" "$@"
+# cyrus-sasl still has K&R-style function definitions (lib/md5.c), which
+# C23 rejects. Newer autoconf (2.72+) picks -std=gnu23 when the compiler
+# supports it, so pin C17; CFLAGS come after CC on the command line and win.
+CFLAGS="${CFLAGS:--g -O2} -std=gnu17" sh "$work_dir/configure" "$@"
 
 make -C include install prefix="$install_dir"
 make -C common
