@@ -146,9 +146,14 @@ fi
 sign() { codesign "${SIGN_ARGS[@]}" "$@"; }
 
 # Bundled git binaries and dylibs must be signed with the same identity as the app.
+# codesign treats every file under Contents/MacOS as nested code, so executable
+# scripts (git's shell scripts and hooks, Python's bin/pydoc3.13, ...) need a
+# signature too; for files that are not Mach-O it goes into extended attributes.
 while IFS= read -r -d '' bin; do
     if file -b "$bin" | grep -q "Mach-O"; then
         sign ${ENTITLEMENTS_ARGS[@]+"${ENTITLEMENTS_ARGS[@]}"} "$bin"
+    elif [[ -x "$bin" ]]; then
+        sign "$bin"
     fi
 done < <(find "$APP/Contents/MacOS/3rdparty/git" "$APP/Contents/MacOS/3rdparty/svn" "$APP/Contents/MacOS/3rdparty/hg" -type f -print0)
 
