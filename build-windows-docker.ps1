@@ -118,6 +118,7 @@ Write-Host "Container memory set to: $ContainerMemory"
 # Run the complete build process in Docker container (build project + create installer)
 docker run --isolation=hyperv --cpus $CPUS --memory $ContainerMemory --rm `
     --name $ContainerName `
+    -e CPUS=$CPUS `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `
     $ImageName `

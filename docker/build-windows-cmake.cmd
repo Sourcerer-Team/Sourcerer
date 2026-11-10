@@ -26,7 +26,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cmake --build C:\workspace\build\Release-Windows --parallel 20
+if not defined CPUS set CPUS=%NUMBER_OF_PROCESSORS%
+cmake --build C:\workspace\build\Release-Windows --parallel %CPUS%
 if errorlevel 1 (
     echo Error: CMake build failed
     exit /b 1
