@@ -99,9 +99,27 @@ else
     echo -e "Running locally${NC}"
 fi
 
+# A fixed 16g limit gets the build OOM-killed (exit 137) on hosts with ~16 GB
+# total, e.g. GitHub-hosted runners. Use ~70% of physical memory, capped at 16 GB.
+if [ -n "$CONTAINER_MEMORY" ]; then
+    MEMORY="$CONTAINER_MEMORY"
+else
+    TOTAL_MEM_GB=$(awk '/MemTotal/ { printf "%d", $2 / 1024 / 1024 }' /proc/meminfo 2>/dev/null)
+    MEM_GB=$(( ${TOTAL_MEM_GB:-16} * 7 / 10 ))
+    [ "$MEM_GB" -gt 16 ] && MEM_GB=16
+    [ "$MEM_GB" -lt 2 ] && MEM_GB=2
+    MEMORY="${MEM_GB}g"
+fi
+
+echo "CPUS set to: $CPUS"
+echo "Container memory set to: $MEMORY"
+
 # Run the build in Docker container as current user
-docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
+docker run --cpus $CPUS --memory $MEMORY --memory-swap $MEMORY --rm \
     --name "$CONTAINER_NAME" \
+    -e CPUS="$CPUS" \
+    -e LANG=C.UTF-8 \
+    -e LC_ALL=C.UTF-8 \
     --user "$(id -u):$(id -g)" \
     -v "$PROJECT_ROOT:/workspace:z" \
     -w /workspace \
