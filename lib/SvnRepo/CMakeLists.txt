@@ -334,6 +334,10 @@ add_dependencies(SvnRepo serf)
 set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "Disable testing")
 set(LIB_FUZZING_ENGINE OFF CACHE BOOL "Disable fuzzing")
 add_subdirectory(../utf8proc "utf8proc")
+# utf8proc is plain C, but the global CMAKE_AUTOMOC still adds a generated
+# mocs_compilation.cpp, and utf8proc's target-wide COMPILE_FLAGS (-std=c99)
+# then reach the C++ compiler, which clang rejects.
+set_target_properties(utf8proc PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 
 add_library(external-serf INTERFACE)
 target_link_libraries(external-serf INTERFACE serf)
