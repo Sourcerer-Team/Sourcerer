@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/GitWorktreesPage.h"
 #include "widgets/ui_GitWorktreesPage.h"
 

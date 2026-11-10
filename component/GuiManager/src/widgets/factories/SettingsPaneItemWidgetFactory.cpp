@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/factories/SettingsPaneItemWidgetFactory.h"
 #include "widgets/SettingsPaneBooleanWidget.h"
 #include "widgets/SettingsPaneColorWidget.h"

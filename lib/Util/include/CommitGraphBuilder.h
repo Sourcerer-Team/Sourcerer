@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef UTIL_COMMIT_GRAPH_BUILDER_H
 #define UTIL_COMMIT_GRAPH_BUILDER_H
 

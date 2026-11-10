@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 #if defined(QT_WEBENGINECORE_LIB)

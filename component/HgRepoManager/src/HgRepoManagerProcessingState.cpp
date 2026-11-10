@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "HgRepoManagerProcessingState.h"
 #include "HgRepoManagerEvent.h"
 #include "HgRepoManagerWorkers.h"

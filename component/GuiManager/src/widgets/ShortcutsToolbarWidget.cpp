@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/ShortcutsToolbarWidget.h"
 
 #include <Log.h>

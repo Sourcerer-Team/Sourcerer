@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/ProfileBoardWidget.h"
 #include "MousePositionCorrection.h"
 #include "delegates/FixedHeightDelegate.h"

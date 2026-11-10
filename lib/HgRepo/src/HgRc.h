@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // Reads and edits a Mercurial config file (.hg/hgrc) while keeping its

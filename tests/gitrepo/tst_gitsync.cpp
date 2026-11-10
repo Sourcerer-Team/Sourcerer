@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Tests for the parts of lib/GitRepo that talk to other repositories: clone,
 // fetch, pull, push, remote tags and branches, submodules and Git LFS. See
 // docs/GIT_TEST_PLAN.md, sections 3.15 to 3.17. Remotes are local bare

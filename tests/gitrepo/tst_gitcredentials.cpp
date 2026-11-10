@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Tests for the credential stores of lib/GitRepo: GitCredentialStorage (the
 // encrypted HTTP credentials), GitKeyStorage (SSH keys per host), the Basic
 // authentication header and the SSH key lookup with its passphrase prompt.

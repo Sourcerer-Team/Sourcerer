@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/linux/BashShellWidget.h"
 #include "ConfigManager.h"
 #include "Log.h"

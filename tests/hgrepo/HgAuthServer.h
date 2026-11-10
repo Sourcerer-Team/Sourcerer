@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // "hg serve" behind a proxy that asks for HTTP Basic authentication, for the

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/MultilineTextInputOverlayWidget.h"
 #include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaquePushButton.h"
