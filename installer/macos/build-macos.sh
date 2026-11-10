@@ -108,15 +108,15 @@ if [[ ! -x "$GIT_SRC/bin/git" ]]; then
     if [[ "$UNIVERSAL" == "1" ]]; then GIT_ARCHS="arm64 x86_64"; else GIT_ARCHS="$(uname -m)"; fi
     ARCHS="$GIT_ARCHS" "$REPO_ROOT/installer/3rdparty/build-git-macos.sh"
 fi
-mkdir -p "$APP/Contents/MacOS/3rdparty"
-ditto "$GIT_SRC" "$APP/Contents/MacOS/3rdparty/git"
+mkdir -p "$APP/Contents/Resources/3rdparty"
+ditto "$GIT_SRC" "$APP/Contents/Resources/3rdparty/git"
 
 # Standalone svn client, built by the same universal CMake build and bundled the same way.
 SVN_SRC="$REPO_ROOT/installer/3rdparty/svn"
 REQUIRE_UNIVERSAL="$UNIVERSAL" OUTPUT_DIR="$SVN_SRC" \
     "$REPO_ROOT/installer/3rdparty/build-svn-macos.sh" "$BUILD_DIR/SvnRepo/svn"
-mkdir -p "$APP/Contents/MacOS/3rdparty"
-ditto "$SVN_SRC" "$APP/Contents/MacOS/3rdparty/svn"
+mkdir -p "$APP/Contents/Resources/3rdparty"
+ditto "$SVN_SRC" "$APP/Contents/Resources/3rdparty/svn"
 
 # Portable Mercurial (relocatable CPython plus the Mercurial wheel), per arch and
 # merged with lipo for universal builds.
@@ -134,9 +134,9 @@ if [[ ! -x "$HG_SRC/bin/hg" ]]; then
         "$REPO_ROOT/installer/3rdparty/fetch-hg-unix.sh" "$HG_SRC" macos-x86_64
     fi
 fi
-ditto "$HG_SRC" "$APP/Contents/MacOS/3rdparty/hg"
+ditto "$HG_SRC" "$APP/Contents/Resources/3rdparty/hg"
 cp "$REPO_ROOT/installer/3rdparty/hg-config/sourcerer.rc" \
-    "$APP"/Contents/MacOS/3rdparty/hg/python/lib/python3.*/site-packages/mercurial/defaultrc/
+    "$APP"/Contents/Resources/3rdparty/hg/python/lib/python3.*/site-packages/mercurial/defaultrc/
 
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
@@ -145,17 +145,17 @@ if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
 fi
 sign() { codesign "${SIGN_ARGS[@]}" "$@"; }
 
-# Bundled git binaries and dylibs must be signed with the same identity as the app.
-# codesign treats every file under Contents/MacOS as nested code, so executable
-# scripts (git's shell scripts and hooks, Python's bin/pydoc3.13, ...) need a
-# signature too; for files that are not Mach-O it goes into extended attributes.
+# Bundled git, svn and hg binaries and dylibs must be signed with the same
+# identity as the app. The tools live in Contents/Resources, not Contents/MacOS:
+# codesign treats everything in Contents/MacOS as nested code, so it rejects
+# unsigned scripts there and takes directories like hg's python/lib/python3.13
+# for malformed bundles. In Resources the app's signature seals the scripts and
+# data as resources, and only the Mach-O files need signatures of their own.
 while IFS= read -r -d '' bin; do
     if file -b "$bin" | grep -q "Mach-O"; then
         sign ${ENTITLEMENTS_ARGS[@]+"${ENTITLEMENTS_ARGS[@]}"} "$bin"
-    elif [[ -x "$bin" ]]; then
-        sign "$bin"
     fi
-done < <(find "$APP/Contents/MacOS/3rdparty/git" "$APP/Contents/MacOS/3rdparty/svn" "$APP/Contents/MacOS/3rdparty/hg" -type f -print0)
+done < <(find "$APP/Contents/Resources/3rdparty/git" "$APP/Contents/Resources/3rdparty/svn" "$APP/Contents/Resources/3rdparty/hg" -type f -print0)
 
 # Inside-out: loose libraries, then nested bundles (deepest first), then the
 # executables and finally the application bundle itself. --deep is avoided on
@@ -194,13 +194,13 @@ for exe in Sourcerer SourcererLauncher; do
     fi
 done
 if [[ "$UNIVERSAL" == "1" ]]; then
-    git_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/git/bin/git")"
+    git_archs="$(lipo -archs "$APP/Contents/Resources/3rdparty/git/bin/git")"
     echo "bundled git: $git_archs"
     [[ "$git_archs" == *arm64* && "$git_archs" == *x86_64* ]] || { echo "bundled git is not universal" >&2; exit 1; }
-    svn_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/svn/bin/svn")"
+    svn_archs="$(lipo -archs "$APP/Contents/Resources/3rdparty/svn/bin/svn")"
     echo "bundled svn: $svn_archs"
     [[ "$svn_archs" == *arm64* && "$svn_archs" == *x86_64* ]] || { echo "bundled svn is not universal" >&2; exit 1; }
-    hg_archs="$(lipo -archs "$APP/Contents/MacOS/3rdparty/hg/python/bin/python3")"
+    hg_archs="$(lipo -archs "$APP/Contents/Resources/3rdparty/hg/python/bin/python3")"
     echo "bundled hg python: $hg_archs"
     [[ "$hg_archs" == *arm64* && "$hg_archs" == *x86_64* ]] || { echo "bundled hg python is not universal" >&2; exit 1; }
 fi
