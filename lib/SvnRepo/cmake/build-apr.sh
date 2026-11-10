@@ -118,6 +118,12 @@ case "$mode" in
                     libs="$libs $1 $2"
                     shift 2
                     ;;
+                -arch)
+                    # Keep the target architecture on the link line (universal macOS
+                    # builds pass it through CC).
+                    libs="$libs $1 $2"
+                    shift 2
+                    ;;
                 *)
                     shift
                     ;;
