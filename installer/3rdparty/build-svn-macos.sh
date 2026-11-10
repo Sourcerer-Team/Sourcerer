@@ -40,8 +40,10 @@ chmod 755 "$OUTPUT_DIR/bin/svn"
 
 # Libraries from outside macOS and the bundle: absolute paths and the @rpath
 # libraries of the build.
+# otool -L prints a "<binary> (architecture <arch>):" header before each slice
+# of a universal binary; skip every header, not just the first.
 foreign_libs() {
-    otool -L "$1" | tail -n +2 | awk '{print $1}' |
+    otool -L "$1" | awk '!/:$/ {print $1}' | sort -u |
         grep -vE '^(/usr/lib/|/System/Library/|@loader_path/|@executable_path/)' || true
 }
 

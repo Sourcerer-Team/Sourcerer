@@ -96,7 +96,9 @@ while IFS= read -r -d '' binary; do
     for arch in $ARCHS; do
         [[ " $archs " == *" $arch "* ]] || die "${binary#"$OUTPUT_DIR"/} lacks $arch (has: $archs)"
     done
-    foreign="$(otool -L "$binary" | tail -n +2 | awk '{print $1}' |
+    # otool -L prints a "<binary> (architecture <arch>):" header before each
+    # slice of a universal binary; skip every header, not just the first.
+    foreign="$(otool -L "$binary" | awk '!/:$/ {print $1}' |
         grep -vE '^(/usr/lib/|/System/Library/)' || true)"
     [[ -z "$foreign" ]] || die "${binary#"$OUTPUT_DIR"/} links libraries outside macOS: $foreign"
 done < <(find "$OUTPUT_DIR/bin" "$OUTPUT_DIR/libexec" -type f -print0)
