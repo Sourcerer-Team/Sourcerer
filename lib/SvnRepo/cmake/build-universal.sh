@@ -67,3 +67,12 @@ done
 rm -f "$install_dir/lib/$library"
 lipo -create "$@" -output "$install_dir/lib/$library"
 lipo -info "$install_dir/lib/$library"
+
+# The installed config scripts can point back into the build directory of the
+# last architecture (build-apr.sh installs APR's uninstalled apr-1-config, so
+# apr-util links <build>/<arch>/libapr-1.la and the dylib next to it). Put the
+# universal library in place of every per-architecture copy so that whatever
+# links against those copies gets all slices.
+for arch in $arch_list; do
+    find "$build_dir/$arch" -name "$library" -type f -exec cp "$install_dir/lib/$library" {} \;
+done
