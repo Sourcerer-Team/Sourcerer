@@ -80,6 +80,16 @@ set(OSX_FRAMEWORK OFF CACHE BOOL "Build QCA as a plain dylib, not a framework" F
 
 add_subdirectory(../../lib/qca "QCA")
 sharedThirdPartyOutput(qca-qt6)
+if(APPLE)
+  # QCA turns off MACOSX_RPATH and builds with its install RPATH on macOS,
+  # which holds neither @loader_path nor the Qt library directory, so
+  # macdeployqt cannot resolve its @rpath/QtCore.framework references. Build
+  # it like the other shared third-party libraries instead: install name
+  # @rpath/<lib>, RPATH @loader_path plus the link directories (Qt included).
+  set_target_properties(qca-qt6 PROPERTIES
+      MACOSX_RPATH ON
+      BUILD_WITH_INSTALL_RPATH OFF)
+endif()
 
 
 set(ZLIB_BUILD_STATIC OFF CACHE BOOL "Enable static libraries" FORCE)
