@@ -110,10 +110,18 @@ struct WebEngineLoggingInitializer {
 const WebEngineLoggingInitializer webEngineLoggingInitializer;
 
 // Bundled tools live under <application directory>/3rdparty/<tool> in every
-// package, so the app never depends on system-installed git or svn.
+// package, so the app never depends on system-installed git or svn. In the
+// macOS app bundle they are in Contents/Resources/3rdparty instead: codesign
+// treats everything in Contents/MacOS as nested code and rejects directories
+// such as hg's python/lib/python3.13 there as malformed bundles.
 void prependBundledToolToPath(const QString &toolSubdir) {
-  const QString toolBin = QDir::toNativeSeparators(
-      QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(toolSubdir));
+#ifdef Q_OS_MACOS
+  const QString toolsBase = QStringLiteral("../Resources/");
+#else
+  const QString toolsBase;
+#endif
+  const QString toolBin = QDir::toNativeSeparators(QDir::cleanPath(
+      QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(toolsBase + toolSubdir)));
   if (!QFileInfo::exists(toolBin)) {
     return;
   }
