@@ -35,7 +35,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Building project..."
-cmake --build . --config Release --parallel 20
+cmake --build . --config Release --parallel "${CPUS:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN)}"
 if [ $? -ne 0 ]; then
     echo "Error: Build failed"
     exit 1
