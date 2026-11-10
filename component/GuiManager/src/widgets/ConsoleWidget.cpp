@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/ConsoleWidget.h"
 #ifdef Q_OS_WIN
 #include "widgets/win32/PowerShellWidget.h"

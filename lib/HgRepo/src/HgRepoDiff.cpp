@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Diffs, blame and file contents.
 
 #include "HgRepo.h"

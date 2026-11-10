@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Branching workflows: classic Git Flow, GitLab Flow, GitHub Flow and
 // git-flow-next, on named branches or bookmarks.
 

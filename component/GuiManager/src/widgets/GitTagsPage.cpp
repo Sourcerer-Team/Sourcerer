@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/GitTagsPage.h"
 #include "widgets/ui_GitTagsPage.h"
 

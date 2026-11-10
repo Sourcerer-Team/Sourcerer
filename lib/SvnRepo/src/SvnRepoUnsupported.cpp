@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Git operations without a Subversion counterpart. Queries return what a
 // repository that never used the feature would return, actions fail with
 // SvnError::UnsupportedOperation.

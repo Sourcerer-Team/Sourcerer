@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #pragma once
 
 // Helpers shared by the GitRepo translation units. Not part of the public API.

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef STYLEDRECYCLERLISTITEM_H
 #define STYLEDRECYCLERLISTITEM_H
 

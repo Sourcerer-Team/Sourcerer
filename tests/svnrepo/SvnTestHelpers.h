@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Helpers shared by the SvnRepo test suites: the svn, svnadmin and svnlook
 // executables as oracles and for setup, file access, error checks and an
 // isolated Subversion configuration. See docs/SVN_TEST_PLAN.md, section 2.

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Credentials and server certificates for SvnRepo: credential prompts over
 // svn:// (svnserve with a password database), and the server certificate
 // policy, called directly with certificates made here and reached by a

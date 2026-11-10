@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "containers/CloneRepoContainer.h"
 #include "ui_CloneRepoContainer.h"
 

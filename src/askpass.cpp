@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // SSH_ASKPASS program of Sourcerer. ssh, started by Mercurial, runs it with a
 // prompt (e.g. "Enter passphrase for key '...': ") when it needs a key
 // passphrase. It hands the prompt to Sourcerer over the local socket named by

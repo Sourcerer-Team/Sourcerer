@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // End to end tests of SvnRepo against local file:// repositories. Every test
 // gets its own repository and working copy (init/cleanup). See
 // docs/SVN_TEST_PLAN.md; QEXPECT_FAIL markers name the suspected defect (§7)

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Runs svnserve on 127.0.0.1 for the credential tests: one repository with
 // the standard layout, anonymous access off, one user with a password.
 

@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Tests for commit signing and the branching workflows of lib/GitRepo: Git
 // Flow, git-flow-next, GitHub Flow and GitLab Flow. See docs/GIT_TEST_PLAN.md,
 // sections 3.18 and 3.19. Signing uses real ssh-keygen and gpg keys made for

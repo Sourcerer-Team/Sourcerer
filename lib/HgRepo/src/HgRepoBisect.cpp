@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Bisect, with Mercurial's own bisect state.
 
 #include "HgRepo.h"

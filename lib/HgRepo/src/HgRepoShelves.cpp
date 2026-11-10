@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Shelves, Mercurial's stashes, and conflict contents.
 
 #include "HgRepo.h"

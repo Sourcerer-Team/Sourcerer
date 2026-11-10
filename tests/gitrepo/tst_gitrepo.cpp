@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Tests for lib/GitRepo, see docs/GIT_TEST_PLAN.md. Repositories are created
 // with GitRepo::initRepository and put into the states under test with the
 // git executable. The git configuration of the user running the tests is not

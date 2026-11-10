@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #ifndef RECYCLERVIEWPOOL_H
 #define RECYCLERVIEWPOOL_H
 

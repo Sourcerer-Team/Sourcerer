@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Two working copies of one file:// repository: updates, out-of-date
 // commits, branches and externals changed elsewhere, relocation, and the
 // library and the 1.14 command line client on the same working copy. See

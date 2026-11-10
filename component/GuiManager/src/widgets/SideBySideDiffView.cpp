@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/SideBySideDiffView.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "QScintillaLexerFactory.h"

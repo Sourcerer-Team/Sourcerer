@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "widgets/SshPassphraseOverlayWidget.h"
 #include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaqueLabel.h"

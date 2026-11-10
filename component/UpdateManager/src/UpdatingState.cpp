@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "UpdatingState.h"
 #include "UpdateManagerEvent.h"
 #include "UpdateManagerFsm.h"

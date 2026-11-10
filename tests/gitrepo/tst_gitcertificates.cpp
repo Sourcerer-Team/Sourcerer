@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 // Tests for the server certificate policy of lib/GitRepo
 // (GitRepoCertificates.cpp): certificates libgit2 trusts are accepted, a
 // self-signed TLS certificate or an unknown SSH host key is trusted on first

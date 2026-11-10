@@ -1,3 +1,6 @@
+// MIT License
+// Copyright (c) 2026 Sourcerer
+
 #include "Fsm/NewsTrackerFsm.h"
 #include "Fsm/NewsTrackerEvent.h"
 #include "Fsm/TrackingState.h"
