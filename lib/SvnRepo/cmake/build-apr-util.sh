@@ -38,7 +38,13 @@ CPPFLAGS="${CPPFLAGS} -I${expat_src_dir}/lib"
 LDFLAGS="${LDFLAGS} -L${expat_build_dir}"
 export CPPFLAGS
 export LDFLAGS
-sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir" --with-apr="$apr_install_dir"
+# Nothing uses apr-util's optional database/LDAP drivers. Left on, configure
+# builds them as loadable modules for whatever it finds on the host (e.g.
+# macOS's system SQLite), and those modules fail to link on macOS.
+sh "$work_dir/configure" --enable-shared --disable-static --prefix="$install_dir" --with-apr="$apr_install_dir" \
+    --without-pgsql --without-mysql --without-sqlite3 --without-sqlite2 \
+    --without-oracle --without-odbc --without-ldap \
+    --without-berkeley-db --without-gdbm --without-ndbm
 perl -pi -e "s|^INCLUDES = |INCLUDES = -I${expat_src_dir}/lib |" "$build_dir/Makefile"
 perl -pi -e "s|^APRUTIL_EXPORT_INCLUDES=\"\"|APRUTIL_EXPORT_INCLUDES=\"-I${expat_src_dir}/lib\"|" "$build_dir/export_vars.sh"
 
